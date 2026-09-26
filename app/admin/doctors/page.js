@@ -1,4 +1,5 @@
 'use client';
+
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from '@/context/ThemeContext';
@@ -192,7 +193,10 @@ export default function AdminDoctorsPage() {
     const localUser = localStorage.getItem('user');
     const currentUser = sessionUser ? JSON.parse(sessionUser) : (localUser ? JSON.parse(localUser) : {});
     const uName = currentUser.username ? currentUser.username.toLocaleUpperCase('tr-TR') : '';
-    const hasPermission = currentUser.role === 'YÖNETİCİ' || uName === 'ADMIN' || currentUser.permissions?.canEditDoctors;
+    
+    // 🛡️ فحص شامل للصلاحيات
+    const isGlobalAdmin = uName === 'ADMIN' || currentUser.role === 'YÖNETİCİ' || currentUser.role === 'ADMIN';
+    const hasPermission = isGlobalAdmin || currentUser.permissions?.canEditDoctors || currentUser.permissions?.canEditSchedule;
 
     if (!hasPermission) {
       router.push('/dashboard');
@@ -484,7 +488,6 @@ export default function AdminDoctorsPage() {
         </button>
       </div>
 
-      {/* 📁 ANA KLASÖR GÖRÜNÜMÜ */}
       {!openedFolder && (
         <div className="flex flex-wrap justify-start items-start gap-4 sm:gap-5 py-4 animate-fadeIn">
           
@@ -535,7 +538,6 @@ export default function AdminDoctorsPage() {
         </div>
       )}
 
-      {/* 📌 KLASÖR 1: BÖLÜM VE DOKTOR EKLE */}
       {openedFolder === 'ADD_FOLDER' && (
         <div className="space-y-5 animate-fadeIn">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -650,7 +652,6 @@ export default function AdminDoctorsPage() {
         </div>
       )}
 
-      {/* 📌 KLASÖR 2: EKLENEN BÖLÜM VE DOKTORLAR */}
       {openedFolder === 'LIST_FOLDER' && (
         <div className="space-y-4 animate-fadeIn">
           <div className={`p-4 sm:p-5 rounded-2xl border-2 shadow-md ${
@@ -797,7 +798,6 @@ export default function AdminDoctorsPage() {
         </div>
       )}
 
-      {/* ✏️ DÜZENLEME MODALI */}
       {editingDoctor && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs p-4">
           <div className={`w-full max-w-md rounded-2xl border-2 p-5 shadow-2xl ${
@@ -869,7 +869,6 @@ export default function AdminDoctorsPage() {
         </div>
       )}
 
-      {/* 🗑️ BÖLÜM SİLME MODALI */}
       {deletingDept && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-xs p-4">
           <div className={`w-full max-w-xs rounded-2xl border-2 p-5 shadow-2xl text-center ${
@@ -887,7 +886,6 @@ export default function AdminDoctorsPage() {
         </div>
       )}
 
-      {/* 🗑️ DOKTOR SİLME MODALI */}
       {deletingDoc && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-xs p-4">
           <div className={`w-full max-w-xs rounded-2xl border-2 p-5 shadow-2xl text-center ${
@@ -905,7 +903,6 @@ export default function AdminDoctorsPage() {
         </div>
       )}
 
-      {/* 📅 DOKTOR AYLIK TAKVİM PENCERESİ MODALI */}
       {showScheduleModal && selectedDoctor && (
         <>
           {!isMinimized && (
@@ -1125,7 +1122,6 @@ export default function AdminDoctorsPage() {
         </>
       )}
 
-      {/* 🔔 BİLDİRİM / TOAST */}
       {showToast && (
         <div className="fixed bottom-5 right-5 z-[200]">
           <div className="bg-emerald-600 text-white px-4 py-2.5 rounded-xl shadow-xl border-2 border-emerald-400 text-xs font-black flex items-center gap-2 animate-fadeIn">

@@ -128,9 +128,10 @@ const getDateTextColor = (status, dayName, isPast, isDarkMode) => {
   return textColors[status] || (isDarkMode ? 'text-slate-100 font-black' : 'text-slate-950 font-black');
 };
 
-export default function PublicScheduleTable() {   
+export default function PublicScheduleTable({ onEditDoctor, onDeleteDoctor }) {   
   const { doctors: rawDoctors } = useData(); 
 
+  const [currentUser, setCurrentUser] = useState(null);
   const [filter, setFilter] = useState('HEPSİ');   
   const [searchTerm, setSearchTerm] = useState('');   
   const [sortBy, setSortBy] = useState('NEWEST');   
@@ -181,12 +182,31 @@ export default function PublicScheduleTable() {
   today.current.setHours(0, 0, 0, 0);
   const todayFormattedStr = `${String(today.current.getDate()).padStart(2, '0')}.${String(today.current.getMonth() + 1).padStart(2, '0')}.${today.current.getFullYear()}`;
 
-  // 🔄 دالة الرجوع الذكي إلى Dashboard للمسجلين وإلى الرئيسية للزوار
-  const handleGoBack = () => {
+  // 🔒 جلب بيانات المستخدم للجلسة
+  useEffect(() => {
     const sessionUser = sessionStorage.getItem('user');
     const localUser = localStorage.getItem('user');
     const activeUser = sessionUser ? JSON.parse(sessionUser) : (localUser ? JSON.parse(localUser) : null);
+    if (activeUser) {
+      setCurrentUser(activeUser);
+    }
+  }, []);
 
+  // 🛡️ فحص قاطع ومباشر للصلاحيات مع الجلسة المخزنة
+  const activeUser = currentUser || (typeof window !== 'undefined' ? JSON.parse(sessionStorage.getItem('user') || localStorage.getItem('user') || 'null') : null);
+  
+  const uName = activeUser?.username ? activeUser.username.toLocaleUpperCase('tr-TR') : '';
+  const uRole = activeUser?.role ? activeUser.role.toLocaleUpperCase('tr-TR') : '';
+
+  const isGlobalAdmin = uName === 'ADMIN' || uRole === 'YÖNETİCİ' || uRole === 'ADMIN';
+
+  const canEdit = isGlobalAdmin || Boolean(activeUser?.permissions?.canEditDoctors) || Boolean(activeUser?.permissions?.canEditSchedule);
+  const canDelete = isGlobalAdmin || Boolean(activeUser?.permissions?.canDeleteDoctors) || Boolean(activeUser?.permissions?.canDeleteSchedule);
+  
+  const showActionsColumn = canEdit || canDelete;
+
+  // 🔄 دالة الرجوع الذكي إلى Dashboard للمسجلين وإلى الرئيسية للزوار
+  const handleGoBack = () => {
     if (activeUser && activeUser.username) {
       router.push('/dashboard');
     } else {
@@ -341,7 +361,7 @@ export default function PublicScheduleTable() {
         category: reportCategory,
         description: reportText.trim(),
         createdAt: new Date().toISOString(),
-        username: 'MİSAFİR (ZİYARETÇİ)'
+        username: activeUser?.username || 'MİSAFİR (ZİYARETÇİ)'
       });
       setReportSuccessMsg(true);
 
@@ -420,7 +440,7 @@ export default function PublicScheduleTable() {
           
           <div className="flex flex-row items-center justify-between gap-3 w-full flex-wrap sm:flex-nowrap">                          
             
-            {/* ⬅️ زر الرجوع الذكي المحدث */}
+            {/* ⬅️ زر الرجوع الذكي */}
             <div className="flex items-center shrink-0">
               <button
                 onClick={handleGoBack}
@@ -674,7 +694,7 @@ export default function PublicScheduleTable() {
           </div>         
         </div>         
 
-        {/* 📊 ZİYARETÇİ TABLOSU */}         
+        {/* 📊 TABLO GÖRÜNÜMÜ */}         
         <div className={`w-full rounded-3xl overflow-hidden shadow-2xl border ${           
           isDarkMode 
             ? 'bg-slate-900 border-slate-800' 
@@ -705,6 +725,13 @@ export default function PublicScheduleTable() {
                     <th className={`${getRowPaddingClass()} font-black text-center tracking-wide`}>
                       DURUM
                     </th>                   
+                  )}
+
+                  {/* 🎯 عمود العمليات المباشر */}
+                  {showActionsColumn && (
+                    <th className={`${getRowPaddingClass()} font-black text-center tracking-wide border-l border-slate-300 dark:border-slate-800/80`}>
+                      İŞLEMLER
+                    </th>
                   )}
                 </tr>               
               </thead>               
@@ -749,12 +776,53 @@ export default function PublicScheduleTable() {
                             </div>
                           </td>                       
                         )}
+
+                        {/* 🔒 عرض أزرار التعديل والحذف فوراً للمصرح لهم */}
+                        {showActionsColumn && (
+                          <td className={`${getRowPaddingClass()} text-center border-l border-slate-200 dark:border-slate-800/80`} onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-center gap-2">
+                              {canEdit && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (onEditDoctor) {
+                                      onEditDoctor(doc);
+                                    } else {
+                                      router.push(`/admin/doctors?editId=${doc.id}`);
+                                    }
+                                  }}
+                                  className="px-3 py-1.5 text-xs font-black rounded-xl bg-amber-500 text-slate-950 hover:bg-amber-400 shadow-md cursor-pointer transition-all"
+                                  title="Düzenle"
+                                >
+                                  DÜZENLE
+                                </button>
+                              )}
+
+                              {canDelete && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (onDeleteDoctor) {
+                                      onDeleteDoctor(doc.id);
+                                    }
+                                  }}
+                                  className="px-3 py-1.5 text-xs font-black rounded-xl bg-rose-600 text-white hover:bg-rose-500 shadow-md cursor-pointer transition-all"
+                                  title="Sil"
+                                >
+                                  SİL
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        )}
                       </tr>                   
                     );
                   })                 
                 ) : (                   
                   <tr>                     
-                    <td colSpan={3} className="p-12 text-center text-slate-400 font-black border-dashed text-base">                         
+                    <td colSpan={showActionsColumn ? 4 : 3} className="p-12 text-center text-slate-400 font-black border-dashed text-base">                         
                       Arama kriterlerinize uygun doktor kaydı bulunamadı.                     
                     </td>                   
                   </tr>                 
@@ -960,14 +1028,48 @@ export default function PublicScheduleTable() {
                 }`}
               >                 
                 <div className={`p-4 sm:p-5 border-b-2 flex justify-between items-center select-none ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'}`}>                   
-                  <div>                     
-                    <h3 className="text-base sm:text-xl font-black text-emerald-500 dark:text-emerald-400 uppercase">{selectedDoctorDetail.name}</h3>                     
-                    <p className="text-xs sm:text-sm font-black text-slate-500 dark:text-slate-400 mt-0.5">                       
-                      BİRİM: <span className="text-emerald-600 dark:text-emerald-400 font-black">{selectedDoctorDetail.clinic}</span>                  
-                    </p>                   
+                  <div className="flex items-center gap-3">                     
+                    <div>
+                      <h3 className="text-base sm:text-xl font-black text-emerald-500 dark:text-emerald-400 uppercase">{selectedDoctorDetail.name}</h3>                     
+                      <p className="text-xs sm:text-sm font-black text-slate-500 dark:text-slate-400 mt-0.5">                       
+                        BİRİM: <span className="text-emerald-600 dark:text-emerald-400 font-black">{selectedDoctorDetail.clinic}</span>                  
+                      </p>
+                    </div>                   
                   </div>                   
                   
-                  <div className="flex items-center gap-1.5 font-mono">                     
+                  <div className="flex items-center gap-2 font-mono">
+                    {canEdit && (
+                      <button
+                        onClick={() => {
+                          const docToEdit = selectedDoctorDetail;
+                          setSelectedDoctorDetail(null);
+                          if (onEditDoctor) {
+                            onEditDoctor(docToEdit);
+                          } else {
+                            router.push(`/admin/doctors?editId=${docToEdit.id}`);
+                          }
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-amber-500 text-slate-950 font-black text-xs cursor-pointer hover:bg-amber-400 shadow-md"
+                      >
+                        DÜZENLE
+                      </button>
+                    )}
+
+                    {canDelete && (
+                      <button
+                        onClick={() => {
+                          const docId = selectedDoctorDetail.id;
+                          setSelectedDoctorDetail(null);
+                          if (onDeleteDoctor) {
+                            onDeleteDoctor(docId);
+                          }
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-rose-600 text-white font-black text-xs cursor-pointer hover:bg-rose-500 shadow-md"
+                      >
+                        SİL
+                      </button>
+                    )}
+
                     <button 
                       onClick={() => setIsMinimized(true)} 
                       className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-500 font-black text-base flex items-center justify-center cursor-pointer" 

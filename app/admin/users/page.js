@@ -91,9 +91,12 @@ const ModernIcons = {
   )
 };
 
+// 🛡️ القيمة الافتراضية الشاملة للصلاحيات
 const DEFAULT_PERMISSIONS = {
   canEditDoctors: false,
   canDeleteDoctors: false,
+  canEditSchedule: false,
+  canDeleteSchedule: false,
   canChangeStatus: false,
   canManageIssues: false,
   canViewReports: false,
@@ -166,9 +169,7 @@ export default function AdminUsersPage() {
     };
   }, [router]);
 
-  // 🛡️ تصفية المستخدمين لمنع تكرار Keys وللبحث بنفس الوقت
   const filteredUsers = useMemo(() => {
-    // إزالة أي عناصر مكررة تحمل نفس ID
     const uniqueMap = new Map();
     users.forEach(u => {
       if (u.id) uniqueMap.set(u.id, u);
@@ -182,7 +183,7 @@ export default function AdminUsersPage() {
     );
   }, [users, searchTerm]);
 
-  // Yeni Kullanıcı Ekleme
+  // إضافة مستخدم جديد مع الصلاحيات المحددة
   const handleAddUser = async (e) => {
     e.preventDefault();
     if (!username || !surname || !password) {
@@ -216,7 +217,7 @@ export default function AdminUsersPage() {
     }
   };
 
-  // Şifre Güncelleme
+  // تغيير كلمة المرور
   const handleUpdatePassword = async () => {
     if (!newPasswordInput || newPasswordInput.trim().length < 3) {
       alert('Lütfen geçerli bir şifre girin!');
@@ -236,7 +237,7 @@ export default function AdminUsersPage() {
     }
   };
 
-  // Yönetici Yanıtı Gönderme
+  // إرسال رد الإدارة
   const handleSendAdminReply = async (issueId) => {
     const text = adminReplyText[issueId];
     if (!text || !text.trim()) return;
@@ -254,7 +255,7 @@ export default function AdminUsersPage() {
     }
   };
 
-  // Bildirim Silme
+  // حذف إشعار
   const handleDeleteIssue = async (issueId) => {
     if (!confirm('Bu bildirimi silmek istediğinizden emin misiniz?')) return;
     try {
@@ -266,30 +267,46 @@ export default function AdminUsersPage() {
     }
   };
 
-  // 🔑 تحديث الصلاحيات بشكل سليم في Firestore
+  // 🔑 تحديث الصلاحيات المباشر والمزامن مع الجلسة
   const handleTogglePermission = async (userId, permKey) => {
     const targetUser = users.find(u => u.id === userId);
     if (!targetUser) return;
 
     const currentPerms = targetUser.permissions || DEFAULT_PERMISSIONS;
-    const updatedPerms = { ...currentPerms, [permKey]: !currentPerms[permKey] };
+    const newToggleValue = !currentPerms[permKey];
 
-    // تحديث الشاشة فوراً للأدمن
+    // ربط متبادل للصلاحيات (تحديث كلاً من canEditDoctors و canEditSchedule معاً للحذف والتعديل)
+    const updatedPerms = { ...currentPerms, [permKey]: newToggleValue };
+    if (permKey === 'canEditDoctors') updatedPerms.canEditSchedule = newToggleValue;
+    if (permKey === 'canDeleteDoctors') updatedPerms.canDeleteSchedule = newToggleValue;
+
+    // 1. تحديث واجهة الأدمن فوراً
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, permissions: updatedPerms } : u));
     if (selectedUserForDetails && selectedUserForDetails.id === userId) {
       setSelectedUserForDetails(prev => ({ ...prev, permissions: updatedPerms }));
     }
 
     try {
-      // إرسال كائن الإذن بالكامل إلى Firestore
+      // 2. تحديث Firestore بالكامل
       await updateDoc(doc(db, 'users', userId), { permissions: updatedPerms });
+
+      // 3. تحديث الجلسة المحلية تلقائياً إذا كان المستخدم المعدل هو المستخدم الحالي المسجل
+      const activeSessionUser = JSON.parse(sessionStorage.getItem('user') || localStorage.getItem('user') || '{}');
+      if (activeSessionUser && (activeSessionUser.id === userId || activeSessionUser.username === targetUser.username)) {
+        activeSessionUser.permissions = updatedPerms;
+        sessionStorage.setItem('user', JSON.stringify(activeSessionUser));
+        localStorage.setItem('user', JSON.stringify(activeSessionUser));
+      }
+
+      setUserMsg(`Yetki güncellendi: ${targetUser.username}`);
+      setTimeout(() => setUserMsg(''), 3000);
     } catch (e) {
       console.error('İzin hatası:', e);
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, permissions: currentPerms } : u));
     }
   };
 
-  // Kullanıcı Silme
+  // حذف مستخدم
   const handleDeleteUser = async (id) => {
     if (!confirm('Bu kullanıcıyı silmek istediğinizden emin misiniz?')) return;
     try {
@@ -460,7 +477,8 @@ export default function AdminUsersPage() {
                 {filteredUsers.length > 0 ? (
                   filteredUsers.map((u, idx) => {
                     const userPerms = u.permissions || DEFAULT_PERMISSIONS;
-                    const hasActivePerms = Object.values(userPerms).some(Boolean);
+                    const canEdit = userPerms.canEditDoctors || userPerms.canEditSchedule;
+                    const canDelete = userPerms.canDeleteDoctors || userPerms.canDeleteSchedule;
 
                     return (
                       <tr 
@@ -507,44 +525,30 @@ export default function AdminUsersPage() {
 
                         <td className="p-4">
                           <div className="flex flex-wrap gap-1.5">
-                            {userPerms.canEditDoctors && (
+                            {canEdit && (
                               <span className={`text-[10px] font-black border px-2 py-0.5 rounded-md ${
-                                isDarkMode ? 'bg-sky-500/20 text-sky-300 border-sky-500/30' : 'bg-sky-100 text-sky-800 border-sky-300'
+                                isDarkMode ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' : 'bg-amber-100 text-amber-800 border-amber-300'
                               }`}>
-                                Doktor Düzenleme
+                                ✏️ Düzenleme Yetkisi
                               </span>
                             )}
-                            {userPerms.canDeleteDoctors && (
+                            {canDelete && (
                               <span className={`text-[10px] font-black border px-2 py-0.5 rounded-md ${
                                 isDarkMode ? 'bg-rose-500/20 text-rose-300 border-rose-500/30' : 'bg-rose-100 text-rose-800 border-rose-300'
                               }`}>
-                                Doktor Silme
+                                🗑️ Silme Yetkisi
                               </span>
                             )}
                             {userPerms.canChangeStatus && (
                               <span className={`text-[10px] font-black border px-2 py-0.5 rounded-md ${
-                                isDarkMode ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' : 'bg-amber-100 text-amber-800 border-amber-300'
+                                isDarkMode ? 'bg-sky-500/20 text-sky-300 border-sky-500/30' : 'bg-sky-100 text-sky-800 border-sky-300'
                               }`}>
                                 Durum Değiştirme
                               </span>
                             )}
-                            {userPerms.canManageIssues && (
-                              <span className={`text-[10px] font-black border px-2 py-0.5 rounded-md ${
-                                isDarkMode ? 'bg-purple-500/20 text-purple-300 border-purple-500/30' : 'bg-purple-100 text-purple-800 border-purple-300'
-                              }`}>
-                                Bildirim Yönetimi
-                              </span>
-                            )}
-                            {userPerms.canViewReports && (
-                              <span className={`text-[10px] font-black border px-2 py-0.5 rounded-md ${
-                                isDarkMode ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30' : 'bg-indigo-100 text-indigo-800 border-indigo-300'
-                              }`}>
-                                Rapor Görüntüleme
-                              </span>
-                            )}
-                            {!hasActivePerms && (
+                            {!canEdit && !canDelete && !userPerms.canChangeStatus && (
                               <span className={`text-[11px] font-bold italic ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
-                                Standart Erişim
+                                Standart (Sadece Görüntüleme)
                               </span>
                             )}
                           </div>
@@ -561,7 +565,7 @@ export default function AdminUsersPage() {
                               }`}
                             >
                               <ModernIcons.Settings />
-                              <span>Detaylar</span>
+                              <span>İzinler</span>
                             </button>
 
                             <button
@@ -863,11 +867,11 @@ export default function AdminUsersPage() {
 
               <div className="space-y-3">
                 {[
-                  { key: 'canEditDoctors', label: 'Doktor Düzenleme / Ekleme' },
-                  { key: 'canDeleteDoctors', label: 'Doktor Silme' },
-                  { key: 'canChangeStatus', label: 'Doktor Durumu Değiştirme' },
-                  { key: 'canManageIssues', label: 'Bildirim Yönetimi' },
-                  { key: 'canViewReports', label: 'Raporları Görüntüleme' },
+                  { key: 'canEditDoctors', label: '✏️ Doktor / Çizelge Düzenleme Yetkisi' },
+                  { key: 'canDeleteDoctors', label: '🗑️ Doktor / Kayıt Silme Yetkisi' },
+                  { key: 'canChangeStatus', label: '🔄 Doktor Durumu Değiştirme' },
+                  { key: 'canManageIssues', label: '🔔 Bildirim Yönetimi' },
+                  { key: 'canViewReports', label: '📊 Rapor Görüntüleme' },
                 ].map((perm) => {
                   const isChecked = selectedUserForDetails.permissions?.[perm.key] || false;
                   return (

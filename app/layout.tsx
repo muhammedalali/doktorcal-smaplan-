@@ -12,36 +12,30 @@ interface TabItem {
   path: string;
 }
 
-// 📌 شريط التبويبات السفلي المخصص للصفحات الرئيسية فقط (دون النوافذ المنبثقة)
 function GlobalBottomTabBar() {
   const router = useRouter();
   const pathname = usePathname();
   const { isDarkMode } = useTheme();
 
-  // قائمة التبويبات المفتوحة تلقائياً
   const [openTabs, setOpenTabs] = useState<TabItem[]>([
     { id: 'home', title: 'anasayfa', path: '/dashboard' }
   ]);
 
-  // تحديث قائمة التبويبات واستثناء النوافذ المنبثقة/الصفحات الفرعية
   useEffect(() => {
-    if (pathname === '/' || pathname === '/login') return;
+    // 🛡️ حظر إظهار الشريط السفلي في الصفحات العامة وصفحة الجدول للزوار
+    if (pathname === '/' || pathname === '/login' || pathname === '/schedule') return;
 
     let tabTitle = '';
 
-    // 🎯 تحديد الصفحات المسموح لها فقط بإنشاء تبويب سفلي:
     if (pathname === '/dashboard') {
       tabTitle = 'anasayfa';
     } else if (pathname === '/admin/doctors') {
       tabTitle = 'Bölüm ve Doktor yönetimi';
     } else if (pathname === '/admin/users') {
       tabTitle = 'Kullanıcı Yönetimi';
-    } else if (pathname === '/schedule') {
-      tabTitle = 'Doktor Çalışma Planları';
     } else if (pathname === '/phonebook') {
       tabTitle = 'Telefon Rehberi';
     } else {
-      // ❌ استثناء النوافذ المنبثقة مثل /report و /notifications و /profile
       return;
     }
 
@@ -54,9 +48,9 @@ function GlobalBottomTabBar() {
     });
   }, [pathname]);
 
-  if (pathname === '/' || pathname === '/login') return null;
+  // 🔒 عدم عرض الشريط في الصفحات العامة مطلقاً
+  if (pathname === '/' || pathname === '/login' || pathname === '/schedule') return null;
 
-  // دالة إغلاق تبويب معين
   const handleCloseTab = (e: React.MouseEvent, tabPath: string) => {
     e.stopPropagation();
 
@@ -115,7 +109,6 @@ function GlobalBottomTabBar() {
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  // 🎯 ضبط عنوان التبويب في المتصفح إلى Poliklinik Çalışma Planı
   useEffect(() => {
     document.title = "Poliklinik Çalışma Planı";
   }, []);

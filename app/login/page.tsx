@@ -4,9 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from '@/context/ThemeContext';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, query, where, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot } from 'firebase/firestore';
 
-// مكون تخطيط القلب العصري والمنتظم بدون أي مربع (Seamless Transparent Canvas)
 function SeamlessECGCanvas({ isError = false }: { isError?: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -141,11 +140,9 @@ export default function LoginPage() {
       }
     }
 
-    // 🔄 الاستماع المباشر (Real-time Listener) من Firebase Firestore
     const unsubscribeFirestore = onSnapshot(collection(db, 'users'), (snapshot) => {
       const firestoreUsers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-      // دمج حساب ADMIN الافتراضي مع مستخدمي السيرفر
       const adminExists = firestoreUsers.some((u: any) => u.username?.toLowerCase() === 'admin');
       let combined = firestoreUsers;
       if (!adminExists) {
@@ -156,7 +153,13 @@ export default function LoginPage() {
             surname: 'YÖNETİCİ', 
             phone: '05555555555',
             password: 'admin1233', 
-            role: 'YÖNETİCİ' 
+            role: 'YÖNETİCİ',
+            permissions: {
+              canEditDoctors: true,
+              canDeleteDoctors: true,
+              canEditSchedule: true,
+              canDeleteSchedule: true
+            }
           },
           ...firestoreUsers
         ];
@@ -212,11 +215,20 @@ export default function LoginPage() {
 
     const cleanInputUsername = username.trim().toLocaleUpperCase('tr-TR');
 
-    let foundUser = null;
+    let foundUser: any = null;
     if ((cleanInputUsername === 'ADMIN' || cleanInputUsername === 'ADMİN') && password === 'admin1233') {
-      foundUser = { username: 'ADMIN', fullName: 'YÖNETİCİ ADMİN', role: 'YÖNETİCİ' };
+      foundUser = { 
+        username: 'ADMIN', 
+        fullName: 'YÖNETİCİ ADMİN', 
+        role: 'YÖNETİCİ',
+        permissions: {
+          canEditDoctors: true,
+          canDeleteDoctors: true,
+          canEditSchedule: true,
+          canDeleteSchedule: true
+        }
+      };
     } else {
-      // البحث أولاً في الـ State المحمل من Firebase
       foundUser = allUsers.find(
         (u: any) => u.username?.toLocaleUpperCase('tr-TR') === cleanInputUsername && u.password === password
       );
@@ -227,12 +239,22 @@ export default function LoginPage() {
       setFailedAttempts(0);
       const isUserAdmin = foundUser.role === 'YÖNETİCİ' || foundUser.username === 'ADMIN' || foundUser.username === 'admin';
       
+      // 🛡️ التأكد من إسناد كائن الصلاحيات الافتراضي إذا لم يتوفر
+      if (!foundUser.permissions) {
+        foundUser.permissions = {
+          canEditDoctors: isUserAdmin,
+          canDeleteDoctors: isUserAdmin,
+          canEditSchedule: isUserAdmin,
+          canDeleteSchedule: isUserAdmin
+        };
+      }
+
       setLoggedInUser(foundUser.fullName || `${foundUser.username} ${foundUser.surname || ''}`);
       setIsAdminUser(isUserAdmin);
       setShowSuccessToast(true);
       setLoadingProgress(0);
 
-      // حفظ بيانات الدخول والجلسة
+      // حفظ بيانات الدخول والجلسة مع الصلاحيات كاملة
       sessionStorage.setItem('user', JSON.stringify(foundUser));
       localStorage.setItem('user', JSON.stringify(foundUser));
 
@@ -309,7 +331,6 @@ export default function LoginPage() {
       isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'
     }`}>
 
-      {/* Modern Theme Toggle Button */}
       <button
         onClick={toggleTheme}
         type="button"
@@ -335,7 +356,6 @@ export default function LoginPage() {
         </span>
       </button>
 
-      {/* Floating Interactive Loader Overlay */}
       {showSuccessToast && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fadeIn">
           <div className="flex flex-col items-center text-center gap-6 max-w-sm w-full relative z-10">
@@ -389,7 +409,6 @@ export default function LoginPage() {
         </div>
       )}
 
-      {/* Main Login Card */}
       <div className={`max-w-md w-full border-2 rounded-3xl p-8 shadow-2xl transition-all duration-300 ${
         isDarkMode ? 'bg-slate-900/90 border-slate-800 shadow-black/50' : 'bg-white border-slate-200/80 shadow-slate-200/80'
       }`}>
