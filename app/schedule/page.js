@@ -3,15 +3,17 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import PublicScheduleTable from './components/PublicScheduleTable';
+import AdminScheduleTable from './components/AdminScheduleTable';
 import { db } from '@/lib/firebase';
 import { doc, deleteDoc } from 'firebase/firestore';
 
 export default function SchedulePage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // جلب بيانات المستخدم المسجل
+    // جلب بيانات المستخدم المسجل إن وجدت
     const sessionUser = sessionStorage.getItem('user');
     const localUser = localStorage.getItem('user');
     const activeUser = sessionUser ? JSON.parse(sessionUser) : (localUser ? JSON.parse(localUser) : null);
@@ -19,6 +21,7 @@ export default function SchedulePage() {
     if (activeUser) {
       setCurrentUser(activeUser);
     }
+    setIsLoading(false);
 
     // اعتراض زر المتصفح للرجوع الذكي
     window.history.pushState(null, '', window.location.href);
@@ -39,17 +42,8 @@ export default function SchedulePage() {
     };
   }, [router]);
 
-  // 🛡️ دالة الحذف الآمنة مع التحقق الخلفي من الصلاحية
+  // 🗑️ دالة الحذف الخاصة بالأدمن
   const handleDeleteDoctor = async (doctorId) => {
-    const uName = currentUser?.username ? currentUser.username.toLocaleUpperCase('tr-TR') : '';
-    const isGlobalAdmin = uName === 'ADMIN' || currentUser?.role === 'YÖNETİCİ' || currentUser?.role === 'ADMIN';
-    const canDelete = isGlobalAdmin || currentUser?.permissions?.canDeleteDoctors || currentUser?.permissions?.canDeleteSchedule;
-
-    if (!canDelete) {
-      alert('Bu işlemi yapmak için yetkiniz bulunmamaktadır!');
-      return;
-    }
-
     if (window.confirm('Bu doktor kaydını silmek istediğinize emin misiniz?')) {
       try {
         await deleteDoc(doc(db, 'doctors', doctorId));
@@ -61,25 +55,25 @@ export default function SchedulePage() {
     }
   };
 
-  // ✏️ دالة التعديل والتوجيه للوحة التعديل
+  // ✏️ دالة التعديل الخاصة بالأدمن
   const handleEditDoctor = (doctor) => {
-    const uName = currentUser?.username ? currentUser.username.toLocaleUpperCase('tr-TR') : '';
-    const isGlobalAdmin = uName === 'ADMIN' || currentUser?.role === 'YÖNETİCİ' || currentUser?.role === 'ADMIN';
-    const canEdit = isGlobalAdmin || currentUser?.permissions?.canEditDoctors || currentUser?.permissions?.canEditSchedule;
-
-    if (!canEdit) {
-      alert('Bu işlemi yapmak için yetkiniz bulunmamaktadır!');
-      return;
-    }
-
-    // التوجيه إلى صفحة إدارة الطبيب للتعديل
     router.push(`/admin/doctors?editId=${doctor.id}`);
   };
 
-  return (
-    <PublicScheduleTable 
-      onEditDoctor={handleEditDoctor}
-      onDeleteDoctor={handleDeleteDoctor}
-    />
-  );
+  if (isLoading) {
+    return null; // أو يمكنك وضع مؤشر تحضير بسيط
+  }
+
+  // 🔒 إذا كان المستخدم مسجلاً (أدمن/موظف)، نعرض جدول الأدمن مع خيارات التعديل والحذف
+  if (currentUser) {
+    return (
+      <AdminScheduleTable 
+        onEditDoctor={handleEditDoctor}
+        onDeleteDoctor={handleDeleteDoctor}
+      />
+    );
+  }
+
+  // 🌐 للزوار العاديين، نعرض الجدول العام النظيف بدون أي أزرار تعديل أو حذف
+  return <PublicScheduleTable />;
 }

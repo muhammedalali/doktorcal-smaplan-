@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useTheme } from '@/context/ThemeContext'; 
 import { useData } from '@/context/DataContext';
 import { db } from '@/lib/firebase';
-import { addDoc, collection } from 'firebase/firestore';
+import { addDoc, collection, doc, updateDoc } from 'firebase/firestore';
 
 const TURKEY_OFFICIAL_HOLIDAYS_2026 = {   
   '2026-01-01': 'Yılbaşı',
@@ -128,7 +128,7 @@ const getDateTextColor = (status, dayName, isPast, isDarkMode) => {
   return textColors[status] || (isDarkMode ? 'text-slate-100 font-black' : 'text-slate-950 font-black');
 };
 
-export default function PublicScheduleTable({ onEditDoctor, onDeleteDoctor }) {   
+export default function AdminScheduleTable({ onEditDoctor, onDeleteDoctor }) {   
   const { doctors: rawDoctors } = useData(); 
 
   const [currentUser, setCurrentUser] = useState(null);
@@ -143,6 +143,15 @@ export default function PublicScheduleTable({ onEditDoctor, onDeleteDoctor }) {
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const [showMenuDropdown, setShowMenuDropdown] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // ✏️ حالات نافذة التعديل المباشر
+  const [editingDoctor, setEditingDoctor] = useState(null);
+  const [editName, setEditName] = useState('');
+  const [editClinic, setEditClinic] = useState('');
+  const [editRoomNo, setEditRoomNo] = useState('');
+  const [editStatus, setEditStatus] = useState('POLİKLİNİK');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   const [showScrollToTodayTop, setShowScrollToTodayTop] = useState(false);
   const [showScrollToTodayBottom, setShowScrollToTodayBottom] = useState(false);
@@ -155,6 +164,7 @@ export default function PublicScheduleTable({ onEditDoctor, onDeleteDoctor }) {
   const todayRef = useRef(null);   
   const modalBoxRef = useRef(null);
   const modalScrollContainerRef = useRef(null);
+  const searchInputRef = useRef(null);
   
   const filterDropdownRef = useRef(null);
   const sortDropdownRef = useRef(null);
@@ -182,7 +192,6 @@ export default function PublicScheduleTable({ onEditDoctor, onDeleteDoctor }) {
   today.current.setHours(0, 0, 0, 0);
   const todayFormattedStr = `${String(today.current.getDate()).padStart(2, '0')}.${String(today.current.getMonth() + 1).padStart(2, '0')}.${today.current.getFullYear()}`;
 
-  // 🔒 جلب بيانات المستخدم للجلسة
   useEffect(() => {
     const sessionUser = sessionStorage.getItem('user');
     const localUser = localStorage.getItem('user');
@@ -192,9 +201,9 @@ export default function PublicScheduleTable({ onEditDoctor, onDeleteDoctor }) {
     }
   }, []);
 
-  // 🛡️ فحص قاطع ومباشر للصلاحيات مع الجلسة المخزنة
   const activeUser = currentUser || (typeof window !== 'undefined' ? JSON.parse(sessionStorage.getItem('user') || localStorage.getItem('user') || 'null') : null);
-  
+
+  // 🔒 الفحص الديناميكي للصلاحيات
   const uName = activeUser?.username ? activeUser.username.toLocaleUpperCase('tr-TR') : '';
   const uRole = activeUser?.role ? activeUser.role.toLocaleUpperCase('tr-TR') : '';
 
@@ -205,12 +214,32 @@ export default function PublicScheduleTable({ onEditDoctor, onDeleteDoctor }) {
   
   const showActionsColumn = canEdit || canDelete;
 
-  // 🔄 دالة الرجوع الذكي إلى Dashboard للمسجلين وإلى الرئيسية للزوار
   const handleGoBack = () => {
     if (activeUser && activeUser.username) {
       router.push('/dashboard');
     } else {
       router.push('/');
+    }
+  };
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = (e) => {
+    e.currentTarget.blur();
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch((err) => {
+        console.error(`Fullscreen Error: ${err.message}`);
+      });
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      }
     }
   };
 
@@ -231,10 +260,10 @@ export default function PublicScheduleTable({ onEditDoctor, onDeleteDoctor }) {
   }, []);
 
   useEffect(() => {     
-    const isModalActive = showPrintModal || (selectedDoctorDetail && !isMinimized) || showReportModal;     
+    const isModalActive = showPrintModal || (selectedDoctorDetail && !isMinimized) || showReportModal || editingDoctor;     
     document.body.style.overflow = isModalActive ? 'hidden' : 'auto';
     return () => { document.body.style.overflow = 'auto'; };   
-  }, [showPrintModal, selectedDoctorDetail, isMinimized, showReportModal]);   
+  }, [showPrintModal, selectedDoctorDetail, isMinimized, showReportModal, editingDoctor]);   
 
   const scrollToTodayInstant = useCallback(() => {
     if (todayRef.current && modalScrollContainerRef.current) {
@@ -323,11 +352,82 @@ export default function PublicScheduleTable({ onEditDoctor, onDeleteDoctor }) {
     }
   }, [rawDoctors]);
 
+  // 🏢 تجميع الأقسام لاستخدامها في اقتراحات الإدخال
+  const availableClinics = useMemo(() => {
+    const setClinics = new Set(doctors.map(d => d.clinic).filter(Boolean));
+    return Array.from(setClinics).sort((a, b) => a.localeCompare(b, 'tr'));
+  }, [doctors]);
+
   const handleOpenDoctorDetail = (doc) => {     
     setSelectedDoctorDetail(doc);     
     setIsMinimized(false);     
     setIsMaximized(false);     
   };   
+
+  // ✏️ فتح نافذة التعديل المباشر
+  const handleStartDirectEdit = (docItem) => {
+    setEditingDoctor(docItem);
+    setEditName(docItem.name || '');
+    setEditClinic(docItem.clinic || '');
+    setEditRoomNo(docItem.roomNo || docItem.room || '');
+    setEditStatus(getCurrentDayStatus(docItem));
+  };
+
+  // 💾 حفظ التعديل المباشر في Firebase
+  const handleSaveDirectEdit = async (e) => {
+    e.preventDefault();
+    if (!editingDoctor || !editName.trim() || !editClinic.trim()) return;
+
+    setIsSavingEdit(true);
+    try {
+      let updatedDays = editingDoctor.scheduleDays ? [...editingDoctor.scheduleDays] : [];
+      
+      const todayIndex = updatedDays.findIndex(sd => sd.date === todayFormattedStr);
+      if (todayIndex !== -1) {
+        updatedDays[todayIndex] = {
+          ...updatedDays[todayIndex],
+          status: editStatus
+        };
+      }
+
+      const docRef = doc(db, 'doctors', editingDoctor.id);
+      await updateDoc(docRef, {
+        name: editName.trim(),
+        clinic: editClinic.trim(),
+        roomNo: editRoomNo.trim(),
+        status: editStatus,
+        scheduleDays: updatedDays
+      });
+
+      // تحديث البيانات محلياً
+      setDoctors(prev => prev.map(d => d.id === editingDoctor.id ? {
+        ...d,
+        name: editName.trim(),
+        clinic: editClinic.trim(),
+        roomNo: editRoomNo.trim(),
+        status: editStatus,
+        scheduleDays: updatedDays
+      } : d));
+
+      if (selectedDoctorDetail && selectedDoctorDetail.id === editingDoctor.id) {
+        setSelectedDoctorDetail({
+          ...selectedDoctorDetail,
+          name: editName.trim(),
+          clinic: editClinic.trim(),
+          roomNo: editRoomNo.trim(),
+          status: editStatus,
+          scheduleDays: updatedDays
+        });
+      }
+
+      setEditingDoctor(null);
+    } catch (err) {
+      console.error('Güncelleme sırasında hata:', err);
+      alert('Güncelleme yapılırken bir hata oluştu.');
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
 
   const handleSortChange = (newSort) => {     
     setSortBy(newSort);     
@@ -376,10 +476,10 @@ export default function PublicScheduleTable({ onEditDoctor, onDeleteDoctor }) {
   };
 
   const exportToExcel = () => {     
-    let tableCSV = 'BİRİM;DOKTOR ADI SOYADI;DURUM\n';     
-    filteredAndSortedDoctors.forEach((doc) => {       
+    let tableCSV = 'NO;BİRİM;DOKTOR ADI SOYADI;DURUM\n';     
+    filteredAndSortedDoctors.forEach((doc, idx) => {       
       const currentStatus = getCurrentDayStatus(doc);
-      tableCSV += `"${doc.clinic}";"${doc.name}";"${currentStatus}"\n`;     
+      tableCSV += `"${idx + 1}";"${doc.clinic}";"${doc.name}";"${currentStatus}"\n`;     
     });     
     const blob = new Blob(['\uFEFF' + tableCSV], { type: 'text/csv;charset=utf-8;' });     
     const url = URL.createObjectURL(blob);     
@@ -390,9 +490,9 @@ export default function PublicScheduleTable({ onEditDoctor, onDeleteDoctor }) {
   };
 
   const getRowPaddingClass = () => {
-    if (tableSettings.rowPadding === 'compact') return 'py-2 px-4';
-    if (tableSettings.rowPadding === 'spacious') return 'py-4.5 px-6';
-    return 'py-3.5 px-5';
+    if (tableSettings.rowPadding === 'compact') return 'py-2 px-3 sm:px-4';
+    if (tableSettings.rowPadding === 'spacious') return 'py-3.5 px-5 sm:px-6';
+    return 'py-2.5 px-4 sm:px-5';
   };
 
   const statusFilterList = [
@@ -418,7 +518,7 @@ export default function PublicScheduleTable({ onEditDoctor, onDeleteDoctor }) {
   };
 
   return (     
-    <div dir="ltr" style={{ zoom: `${zoomScale}%` }} className={`min-h-screen p-2 sm:p-4 lg:p-6 relative ${selectedFont} ${isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'}`}>              
+    <div dir="ltr" style={{ zoom: `${zoomScale}%` }} className={`min-h-screen relative pt-[48px] pb-0 p-0 w-full max-w-[100vw] overflow-x-hidden ${selectedFont} ${isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'}`}>              
       
       {/* 🖨️ PRINT STYLES */}
       <style jsx global>{`         
@@ -429,307 +529,325 @@ export default function PublicScheduleTable({ onEditDoctor, onDeleteDoctor }) {
         }       
       `}</style>
 
-      <div className="w-full max-w-full mx-auto space-y-4">                  
+      {/* 🌟 FIXED HEADER */}
+      <div className={`no-print fixed top-0 left-0 right-0 z-50 h-[48px] px-3 sm:px-6 shadow-md backdrop-blur-md transition-all flex items-center ${
+        isDarkMode 
+          ? 'bg-slate-950/95 border-b border-slate-800' 
+          : 'bg-white/95 border-b border-slate-200'
+      }`}>                      
         
-        {/* 🌟 HEADER */}
-        <div className={`no-print sticky top-2 z-50 rounded-2xl py-2.5 px-4 shadow-xl ${
-          isDarkMode 
-            ? 'bg-slate-900 border border-slate-800' 
-            : 'bg-white border border-slate-200'
-        }`}>                      
+        <div className="w-full flex flex-row items-center justify-between gap-2 sm:gap-4">                          
           
-          <div className="flex flex-row items-center justify-between gap-3 w-full flex-wrap sm:flex-nowrap">                          
-            
-            {/* ⬅️ زر الرجوع الذكي */}
-            <div className="flex items-center shrink-0">
-              <button
-                onClick={handleGoBack}
-                className={`p-2.5 rounded-2xl border-2 cursor-pointer shadow-lg flex items-center justify-center transition-all active:scale-95 ${
-                  isDarkMode 
-                    ? 'bg-slate-800 text-amber-400 border-amber-400/60 hover:bg-slate-700' 
-                    : 'bg-emerald-50 text-emerald-700 border-emerald-600/60 hover:bg-emerald-100'
-                }`}
-                title="Geri Dön"
-              >
-                <svg className="w-5 h-5 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
-                </svg>
-              </button>
-            </div>
+          {/* ↩️ سهم العودة */}
+          <div className="flex items-center shrink-0">
+            <button
+              onClick={handleGoBack}
+              className={`p-1.5 rounded-full transition-all duration-150 transform hover:scale-110 active:scale-90 flex items-center justify-center ${
+                isDarkMode 
+                  ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-400/10' 
+                  : 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50'
+              }`}
+              title="Geri Dön"
+            >
+              <svg className="w-5 h-5 stroke-[2.8]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+              </svg>
+            </button>
+          </div>
 
-            {/* Arama Kutusu */}
-            <div className="relative flex-1 min-w-[160px] max-w-full sm:max-w-xs mx-1">               
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          {/* 🔍 البحث المدمج */}
+          <div className="relative flex-1 max-w-lg mx-1 sm:mx-2">               
+            <div 
+              onClick={() => searchInputRef.current?.focus()}
+              className={`relative flex items-center w-full rounded-xl transition-all py-1 px-2.5 ${
+                isDarkMode 
+                  ? 'bg-slate-900 hover:bg-slate-900/80 focus-within:ring-1 focus-within:ring-emerald-500/50' 
+                  : 'bg-slate-100 hover:bg-slate-100/80 focus-within:ring-1 focus-within:ring-emerald-500/50'
+              }`}
+            >
+              <div className="pr-1.5 flex items-center pointer-events-none text-emerald-500">
+                <svg className="w-4 h-4 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
               </div>
 
-              <input                 
+              <input 
+                ref={searchInputRef}                
                 type="text"                 
                 placeholder="Doktor veya Birim Ara..."                 
                 value={searchTerm}                 
                 onChange={(e) => setSearchTerm(e.target.value)}                 
-                className={`w-full pl-9 pr-8 py-2 rounded-2xl text-xs font-extrabold focus:outline-none border ${                   
-                  isDarkMode                      
-                    ? 'bg-slate-950 text-slate-100 border-slate-800 placeholder-slate-500'                      
-                    : 'bg-slate-100 text-slate-900 border-slate-200 placeholder-slate-500'                 
-                }`}               
+                className="w-full pl-1 pr-6 py-0.5 bg-transparent text-xs sm:text-sm font-black outline-none tracking-wide placeholder-slate-400 cursor-text"
               />             
 
               {searchTerm && (
                 <button
-                  onClick={() => setSearchTerm('')}
-                  className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 font-black text-xs cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSearchTerm('');
+                  }}
+                  className="absolute right-2 p-1 text-slate-400 hover:text-rose-500 font-black text-xs"
                 >
                   ✕
                 </button>
               )}
             </div>
+          </div>
 
-            {/* Butonlar */}
-            <div className="flex items-center gap-2 shrink-0">
-              
+          {/* الأزرار العلوية */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            
+            {/* ⛶ زر ملء الشاشة */}
+            <button
+              onClick={toggleFullscreen}
+              className={`p-1.5 rounded-xl flex items-center justify-center transition-all duration-150 transform hover:scale-110 active:scale-95 outline-none ${
+                isDarkMode 
+                  ? 'text-sky-400 bg-sky-400/10 border border-sky-400/20 hover:bg-sky-400/20' 
+                  : 'text-sky-600 bg-sky-50 border border-sky-100 hover:bg-sky-100'
+              }`}
+              title={isFullscreen ? 'Tam Ekrandan Çık' : 'Tam Ekran'}
+            >
+              {isFullscreen ? (
+                <svg className="w-4 h-4 stroke-[2.2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5M15 15l5.25 5.25" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4 stroke-[2.2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                </svg>
+              )}
+            </button>
+
+            {/* 🌙 / ☀️ الوضع الليلي */}
+            <button
+              onClick={(e) => {
+                toggleTheme();
+                e.currentTarget.blur();
+              }}
+              className={`p-1.5 rounded-xl flex items-center justify-center transition-all duration-150 transform hover:scale-110 active:scale-95 outline-none ${
+                isDarkMode 
+                  ? 'text-amber-400 bg-amber-400/10 border border-amber-400/20 hover:bg-amber-400/20' 
+                  : 'text-indigo-600 bg-indigo-50 border border-indigo-100 hover:bg-indigo-100'
+              }`}
+              title={isDarkMode ? 'Gündüz Moduna Geç' : 'Gece Moduna Geç'}
+            >
+              {isDarkMode ? (
+                <svg className="w-4 h-4 stroke-[2.2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m0 13.5V21m8.966-8.966h-2.25m-13.5 0H3m15.364-6.364l-1.591 1.591M6.343 17.657l-1.592 1.592m12.728 0l-1.591-1.592M6.343 6.05L4.75 4.75M12 8.25a3.75 3.75 0 100 7.5 3.75 3.75 0 000-7.5z" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4 stroke-[2.2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
+                </svg>
+              )}
+            </button>
+
+            <div className="h-4 w-[1px] bg-slate-300 dark:bg-slate-700 rounded-full"></div>
+
+            {/* DURUM */}
+            <div className="relative" ref={filterDropdownRef}>
               <button
-                onClick={toggleTheme}
-                className={`p-2 rounded-2xl cursor-pointer flex items-center justify-center ${
-                  isDarkMode 
-                    ? 'text-amber-400 bg-amber-400/10 border border-amber-400/20' 
-                    : 'text-indigo-600 bg-indigo-50 border border-indigo-100'
+                onClick={() => { setShowFilterDropdown(!showFilterDropdown); setShowSortDropdown(false); setShowMenuDropdown(false); }}
+                className={`px-2 py-1 rounded-lg font-black text-xs cursor-pointer flex items-center gap-1 transition-all ${
+                  isDarkMode ? 'text-amber-400 bg-amber-400/10 hover:bg-amber-400/20' : 'text-slate-800 bg-slate-200/70 hover:bg-slate-200'
                 }`}
-                title={isDarkMode ? 'Gündüz Moduna Geç' : 'Gece Moduna Geç'}
               >
-                {isDarkMode ? (
-                  <svg className="w-4 h-4 stroke-[2.2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <circle cx="12" cy="12" r="4" className="fill-amber-400" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v2m0 16v2m10-10h-2M4 12H2m15.364-7.364l-1.414 1.414M6.05 17.95l-1.414 1.414M17.95 17.95l-1.414-1.414M6.05 6.05L4.636 4.636" />
-                  </svg>
-                ) : (
-                  <svg className="w-4 h-4 stroke-[2.2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" className="fill-indigo-600" />
-                  </svg>
-                )}
+                <span className="font-extrabold uppercase tracking-tight">{filter}</span>
+                <svg className="w-3 h-3 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
               </button>
 
-              <div className="h-5 w-[1.5px] bg-slate-300 dark:bg-slate-700 rounded-full"></div>
-
-              {/* DURUM */}
-              <div className="relative" ref={filterDropdownRef}>
-                <button
-                  onClick={() => { setShowFilterDropdown(!showFilterDropdown); setShowSortDropdown(false); setShowMenuDropdown(false); }}
-                  className={`px-2.5 py-1.5 rounded-xl font-black text-xs cursor-pointer flex items-center gap-1.5 ${
-                    isDarkMode ? 'text-amber-400 bg-amber-400/10' : 'text-slate-800 bg-slate-100'
-                  }`}
-                  title="Durum Seç"
-                >
-                  <span className="font-extrabold uppercase tracking-tight">{filter}</span>
-                  <svg className="w-3 h-3 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-
-                {showFilterDropdown && (
-                  <div className={`absolute right-0 mt-2 w-52 rounded-2xl border p-2 shadow-2xl z-50 ${
-                    isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
-                  }`}>
-                    <div className="flex justify-between items-center pb-1.5 px-1 border-b border-slate-200 dark:border-slate-800">
-                      <span className="text-[10px] font-black text-amber-500 uppercase">DURUM SEÇİN</span>
-                      <button onClick={() => setShowFilterDropdown(false)} className="w-4 h-4 rounded-full bg-slate-800/20 font-black text-[10px] flex items-center justify-center">✕</button>
-                    </div>
-                    <div className="space-y-1 mt-1.5 font-black">
-                      {statusFilterList.map((item) => (
-                        <button
-                          key={item.key}
-                          onClick={() => {
-                            setFilter(item.key);
-                            setShowFilterDropdown(false);
-                          }}
-                          className={`w-full p-2 rounded-xl text-xs flex items-center justify-between cursor-pointer ${
-                            filter === item.key
-                              ? 'bg-emerald-600 text-white font-black'
-                              : isDarkMode
-                              ? 'text-slate-300'
-                              : 'text-slate-800'
-                          }`}
-                        >
-                          <span>{item.label}</span>
-                          {filter === item.key && <span className="font-mono text-xs">✓</span>}
-                        </button>
-                      ))}
-                    </div>
+              {showFilterDropdown && (
+                <div className={`absolute right-0 mt-2 w-52 rounded-2xl border p-2 shadow-2xl z-50 ${
+                  isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
+                }`}>
+                  <div className="flex justify-between items-center pb-1.5 px-1 border-b border-slate-200 dark:border-slate-800">
+                    <span className="text-[10px] font-black text-amber-500 uppercase">DURUM SEÇİN</span>
+                    <button onClick={() => setShowFilterDropdown(false)} className="w-4 h-4 rounded-full bg-slate-800/20 font-black text-[10px] flex items-center justify-center">✕</button>
                   </div>
-                )}
-              </div>
-
-              <div className="h-5 w-[1.5px] bg-slate-300 dark:bg-slate-700 rounded-full"></div>
-
-              {/* SIRALAMA */}
-              <div className="relative" ref={sortDropdownRef}>
-                <button
-                  onClick={() => { setShowSortDropdown(!showSortDropdown); setShowFilterDropdown(false); setShowMenuDropdown(false); }}
-                  className={`px-2.5 py-1.5 rounded-xl font-black text-xs cursor-pointer flex items-center gap-1.5 ${
-                    isDarkMode ? 'text-amber-400 bg-amber-400/10' : 'text-slate-800 bg-slate-100'
-                  }`}
-                  title="Sıralama / Filtreleme"
-                >
-                  <span className="font-extrabold uppercase tracking-tight">{getSortLabel(sortBy)}</span>
-                  <svg className="w-3 h-3 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-
-                {showSortDropdown && (
-                  <div className={`absolute right-0 mt-2 w-56 rounded-2xl border p-2 shadow-2xl z-50 ${
-                    isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
-                  }`}>
-                    <div className="flex justify-between items-center pb-1.5 px-1 border-b border-slate-200 dark:border-slate-800">
-                      <span className="text-[10px] font-black text-amber-500 uppercase">SIRALAMA SEÇENEKLERİ</span>
-                      <button onClick={() => setShowSortDropdown(false)} className="w-4 h-4 rounded-full bg-slate-800/20 font-black text-[10px] flex items-center justify-center">✕</button>
-                    </div>
-                    <div className="space-y-1 mt-1.5 font-black">
-                      {sortOptionsList.map((item) => (
-                        <button
-                          key={item.key}
-                          onClick={() => {
-                            handleSortChange(item.key);
-                            setShowSortDropdown(false);
-                          }}
-                          className={`w-full p-2 rounded-xl text-xs flex items-center justify-between cursor-pointer ${
-                            sortBy === item.key
-                              ? 'bg-amber-500 text-slate-950 font-black'
-                              : isDarkMode
-                              ? 'text-slate-300'
-                              : 'text-slate-800'
-                          }`}
-                        >
-                          <span>{item.label}</span>
-                          {sortBy === item.key && <span className="font-mono text-xs">✓</span>}
-                        </button>
-                      ))}
-                    </div>
+                  <div className="space-y-1 mt-1.5 font-black">
+                    {statusFilterList.map((item) => (
+                      <button
+                        key={item.key}
+                        onClick={() => {
+                          setFilter(item.key);
+                          setShowFilterDropdown(false);
+                        }}
+                        className={`w-full p-2 rounded-xl text-xs flex items-center justify-between ${
+                          filter === item.key
+                            ? 'bg-emerald-600 text-white font-black'
+                            : isDarkMode
+                            ? 'text-slate-300 hover:bg-slate-800'
+                            : 'text-slate-800 hover:bg-slate-100'
+                        }`}
+                      >
+                        <span>{item.label}</span>
+                        {filter === item.key && <span className="font-mono text-xs">✓</span>}
+                      </button>
+                    ))}
                   </div>
-                )}
-              </div>
-
-              <div className="h-5 w-[1.5px] bg-slate-300 dark:bg-slate-700 rounded-full"></div>
-
-              {/* YAZDIR / İNDİR */}
-              <div className="flex items-center">
-                <button
-                  onClick={() => setShowPrintModal(true)}
-                  className={`p-2 rounded-2xl flex items-center justify-center cursor-pointer ${
-                    isDarkMode ? 'text-amber-400 bg-amber-400/10' : 'text-slate-800 bg-slate-100'
-                  }`}
-                  title="İndir / Yazdır"
-                >
-                  <svg className="w-4 h-4 stroke-[2.2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a1 1 0 001 1h14a1 1 0 001-1v-2" />
-                  </svg>
-                </button>
-              </div>
-
-              {/* ☰ MENÜ */}
-              <div className="relative" ref={menuDropdownRef}>
-                <button
-                  onClick={() => {
-                    setShowMenuDropdown(!showMenuDropdown);
-                    setShowFilterDropdown(false);
-                    setShowSortDropdown(false);
-                  }}
-                  className={`px-3 py-1.5 rounded-2xl font-black text-xs flex items-center gap-1.5 cursor-pointer ${
-                    isDarkMode 
-                      ? 'bg-slate-950 text-emerald-400 border border-emerald-500/20' 
-                      : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                  }`}
-                  title="Menü"
-                >
-                  <svg className="w-4 h-4 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                  </svg>
-                  <span className="hidden md:inline">MENÜ</span>
-                </button>
-
-                {showMenuDropdown && (
-                  <div className={`absolute right-0 mt-2 w-52 rounded-2xl border-2 p-2 shadow-2xl z-50 font-black text-xs ${
-                    isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
-                  }`}>
-                    
-                    <button
-                      onClick={() => {
-                        setShowMenuDropdown(false);
-                        setShowReportModal(true);
-                      }}
-                      className={`w-full text-left p-2.5 rounded-xl flex items-center gap-2.5 cursor-pointer ${
-                        isDarkMode ? 'hover:bg-slate-800 text-rose-400' : 'hover:bg-rose-50 text-rose-600'
-                      }`}
-                    >
-                      <svg className="w-4 h-4 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-                      </svg>
-                      <span>Sorun Bildir</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        setShowMenuDropdown(false);
-                        setShowTableSettingsModal && setShowTableSettingsModal(true);
-                      }}
-                      className={`w-full text-left p-2.5 rounded-xl flex items-center gap-2.5 cursor-pointer ${
-                        isDarkMode ? 'hover:bg-slate-800 text-amber-400' : 'hover:bg-amber-50 text-amber-600'
-                      }`}
-                    >
-                      <svg className="w-4 h-4 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                      <span>Genel Ayarlar</span>
-                    </button>
-
-                  </div>
-                )}
-              </div>
-
+                </div>
+              )}
             </div>
 
-          </div>         
-        </div>         
+            <div className="h-4 w-[1px] bg-slate-300 dark:bg-slate-700 rounded-full"></div>
 
-        {/* 📊 TABLO GÖRÜNÜMÜ */}         
-        <div className={`w-full rounded-3xl overflow-hidden shadow-2xl border ${           
-          isDarkMode 
-            ? 'bg-slate-900 border-slate-800' 
-            : 'bg-white border-slate-200'         
+            {/* SIRALAMA */}
+            <div className="relative" ref={sortDropdownRef}>
+              <button
+                onClick={() => { setShowSortDropdown(!showSortDropdown); setShowFilterDropdown(false); setShowMenuDropdown(false); }}
+                className={`px-2 py-1 rounded-lg font-black text-xs cursor-pointer flex items-center gap-1 transition-all ${
+                  isDarkMode ? 'text-amber-400 bg-amber-400/10 hover:bg-amber-400/20' : 'text-slate-800 bg-slate-200/70 hover:bg-slate-200'
+                }`}
+              >
+                <span className="font-extrabold uppercase tracking-tight">{getSortLabel(sortBy)}</span>
+                <svg className="w-3 h-3 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {showSortDropdown && (
+                <div className={`absolute right-0 mt-2 w-56 rounded-2xl border p-2 shadow-2xl z-50 ${
+                  isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
+                }`}>
+                  <div className="flex justify-between items-center pb-1.5 px-1 border-b border-slate-200 dark:border-slate-800">
+                    <span className="text-[10px] font-black text-amber-500 uppercase">SIRALAMA SEÇENEKLERİ</span>
+                    <button onClick={() => setShowSortDropdown(false)} className="w-4 h-4 rounded-full bg-slate-800/20 font-black text-[10px] flex items-center justify-center">✕</button>
+                  </div>
+                  <div className="space-y-1 mt-1.5 font-black">
+                    {sortOptionsList.map((item) => (
+                      <button
+                        key={item.key}
+                        onClick={() => {
+                          handleSortChange(item.key);
+                          setShowSortDropdown(false);
+                        }}
+                        className={`w-full p-2 rounded-xl text-xs flex items-center justify-between ${
+                          sortBy === item.key
+                            ? 'bg-amber-500 text-slate-950 font-black'
+                            : isDarkMode
+                            ? 'text-slate-300 hover:bg-slate-800'
+                            : 'text-slate-800 hover:bg-slate-100'
+                        }`}
+                      >
+                        <span>{item.label}</span>
+                        {sortBy === item.key && <span className="font-mono text-xs">✓</span>}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="h-4 w-[1px] bg-slate-300 dark:bg-slate-700 rounded-full"></div>
+
+            {/* YAZDIR / İNDİR */}
+            <div className="flex items-center">
+              <button
+                onClick={() => setShowPrintModal(true)}
+                className={`p-1.5 rounded-xl flex items-center justify-center transition-all ${
+                  isDarkMode ? 'text-amber-400 bg-amber-400/10 hover:bg-amber-400/20' : 'text-slate-800 bg-slate-200/70 hover:bg-slate-200'
+                }`}
+                title="İndir / Yazdır"
+              >
+                <svg className="w-4 h-4 stroke-[2.2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a1 1 0 001 1h14a1 1 0 001-1v-2" />
+                </svg>
+              </button>
+            </div>
+
+            {/* ☰ MENÜ */}
+            <div className="relative" ref={menuDropdownRef}>
+              <button
+                onClick={() => {
+                  setShowMenuDropdown(!showMenuDropdown);
+                  setShowFilterDropdown(false);
+                  setShowSortDropdown(false);
+                }}
+                className={`p-1.5 rounded-xl flex items-center justify-center transition-all duration-150 transform hover:scale-110 active:scale-95 ${
+                  isDarkMode 
+                    ? 'bg-slate-900 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20' 
+                    : 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                }`}
+              >
+                <svg className="w-5 h-5 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h12m-12 5.25h16.5" />
+                </svg>
+              </button>
+
+              {showMenuDropdown && (
+                <div className={`absolute right-0 mt-2 w-52 rounded-2xl border-2 p-2 shadow-2xl z-50 font-black text-xs ${
+                  isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
+                }`}>
+                  <button
+                    onClick={() => {
+                      setShowMenuDropdown(false);
+                      setShowReportModal(true);
+                    }}
+                    className={`w-full text-left p-2.5 rounded-xl flex items-center gap-2.5 ${
+                      isDarkMode ? 'hover:bg-slate-800 text-rose-400' : 'hover:bg-rose-50 text-rose-600'
+                    }`}
+                  >
+                    <span>Sorun Bildir</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowMenuDropdown(false);
+                      setShowTableSettingsModal && setShowTableSettingsModal(true);
+                    }}
+                    className={`w-full text-left p-2.5 rounded-xl flex items-center gap-2.5 ${
+                      isDarkMode ? 'hover:bg-slate-800 text-amber-400' : 'hover:bg-amber-50 text-amber-600'
+                    }`}
+                  >
+                    <span>Genel Ayarlar</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+          </div>
+
+        </div>         
+      </div>         
+
+      {/* 📊 TABLE CONTAINER */}         
+      <div className="w-full space-y-4 px-0 cursor-default select-none mt-0">
+        <div className={`w-full rounded-none overflow-hidden shadow-2xl border-x-0 border-t-0 border-b transition-all ${           
+          isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'         
         }`}>           
           <div className="overflow-x-auto w-full relative">             
-            <table className={`w-full min-w-full text-left border-collapse ${selectedFont} ${tableSettings.fontWeight}`}>               
+            <table className={`w-full text-left border-collapse ${selectedFont} ${tableSettings.fontWeight}`}>               
               
-              <thead className="sticky top-0 z-20">                 
-                <tr className={`text-xs sm:text-sm font-black uppercase select-none border-b ${                   
+              <thead>                 
+                <tr className={`text-xs sm:text-sm font-black uppercase select-none transition-colors ${                   
                   isDarkMode                      
-                    ? 'bg-slate-950 text-amber-400 border-slate-800'                      
-                    : 'bg-slate-100 text-slate-900 border-slate-300'                 
+                    ? 'bg-slate-950 text-amber-400 border-b border-slate-800'                      
+                    : 'bg-slate-900 text-white border-b border-slate-800'                 
                 }`}>                   
+                  <th className={`${getRowPaddingClass()} border-r border-slate-700/60 font-black text-center w-12 sm:w-16 shrink-0`}></th>
+
                   {tableSettings.showClinic && (
-                    <th className={`${getRowPaddingClass()} border-r border-slate-300 dark:border-slate-800/80 font-black tracking-wide`}>
+                    <th className={`${getRowPaddingClass()} border-r border-slate-700/60 font-black tracking-wider text-xs sm:text-sm ${showActionsColumn ? 'w-1/4' : 'w-1/3'}`}>
                       BİRİM
                     </th>                   
                   )}
 
                   {tableSettings.showDoctorName && (
-                    <th className={`${getRowPaddingClass()} border-r border-slate-300 dark:border-slate-800/80 font-black tracking-wide`}>
+                    <th className={`${getRowPaddingClass()} border-r border-slate-700/60 font-black tracking-wider text-xs sm:text-sm ${showActionsColumn ? 'w-1/4' : 'w-1/3'}`}>
                       DOKTOR ADI SOYADI
                     </th>                   
                   )}
 
                   {tableSettings.showStatus && (
-                    <th className={`${getRowPaddingClass()} font-black text-center tracking-wide`}>
+                    <th className={`${getRowPaddingClass()} ${showActionsColumn ? 'border-r border-slate-700/60' : ''} font-black text-center tracking-wider text-xs sm:text-sm ${showActionsColumn ? 'w-1/4' : 'w-1/3'}`}>
                       DURUM
                     </th>                   
                   )}
 
-                  {/* 🎯 عمود العمليات المباشر */}
                   {showActionsColumn && (
-                    <th className={`${getRowPaddingClass()} font-black text-center tracking-wide border-l border-slate-300 dark:border-slate-800/80`}>
+                    <th className={`${getRowPaddingClass()} font-black text-center tracking-wider text-xs sm:text-sm w-1/4`}>
                       İŞLEMLER
                     </th>
                   )}
@@ -738,38 +856,42 @@ export default function PublicScheduleTable({ onEditDoctor, onDeleteDoctor }) {
               
               <tbody className={`text-xs sm:text-sm md:text-base ${activeColor} divide-y divide-slate-200 dark:divide-slate-800/80`}>                 
                 {filteredAndSortedDoctors.length > 0 ? (                   
-                  filteredAndSortedDoctors.map((doc, index) => {
-                    const activeStatusToday = getCurrentDayStatus(doc);
+                  filteredAndSortedDoctors.map((docItem, index) => {
+                    const activeStatusToday = getCurrentDayStatus(docItem);
                     return (                     
                       <tr                        
-                        key={doc.id}                        
-                        onClick={() => handleOpenDoctorDetail(doc)}
-                        className={`cursor-pointer transition-colors duration-150 ${                         
+                        key={docItem.id}                        
+                        onClick={() => handleOpenDoctorDetail(docItem)}
+                        className={`transition-all duration-150 cursor-default ${                         
                           isDarkMode                            
                             ? index % 2 === 0                              
-                              ? 'bg-slate-900 hover:bg-slate-800/60'                              
-                              : 'bg-slate-950 hover:bg-slate-800/60'                           
+                              ? 'bg-slate-900 hover:bg-amber-500/15 hover:text-amber-300'                              
+                              : 'bg-slate-950 hover:bg-amber-500/15 hover:text-amber-300'                           
                             : index % 2 === 0                              
-                              ? 'bg-white hover:bg-slate-100/80'                              
-                              : 'bg-slate-50 hover:bg-slate-100/80'                       
+                              ? 'bg-white hover:bg-emerald-100/80 hover:text-emerald-950'                              
+                              : 'bg-slate-50/80 hover:bg-emerald-100/80 hover:text-emerald-950'                       
                         }`}                     
                       >                       
+                        <td className={`${getRowPaddingClass()} border-r border-slate-200 dark:border-slate-800/80 font-black text-center text-inherit`}>
+                          {index + 1}
+                        </td>
+
                         {tableSettings.showClinic && (
-                          <td className={`${getRowPaddingClass()} border-r border-slate-200 dark:border-slate-800/80 ${activeColor}`}>                         
-                            <span>{doc.clinic}</span>                       
+                          <td className={`${getRowPaddingClass()} border-r border-slate-200 dark:border-slate-800/80 font-black`}>                         
+                            <span className="break-words">{docItem.clinic}</span>                       
                           </td>                       
                         )}
 
                         {tableSettings.showDoctorName && (
-                          <td className={`${getRowPaddingClass()} border-r border-slate-200 dark:border-slate-800/80 ${activeColor}`}>                         
-                            <span>{doc.name}</span>                       
+                          <td className={`${getRowPaddingClass()} border-r border-slate-200 dark:border-slate-800/80 font-black`}>                         
+                            <span className="break-words">{docItem.name}</span>                       
                           </td>                       
                         )}
 
                         {tableSettings.showStatus && (
-                          <td className={`${getRowPaddingClass()} text-center`}>                         
+                          <td className={`${getRowPaddingClass()} ${showActionsColumn ? 'border-r border-slate-200 dark:border-slate-800/80' : ''} text-center`}>                         
                             <div className="flex justify-center">
-                              <span className={`inline-flex items-center justify-center w-36 h-8 rounded-xl text-xs font-black ${getStatusStyles(activeStatusToday)}`}>                           
+                              <span className={`inline-flex items-center justify-center min-w-[110px] sm:min-w-[140px] px-2.5 py-1.5 rounded-xl text-xs font-black shadow-xs ${getStatusStyles(activeStatusToday)}`}>                           
                                 <span className="w-2 h-2 rounded-full bg-white mr-1.5 animate-pulse shrink-0"></span>                           
                                 <span className="truncate">{activeStatusToday}</span>
                               </span>                       
@@ -777,23 +899,17 @@ export default function PublicScheduleTable({ onEditDoctor, onDeleteDoctor }) {
                           </td>                       
                         )}
 
-                        {/* 🔒 عرض أزرار التعديل والحذف فوراً للمصرح لهم */}
                         {showActionsColumn && (
-                          <td className={`${getRowPaddingClass()} text-center border-l border-slate-200 dark:border-slate-800/80`} onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center justify-center gap-2">
+                          <td className={`${getRowPaddingClass()} text-center`} onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-center gap-1.5 sm:gap-2">
                               {canEdit && (
                                 <button
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    if (onEditDoctor) {
-                                      onEditDoctor(doc);
-                                    } else {
-                                      router.push(`/admin/doctors?editId=${doc.id}`);
-                                    }
+                                    handleStartDirectEdit(docItem);
                                   }}
-                                  className="px-3 py-1.5 text-xs font-black rounded-xl bg-amber-500 text-slate-950 hover:bg-amber-400 shadow-md cursor-pointer transition-all"
-                                  title="Düzenle"
+                                  className="px-2.5 sm:px-3 py-1 sm:py-1.5 text-xs font-black rounded-xl bg-amber-500 text-slate-950 hover:bg-amber-400 shadow-md transition-all cursor-pointer"
                                 >
                                   DÜZENLE
                                 </button>
@@ -805,11 +921,10 @@ export default function PublicScheduleTable({ onEditDoctor, onDeleteDoctor }) {
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     if (onDeleteDoctor) {
-                                      onDeleteDoctor(doc.id);
+                                      onDeleteDoctor(docItem.id);
                                     }
                                   }}
-                                  className="px-3 py-1.5 text-xs font-black rounded-xl bg-rose-600 text-white hover:bg-rose-500 shadow-md cursor-pointer transition-all"
-                                  title="Sil"
+                                  className="px-2.5 sm:px-3 py-1 sm:py-1.5 text-xs font-black rounded-xl bg-rose-600 text-white hover:bg-rose-500 shadow-md transition-all cursor-pointer"
                                 >
                                   SİL
                                 </button>
@@ -822,7 +937,7 @@ export default function PublicScheduleTable({ onEditDoctor, onDeleteDoctor }) {
                   })                 
                 ) : (                   
                   <tr>                     
-                    <td colSpan={showActionsColumn ? 4 : 3} className="p-12 text-center text-slate-400 font-black border-dashed text-base">                         
+                    <td colSpan={showActionsColumn ? 5 : 4} className="p-12 text-center text-slate-400 font-black border-dashed text-base">                         
                       Arama kriterlerinize uygun doktor kaydı bulunamadı.                     
                     </td>                   
                   </tr>                 
@@ -838,9 +953,172 @@ export default function PublicScheduleTable({ onEditDoctor, onDeleteDoctor }) {
         </div>       
       </div>       
 
+      {/* ✏️ MODAL: النافذة المعتمة الحديثة مع خيار الكتابة اليدوية للقسم */}
+      {editingDoctor && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/85 p-3 sm:p-4 transition-all">
+          <div className={`w-full max-w-lg rounded-3xl p-6 sm:p-7 shadow-2xl border ${
+            isDarkMode 
+              ? 'bg-slate-900 border-amber-500/40 text-slate-100 shadow-amber-500/10' 
+              : 'bg-white border-emerald-500/40 text-slate-900 shadow-emerald-500/10'
+          }`}>
+            
+            {/* Header */}
+            <div className="flex justify-between items-center pb-4 mb-4 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-amber-500/15 text-amber-500 font-black text-xl">
+                  ✏️
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-black tracking-tight uppercase text-amber-500 dark:text-amber-400">
+                    DOKTOR BİLGİLERİNİ DÜZENLE
+                  </h3>
+                  <p className="text-[11px] font-bold text-slate-400">
+                    Hızlı ve anlık güncelleme paneli
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setEditingDoctor(null)} 
+                className="w-8 h-8 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-500 hover:text-rose-500 font-black text-sm flex items-center justify-center cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleSaveDirectEdit} className="space-y-4 font-black">
+              
+              {/* Doctor Name */}
+              <div>
+                <label className="block text-xs font-extrabold text-slate-400 uppercase mb-1.5">
+                  DOKTOR ADI SOYADI
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  placeholder="Örn: Dr. Ahmet Yılmaz"
+                  className={`w-full p-3 rounded-2xl border-2 text-xs sm:text-sm font-black outline-none transition-all ${
+                    isDarkMode 
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-amber-500' 
+                      : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-amber-500'
+                  }`}
+                />
+              </div>
+
+              {/* Clinic Input / Selection & Room No */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                
+                {/* 🏢 إدخال القسم (يدوياً + اقتراحات تلقائية) */}
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-extrabold text-slate-400 uppercase mb-1.5">
+                    BİRİM / POLİKLİNİK (SEÇİN VEYA YAZIN)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      list="clinic-suggestions"
+                      value={editClinic}
+                      onChange={(e) => setEditClinic(e.target.value)}
+                      placeholder="Birim adı yazın veya seçin..."
+                      className={`w-full p-3 rounded-2xl border-2 text-xs sm:text-sm font-black outline-none transition-all ${
+                        isDarkMode 
+                          ? 'bg-slate-950 border-slate-800 text-white focus:border-amber-500' 
+                          : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-amber-500'
+                      }`}
+                    />
+                    <datalist id="clinic-suggestions">
+                      {availableClinics.map((clinicName, idx) => (
+                        <option key={idx} value={clinicName} />
+                      ))}
+                    </datalist>
+                  </div>
+                </div>
+
+                {/* Oda No */}
+                <div>
+                  <label className="block text-xs font-extrabold text-slate-400 uppercase mb-1.5">
+                    ODA NO
+                  </label>
+                  <input
+                    type="text"
+                    value={editRoomNo}
+                    onChange={(e) => setEditRoomNo(e.target.value)}
+                    placeholder="Örn: 102"
+                    className={`w-full p-3 rounded-2xl border-2 text-xs sm:text-sm font-black outline-none transition-all text-center ${
+                      isDarkMode 
+                        ? 'bg-slate-950 border-slate-800 text-white focus:border-amber-500' 
+                        : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-amber-500'
+                    }`}
+                  />
+                </div>
+
+              </div>
+
+              {/* Status */}
+              <div>
+                <label className="block text-xs font-extrabold text-slate-400 uppercase mb-1.5">
+                  BUGÜNKÜ ÇALIŞMA DURUMU
+                </label>
+                <div className="relative">
+                  <select
+                    value={editStatus}
+                    onChange={(e) => setEditStatus(e.target.value)}
+                    className={`w-full p-3 rounded-2xl border-2 text-xs sm:text-sm font-black outline-none transition-all appearance-none cursor-pointer ${
+                      isDarkMode 
+                        ? 'bg-slate-950 border-slate-800 text-emerald-400 focus:border-amber-500' 
+                        : 'bg-slate-50 border-slate-200 text-emerald-700 focus:border-amber-500'
+                    }`}
+                  >
+                    <option value="POLİKLİNİK">🟢 POLİKLİNİK</option>
+                    <option value="AMELİYATTA">🟣 AMELİYATTA</option>
+                    <option value="YILLIK İZİN">🔵 YILLIK İZİN</option>
+                    <option value="RAPORLU">🟡 RAPORLU</option>
+                    <option value="NÖBET SONRASI İZİN">🟢 NÖBET SONRASI İZİN</option>
+                    <option value="KONGRE/SEMİNER">🔵 KONGRE/SEMİNER</option>
+                    <option value="HAFTA SONU">🔴 HAFTA SONU</option>
+                  </select>
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-xs">
+                    ▼
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2.5 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setEditingDoctor(null)}
+                  className="flex-1 py-3.5 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-2xl text-xs font-black cursor-pointer hover:bg-slate-300 transition-all"
+                >
+                  İPTAL
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingEdit}
+                  className="flex-1 py-3.5 bg-amber-500 text-slate-950 rounded-2xl text-xs font-black shadow-lg cursor-pointer hover:bg-amber-400 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+                >
+                  {isSavingEdit ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></span>
+                      <span>KAYDEDİLİYOR...</span>
+                    </>
+                  ) : (
+                    <span>KAYDET 💾</span>
+                  )}
+                </button>
+              </div>
+
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* ⚠️ MODAL: Sorun Bildir */}
       {showReportModal && (
-        <div className="fixed inset-0 z-[180] flex items-center justify-center bg-black/80 p-4">
+        <div className="fixed inset-0 z-[180] flex items-center justify-center bg-black/85 p-4">
           <div className={`w-full max-w-md rounded-3xl p-6 shadow-2xl border space-y-4 ${
             isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-300 text-slate-900'
           }`}>
@@ -849,7 +1127,7 @@ export default function PublicScheduleTable({ onEditDoctor, onDeleteDoctor }) {
                 <span className="text-xl">⚠️</span>
                 <h3 className="text-base font-black text-rose-500 uppercase">SORUN BİLDİR</h3>
               </div>
-              <button onClick={() => setShowReportModal(false)} className="text-slate-400 font-black text-lg cursor-pointer">✕</button>
+              <button onClick={() => setShowReportModal(false)} className="text-slate-400 font-black text-lg">✕</button>
             </div>
 
             {reportSuccessMsg ? (
@@ -892,13 +1170,13 @@ export default function PublicScheduleTable({ onEditDoctor, onDeleteDoctor }) {
                   <button
                     type="button"
                     onClick={() => setShowReportModal(false)}
-                    className="flex-1 py-3 bg-slate-800 text-slate-300 rounded-xl text-xs font-black cursor-pointer"
+                    className="flex-1 py-3 bg-slate-800 text-slate-300 rounded-xl text-xs font-black"
                   >
                     İPTAL
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-3 bg-rose-600 text-white rounded-xl text-xs font-black shadow-lg cursor-pointer"
+                    className="flex-1 py-3 bg-rose-600 text-white rounded-xl text-xs font-black shadow-lg"
                   >
                     BİLDİRİMİ GÖNDER 🚀
                   </button>
@@ -921,13 +1199,13 @@ export default function PublicScheduleTable({ onEditDoctor, onDeleteDoctor }) {
                 </h2>               
               </div>               
               <div className="flex items-center gap-2">                 
-                <button onClick={exportToExcel} className="px-4 py-2 bg-emerald-700 text-white font-black rounded-xl text-xs cursor-pointer flex items-center gap-1.5">                   
+                <button onClick={exportToExcel} className="px-4 py-2 bg-emerald-700 text-white font-black rounded-xl text-xs flex items-center gap-1.5">                   
                   <span>📊</span> EXCEL İNDİR                 
                 </button>                 
-                <button onClick={() => window.print()} className="px-4 py-2 bg-blue-900 text-white font-black rounded-xl text-xs cursor-pointer flex items-center gap-1.5">                   
+                <button onClick={() => window.print()} className="px-4 py-2 bg-blue-900 text-white font-black rounded-xl text-xs flex items-center gap-1.5">                   
                   <span>🖨️</span> YAZDIR / PDF               
                 </button>                 
-                <button onClick={() => setShowPrintModal(false)} className="px-3 py-2 bg-slate-200 text-slate-800 font-black rounded-xl text-xs cursor-pointer">                   
+                <button onClick={() => setShowPrintModal(false)} className="px-3 py-2 bg-slate-200 text-slate-800 font-black rounded-xl text-xs">                   
                   ✕                
                 </button>               
               </div>             
@@ -949,18 +1227,20 @@ export default function PublicScheduleTable({ onEditDoctor, onDeleteDoctor }) {
                 <table className="w-full text-left border-collapse text-xs">                   
                   <thead>                     
                     <tr className="bg-slate-900 text-white font-black uppercase text-[11px] border-b-2 border-slate-900">                       
+                      <th className="py-2 px-2.5 border-r border-slate-700 text-center w-12">NO</th>
                       <th className="py-2 px-2.5 border-r border-slate-700">BİRİM / POLİK</th>                       
                       <th className="py-2 px-2.5 border-r border-slate-700">DOKTOR ADI SOYADI</th>                       
                       <th className="py-2 px-2.5 text-center">DURUM</th>                       
                     </tr>                   
                   </thead>                   
                   <tbody className="divide-y divide-slate-200 font-bold">                     
-                    {filteredAndSortedDoctors.map((doc, i) => {                       
-                      const activeStatusToday = getCurrentDayStatus(doc);
+                    {filteredAndSortedDoctors.map((docItem, i) => {                       
+                      const activeStatusToday = getCurrentDayStatus(docItem);
                       return (
-                        <tr key={doc.id} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>                         
-                          <td className="py-2 px-2.5 border-r border-slate-300 uppercase text-slate-900 font-extrabold">{doc.clinic}</td>                         
-                          <td className="py-2 px-2.5 border-r border-slate-300 uppercase text-slate-950 font-black">{doc.name}</td>                         
+                        <tr key={docItem.id} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>                         
+                          <td className="py-2 px-2.5 border-r border-slate-300 font-black text-center text-slate-950">{i + 1}</td>
+                          <td className="py-2 px-2.5 border-r border-slate-300 uppercase text-slate-900 font-extrabold">{docItem.clinic}</td>                         
+                          <td className="py-2 px-2.5 border-r border-slate-300 uppercase text-slate-950 font-black">{docItem.name}</td>                         
                           <td className="py-2 px-2.5 text-center uppercase font-black text-xs">{activeStatusToday}</td>                         
                         </tr>                     
                       );
@@ -980,7 +1260,7 @@ export default function PublicScheduleTable({ onEditDoctor, onDeleteDoctor }) {
             <div className="fixed bottom-4 right-4 sm:right-6 z-[170]">
               <div 
                 onClick={() => setIsMinimized(false)}
-                className={`p-3.5 px-5 rounded-2xl shadow-2xl border-2 flex items-center gap-4 cursor-pointer ${
+                className={`p-3.5 px-5 rounded-2xl shadow-2xl border-2 flex items-center gap-4 ${
                   isDarkMode 
                     ? 'bg-slate-900 border-amber-500/50 text-slate-100' 
                     : 'bg-white border-emerald-500/50 text-slate-900'
@@ -998,14 +1278,12 @@ export default function PublicScheduleTable({ onEditDoctor, onDeleteDoctor }) {
                   <button 
                     onClick={(e) => { e.stopPropagation(); setIsMinimized(false); }} 
                     className="p-1 text-amber-500 font-black text-sm"
-                    title="Aç"
                   >
                     🗖
                   </button>
                   <button 
                     onClick={(e) => { e.stopPropagation(); setSelectedDoctorDetail(null); }} 
                     className="p-1 text-rose-500 font-black text-sm"
-                    title="Kapat"
                   >
                     ✕
                   </button>
@@ -1014,7 +1292,7 @@ export default function PublicScheduleTable({ onEditDoctor, onDeleteDoctor }) {
             </div>
           ) : (
             <div 
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-2 sm:p-6" 
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-2 sm:p-6" 
               onClick={(e) => { if (!isMaximized && modalBoxRef.current && !modalBoxRef.current.contains(e.target)) { setSelectedDoctorDetail(null); } }}
             >               
               <div 
@@ -1033,6 +1311,9 @@ export default function PublicScheduleTable({ onEditDoctor, onDeleteDoctor }) {
                       <h3 className="text-base sm:text-xl font-black text-emerald-500 dark:text-emerald-400 uppercase">{selectedDoctorDetail.name}</h3>                     
                       <p className="text-xs sm:text-sm font-black text-slate-500 dark:text-slate-400 mt-0.5">                       
                         BİRİM: <span className="text-emerald-600 dark:text-emerald-400 font-black">{selectedDoctorDetail.clinic}</span>                  
+                        {(selectedDoctorDetail.roomNo || selectedDoctorDetail.room) && (
+                          <span className="ml-2 font-black text-amber-500">(Oda: {selectedDoctorDetail.roomNo || selectedDoctorDetail.room})</span>
+                        )}
                       </p>
                     </div>                   
                   </div>                   
@@ -1040,16 +1321,8 @@ export default function PublicScheduleTable({ onEditDoctor, onDeleteDoctor }) {
                   <div className="flex items-center gap-2 font-mono">
                     {canEdit && (
                       <button
-                        onClick={() => {
-                          const docToEdit = selectedDoctorDetail;
-                          setSelectedDoctorDetail(null);
-                          if (onEditDoctor) {
-                            onEditDoctor(docToEdit);
-                          } else {
-                            router.push(`/admin/doctors?editId=${docToEdit.id}`);
-                          }
-                        }}
-                        className="px-3 py-1.5 rounded-xl bg-amber-500 text-slate-950 font-black text-xs cursor-pointer hover:bg-amber-400 shadow-md"
+                        onClick={() => handleStartDirectEdit(selectedDoctorDetail)}
+                        className="px-3 py-1.5 rounded-xl bg-amber-500 text-slate-950 font-black text-xs hover:bg-amber-400 shadow-md transition-all cursor-pointer"
                       >
                         DÜZENLE
                       </button>
@@ -1064,7 +1337,7 @@ export default function PublicScheduleTable({ onEditDoctor, onDeleteDoctor }) {
                             onDeleteDoctor(docId);
                           }
                         }}
-                        className="px-3 py-1.5 rounded-xl bg-rose-600 text-white font-black text-xs cursor-pointer hover:bg-rose-500 shadow-md"
+                        className="px-3 py-1.5 rounded-xl bg-rose-600 text-white font-black text-xs hover:bg-rose-500 shadow-md transition-all cursor-pointer"
                       >
                         SİL
                       </button>
@@ -1072,22 +1345,19 @@ export default function PublicScheduleTable({ onEditDoctor, onDeleteDoctor }) {
 
                     <button 
                       onClick={() => setIsMinimized(true)} 
-                      className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-500 font-black text-base flex items-center justify-center cursor-pointer" 
-                      title="Simge Durumuna Küçült"
+                      className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-500 font-black text-base flex items-center justify-center cursor-pointer"
                     >
                       🗕
                     </button>                     
                     <button 
                       onClick={() => setIsMaximized(!isMaximized)} 
-                      className="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-500 font-black text-base flex items-center justify-center cursor-pointer" 
-                      title={isMaximized ? "Eski Boyuta Getir" : "Ekranı Kapla"}
+                      className="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-500 font-black text-base flex items-center justify-center cursor-pointer"
                     >
                       {isMaximized ? '🗗' : '🗖'}
                     </button>                     
                     <button 
                       onClick={() => setSelectedDoctorDetail(null)} 
-                      className="w-9 h-9 rounded-xl bg-rose-500/10 text-rose-500 font-black text-base flex items-center justify-center cursor-pointer" 
-                      title="Kapat"
+                      className="w-9 h-9 rounded-xl bg-rose-500/10 text-rose-500 font-black text-base flex items-center justify-center cursor-pointer"
                     >
                       ✕
                     </button>                   
@@ -1105,7 +1375,7 @@ export default function PublicScheduleTable({ onEditDoctor, onDeleteDoctor }) {
                   {showScrollToTodayTop && (
                     <button
                       onClick={scrollToTodaySmooth}
-                      className={`absolute top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-full font-black text-xs shadow-2xl border cursor-pointer flex items-center gap-2.5 ${
+                      className={`absolute top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-full font-black text-xs shadow-2xl border flex items-center gap-2.5 ${
                         isDarkMode
                           ? 'bg-emerald-950 border-emerald-500 text-emerald-300 shadow-emerald-950'
                           : 'bg-white border-emerald-600 text-emerald-900 shadow-slate-400'
@@ -1121,7 +1391,7 @@ export default function PublicScheduleTable({ onEditDoctor, onDeleteDoctor }) {
                   {showScrollToTodayBottom && (
                     <button
                       onClick={scrollToTodaySmooth}
-                      className={`absolute bottom-4 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-full font-black text-xs shadow-2xl border cursor-pointer flex items-center gap-2.5 ${
+                      className={`absolute bottom-4 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-full font-black text-xs shadow-2xl border flex items-center gap-2.5 ${
                         isDarkMode
                           ? 'bg-emerald-950 border-emerald-500 text-emerald-300 shadow-emerald-950'
                           : 'bg-white border-emerald-600 text-emerald-900 shadow-slate-400'
@@ -1137,7 +1407,7 @@ export default function PublicScheduleTable({ onEditDoctor, onDeleteDoctor }) {
                   <div 
                     ref={modalScrollContainerRef}
                     onScroll={handleModalScroll}
-                    className="h-full overflow-y-auto p-4 sm:p-6 space-y-3 font-black"
+                    className="h-full overflow-y-auto p-4 sm:p-6 space-y-3 font-black cursor-default"
                   >                   
                     {selectedDoctorDetail.scheduleDays && selectedDoctorDetail.scheduleDays.length > 0 ? (                     
                       selectedDoctorDetail.scheduleDays.map((sd, idx) => {                       

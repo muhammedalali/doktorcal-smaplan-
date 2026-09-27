@@ -295,9 +295,10 @@ export default function DashboardPage() {
     setIsProfileOpen(false);
     setLoadingTitle(title.toUpperCase());
     setIsEcgLoading(true);
+
     setTimeout(() => {
       router.push(path);
-    }, 350);
+    }, 250);
   };
 
   const toggleFullScreen = () => {
@@ -312,7 +313,16 @@ export default function DashboardPage() {
 
   const uName = currentUser?.username ? currentUser.username.toLocaleUpperCase('tr-TR') : '';   
   const isGlobalAdmin = uName === 'ADMIN' || currentUser?.role === 'YÖNETİCİ' || currentUser?.role === 'ADMIN';   
-  const canManageDoctors = isGlobalAdmin || currentUser?.permissions?.canEditDoctors || currentUser?.permissions?.canDeleteDoctors;
+
+  // 🔗 تحديث صلاحية الوصول المباشر والربط مع صفحة الإدارة
+  const canManageDoctors = 
+    isGlobalAdmin || 
+    Boolean(currentUser?.permissions?.canEditDoctors) || 
+    Boolean(currentUser?.permissions?.canEditSchedule) || 
+    Boolean(currentUser?.permissions?.canDeleteDoctors) || 
+    Boolean(currentUser?.permissions?.canDeleteSchedule);
+
+  const hasAuthorizedModules = isGlobalAdmin || canManageDoctors;
 
   const otherOperationsList = [
     { id: 'schedule', title: 'DOKTOR ÇALIŞMA PLANLARI', path: '/schedule', show: true },
@@ -325,7 +335,6 @@ export default function DashboardPage() {
       : 'bg-slate-50/90 border-slate-200/90 text-slate-800 hover:bg-emerald-50/60 hover:border-emerald-300 hover:text-emerald-700'
   }`;
 
-  // بيانات الإحصائيات الرسمية الموحدة
   const statsData = [
     { label: 'TOPLAM', value: 128, color: '#10b981' },
     { label: 'POLİKLİNİK', value: 84, color: '#06b6d4' },
@@ -449,26 +458,26 @@ export default function DashboardPage() {
           </div>
 
           {/* yetkili İşlemler */}
-          <div className="relative" ref={modulesRef}>
-            <button
-              onClick={() => setIsModulesOpen(!isModulesOpen)}
-              className={softLuxeBtnStyle}
-            >
-              <svg className="w-4 h-4 text-sky-500 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-              </svg>
-              <span className="hidden md:inline tracking-tight">yetkili İşlemler</span>
-              <svg className={`w-3.5 h-3.5 stroke-[2] opacity-70 transition-transform duration-150 ${isModulesOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
+          {hasAuthorizedModules && (
+            <div className="relative" ref={modulesRef}>
+              <button
+                onClick={() => setIsModulesOpen(!isModulesOpen)}
+                className={softLuxeBtnStyle}
+              >
+                <svg className="w-4 h-4 text-sky-500 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+                <span className="hidden md:inline tracking-tight">yetkili İşlemler</span>
+                <svg className={`w-3.5 h-3.5 stroke-[2] opacity-70 transition-transform duration-150 ${isModulesOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
 
-            {isModulesOpen && (
-              <div className={`absolute right-0 top-full mt-2 w-64 border rounded-2xl shadow-lg py-2 z-[120] text-xs font-semibold ${
-                isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-700'
-              }`}>
-                {isGlobalAdmin ? (
-                  <>
+              {isModulesOpen && (
+                <div className={`absolute right-0 top-full mt-2 w-64 border rounded-2xl shadow-lg py-2 z-[120] text-xs font-semibold ${
+                  isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-700'
+                }`}>
+                  {isGlobalAdmin && (
                     <button
                       onClick={() => handleOpenModule('/admin/users', 'Kullanıcı Yönetimi')}
                       className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors font-semibold ${
@@ -480,29 +489,25 @@ export default function DashboardPage() {
                       </svg>
                       <span>Kullanıcı Yönetimi</span>
                     </button>
+                  )}
 
-                    {canManageDoctors && (
-                      <button
-                        onClick={() => handleOpenModule('/admin/doctors', 'Bölüm ve Doktor yönetimi')}
-                        className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors font-semibold ${
-                          isDarkMode ? 'hover:bg-slate-700 hover:text-emerald-400' : 'hover:bg-emerald-50 hover:text-emerald-700'
-                        }`}
-                      >
-                        <svg className="w-4 h-4 text-emerald-500 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                        <span>Bölüm ve Doktor yönetimi</span>
-                      </button>
-                    )}
-                  </>
-                ) : (
-                  <div className="px-4 py-3 text-slate-400 text-center italic">
-                    Yetkili modül bulunmamaktadır.
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+                  {canManageDoctors && (
+                    <button
+                      onClick={() => handleOpenModule('/admin/doctors', 'Bölüm ve Doktor yönetimi')}
+                      className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors font-semibold ${
+                        isDarkMode ? 'hover:bg-slate-700 hover:text-emerald-400' : 'hover:bg-emerald-50 hover:text-emerald-700'
+                      }`}
+                    >
+                      <svg className="w-4 h-4 text-emerald-500 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                      <span>Bölüm ve Doktor yönetimi</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Profil */}
           <div className="relative" ref={profileRef}>
@@ -587,10 +592,9 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      {/* 📄 المحتوى الرئيسي المتجاوب والمتناسق */}
+      {/* 📄 المحتوى الرئيسي */}
       <main className="px-6 py-4 w-full flex-1 flex flex-col justify-between max-w-7xl mx-auto">
         
-        {/* 🌟 1. تصميم شريط زجاجي عائم أفقياً في أقصى اليمين ومناسب لكل الأحجام */}
         <div className="flex flex-col sm:flex-row justify-end items-center gap-3 w-full">
           
           {/* Card 1: DOKTOR ÇALIŞMA PLANLARI */}
@@ -619,7 +623,6 @@ export default function DashboardPage() {
               </span>
             </div>
 
-            {/* سهم تفاعلي حديث يتجه للأعلى واليمين */}
             <div className={`p-1 rounded-lg transition-all duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 ${
               isDarkMode ? 'text-emerald-400 group-hover:bg-emerald-500/10' : 'text-emerald-600 group-hover:bg-emerald-50'
             }`}>
@@ -655,7 +658,6 @@ export default function DashboardPage() {
               </span>
             </div>
 
-            {/* سهم تفاعلي حديث يتجه للأعلى واليمين */}
             <div className={`p-1 rounded-lg transition-all duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 ${
               isDarkMode ? 'text-cyan-400 group-hover:bg-cyan-500/10' : 'text-cyan-600 group-hover:bg-cyan-50'
             }`}>
@@ -667,7 +669,7 @@ export default function DashboardPage() {
 
         </div>
 
-        {/* 📊 2. الأعمدة البيانية المباشرة والدقيقة */}
+        {/* 📊 الإحصائيات */}
         <div className="w-full my-auto pt-4">
           <div className="flex items-center gap-2 mb-4 px-1">
             <span className="relative flex h-2.5 w-2.5">
@@ -687,12 +689,10 @@ export default function DashboardPage() {
 
                 return (
                   <div key={item.label} className="flex-1 flex flex-col items-center h-full justify-end group">
-                    {/* الرقم بأعلى العمود */}
                     <span className="text-xs sm:text-sm font-mono font-black mb-2 transition-transform group-hover:scale-110" style={{ color: item.color }}>
                       {item.value}
                     </span>
                     
-                    {/* شريط اللون الحر بدون خلفيات حادة */}
                     <div 
                       className="w-full max-w-[36px] sm:max-w-[42px] rounded-t-xl transition-all duration-300 group-hover:brightness-125 shadow-md" 
                       style={{ 
@@ -702,7 +702,6 @@ export default function DashboardPage() {
                       }} 
                     />
 
-                    {/* اسم الحالة بأسفل العمود تماماً */}
                     <span className={`text-[11px] sm:text-xs font-black uppercase tracking-wider mt-2.5 text-center whitespace-nowrap ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
                       {item.label}
                     </span>

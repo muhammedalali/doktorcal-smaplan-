@@ -18,8 +18,6 @@ export default function LandingPage() {
 
   // 🔄 فحص تلقائي: إذا كان المستخدم مسجلاً للدخول يتم توجيهه فوراً لـ /dashboard
   useEffect(() => {
-    document.title = 'Poliklinik Çalışma Planı';
-
     const sessionUser = sessionStorage.getItem('user');
     const localUser = localStorage.getItem('user');
     const activeUser = sessionUser ? JSON.parse(sessionUser) : (localUser ? JSON.parse(localUser) : null);
@@ -49,7 +47,7 @@ export default function LandingPage() {
               ? 'bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-500' 
               : 'bg-gradient-to-r from-emerald-800 via-teal-700 to-emerald-900'
           }`}>
-            POLİKLİNİK ÇALIŞMA PLANI
+            DOKTOR ÇALIŞMA PLANI
           </h1>
         </div>
 
@@ -115,9 +113,10 @@ export default function LandingPage() {
           </svg>
         </div>
 
-        {/* Dynamic Cards Grid */}
+        {/* High-Contrast Interactive Dynamic Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6 w-full max-w-3xl">
           
+          {/* Card 1: Doktor Çalışma Listesi */}
           <div 
             onClick={() => router.push('/schedule')}
             className={`group relative cursor-pointer rounded-2xl p-5 sm:p-6 border-2 transition-all duration-150 ease-out transform-gpu hover:-translate-y-1 active:scale-[0.98] flex flex-col justify-between overflow-hidden shadow-sm hover:shadow-md will-change-transform ${
@@ -162,6 +161,7 @@ export default function LandingPage() {
             </div>
           </div>
 
+          {/* Card 2: Sisteme Giriş Yap */}
           <div 
             onClick={() => router.push('/login')}
             className={`group relative cursor-pointer rounded-2xl p-5 sm:p-6 border-2 transition-all duration-150 ease-out transform-gpu hover:-translate-y-1 active:scale-[0.98] flex flex-col justify-between overflow-hidden shadow-sm hover:shadow-md will-change-transform ${
@@ -209,6 +209,7 @@ export default function LandingPage() {
         </div>
       </main>
 
+      {/* Animation Styles */}
       <style jsx global>{`
         @keyframes smoothEcg {
           0% { stroke-dashoffset: 2000; }

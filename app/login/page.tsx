@@ -239,7 +239,6 @@ export default function LoginPage() {
       setFailedAttempts(0);
       const isUserAdmin = foundUser.role === 'YÖNETİCİ' || foundUser.username === 'ADMIN' || foundUser.username === 'admin';
       
-      // 🛡️ التأكد من إسناد كائن الصلاحيات الافتراضي إذا لم يتوفر
       if (!foundUser.permissions) {
         foundUser.permissions = {
           canEditDoctors: isUserAdmin,
@@ -254,9 +253,14 @@ export default function LoginPage() {
       setShowSuccessToast(true);
       setLoadingProgress(0);
 
-      // حفظ بيانات الدخول والجلسة مع الصلاحيات كاملة
+      // 1. تخزين الجلسة في Local & Session Storage
       sessionStorage.setItem('user', JSON.stringify(foundUser));
       localStorage.setItem('user', JSON.stringify(foundUser));
+
+      // 2. تخزين الجلسة في Cookies ليتعرف عليها الـ Middleware
+      const userRole = isUserAdmin ? 'ADMIN' : 'USER';
+      document.cookie = `user_session=${encodeURIComponent(JSON.stringify(foundUser))}; path=/; max-age=604800; SameSite=Lax`;
+      document.cookie = `user_role=${userRole}; path=/; max-age=604800; SameSite=Lax`;
 
       if (isUserAdmin) {
         const totalDuration = 60000;
@@ -413,7 +417,6 @@ export default function LoginPage() {
         isDarkMode ? 'bg-slate-900/90 border-slate-800 shadow-black/50' : 'bg-white border-slate-200/80 shadow-slate-200/80'
       }`}>
         <div className="text-center mb-6 flex flex-col items-center">
-          
           <div className="w-full h-16 relative flex items-center justify-center mb-2 overflow-hidden">
             <SeamlessECGCanvas isError={isLocked || !!error} />
           </div>
