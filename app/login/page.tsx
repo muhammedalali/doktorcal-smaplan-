@@ -100,6 +100,21 @@ function SeamlessECGCanvas({ isError = false }: { isError?: boolean }) {
   return <canvas ref={canvasRef} className="w-full h-full block bg-transparent" />;
 }
 
+// 🛡️ هيكل الصلاحيات الشامل الموحد
+const DEFAULT_PERMISSIONS = {
+  'bölüm ve doktor yönetimi': true,
+  'bölüm ve doktor düzeltme yetkisi': true,
+  'bölüm ve doktor silme yetkisi': true,
+  'çalışma durumu değiştirme': true,
+  'sorun bildirme yönetimi': true,
+  canEditDoctors: true,
+  canDeleteDoctors: true,
+  canEditSchedule: true,
+  canDeleteSchedule: true,
+  canChangeStatus: true,
+  canManageIssues: true
+};
+
 export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -154,12 +169,7 @@ export default function LoginPage() {
             phone: '05555555555',
             password: 'admin1233', 
             role: 'YÖNETİCİ',
-            permissions: {
-              canEditDoctors: true,
-              canDeleteDoctors: true,
-              canEditSchedule: true,
-              canDeleteSchedule: true
-            }
+            permissions: DEFAULT_PERMISSIONS
           },
           ...firestoreUsers
         ];
@@ -221,12 +231,7 @@ export default function LoginPage() {
         username: 'ADMIN', 
         fullName: 'YÖNETİCİ ADMİN', 
         role: 'YÖNETİCİ',
-        permissions: {
-          canEditDoctors: true,
-          canDeleteDoctors: true,
-          canEditSchedule: true,
-          canDeleteSchedule: true
-        }
+        permissions: DEFAULT_PERMISSIONS
       };
     } else {
       foundUser = allUsers.find(
@@ -240,12 +245,7 @@ export default function LoginPage() {
       const isUserAdmin = foundUser.role === 'YÖNETİCİ' || foundUser.username === 'ADMIN' || foundUser.username === 'admin';
       
       if (!foundUser.permissions) {
-        foundUser.permissions = {
-          canEditDoctors: isUserAdmin,
-          canDeleteDoctors: isUserAdmin,
-          canEditSchedule: isUserAdmin,
-          canDeleteSchedule: isUserAdmin
-        };
+        foundUser.permissions = isUserAdmin ? DEFAULT_PERMISSIONS : {};
       }
 
       setLoggedInUser(foundUser.fullName || `${foundUser.username} ${foundUser.surname || ''}`);

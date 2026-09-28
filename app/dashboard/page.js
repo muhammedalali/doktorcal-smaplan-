@@ -314,15 +314,30 @@ export default function DashboardPage() {
   const uName = currentUser?.username ? currentUser.username.toLocaleUpperCase('tr-TR') : '';   
   const isGlobalAdmin = uName === 'ADMIN' || currentUser?.role === 'YÖNETİCİ' || currentUser?.role === 'ADMIN';   
 
-  // 🔗 تحديث صلاحية الوصول المباشر والربط مع صفحة الإدارة
-  const canManageDoctors = 
-    isGlobalAdmin || 
-    Boolean(currentUser?.permissions?.canEditDoctors) || 
-    Boolean(currentUser?.permissions?.canEditSchedule) || 
-    Boolean(currentUser?.permissions?.canDeleteDoctors) || 
-    Boolean(currentUser?.permissions?.canDeleteSchedule);
+  // 🛡️ دالة التحقق المرنة من الصلاحية (تدعم المصفوفة أو الكائن)
+  const checkPermission = (permKey) => {
+    if (isGlobalAdmin) return true;
+    if (!currentUser) return false;
 
-  const hasAuthorizedModules = isGlobalAdmin || canManageDoctors;
+    // إذا كانت الصلاحيات محفوظة كمصفوفة نصوص
+    if (Array.isArray(currentUser.permissions)) {
+      return currentUser.permissions.includes(permKey);
+    }
+
+    // إذا كانت الصلاحيات محفوظة كـ Object
+    if (typeof currentUser.permissions === 'object' && currentUser.permissions !== null) {
+      return Boolean(currentUser.permissions[permKey]);
+    }
+
+    return false;
+  };
+
+  // 🩺 الصلاحيات المحددة
+  const canManageDoctors = checkPermission('bölüm ve doktor yönetimi') || checkPermission('canEditDoctors');
+  const canManageReports = checkPermission('sorun bildirme yönetimi') || checkPermission('canManageReports');
+
+  // إجمالي خيارات yetkili İşlemler المتاحة للمستخدم الحالي
+  const hasAuthorizedModules = isGlobalAdmin || canManageDoctors || canManageReports;
 
   const otherOperationsList = [
     { id: 'schedule', title: 'DOKTOR ÇALIŞMA PLANLARI', path: '/schedule', show: true },
@@ -457,7 +472,7 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* yetkili İşlemler */}
+          {/* yetkili İşlemler (يظهر الخيار فقط إذا امتلك المستخدم صلاحيات) */}
           {hasAuthorizedModules && (
             <div className="relative" ref={modulesRef}>
               <button

@@ -7,7 +7,7 @@ import { useData } from '@/context/DataContext';
 import { db } from '@/lib/firebase';
 import { addDoc, deleteDoc, doc, updateDoc, collection } from 'firebase/firestore';
 
-// 🏥 مكون الأيقونات الطبية الشفافة والعصرية بالحجم المناسب والخطوط النظيفة
+// 🏥 مكون الأيقونات الطبية
 const MedicalIcon = ({ name, className = "w-4 h-4" }) => {
   const getSvgPath = (iconName) => {
     switch (iconName) {
@@ -174,7 +174,7 @@ const getStatusBadgeStyle = (status) => {
 
 export default function AdminDoctorsPage() {
   const { isDarkMode, activeColor } = useTheme();
-  const { doctors = [], setDoctors } = useData();
+  const { doctors = [], setDoctors, checkPermission } = useData();
   
   const [openedFolder, setOpenedFolder] = useState(null); 
   const [searchQuery, setSearchQuery] = useState('');
@@ -216,30 +216,20 @@ export default function AdminDoctorsPage() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
+  // 🛡️ فحص الصلاحيات الموحد
+  const canManageDocs = checkPermission ? checkPermission('bölüm ve doktor yönetimi') : true;
+  const canEditDocs = checkPermission ? checkPermission('bölüm ve doktor düzeltme yetkisi') : true;
+  const canDeleteDocs = checkPermission ? checkPermission('bölüm ve doktor silme yetkisi') : true;
+  const canChangeStatus = checkPermission ? checkPermission('çalışma durumu değiştirme') : true;
+
   const triggerToast = (msg) => {
     setToastMessage(msg);
     setShowToast(true);
     setTimeout(() => setShowToast(false), 3000);
   };
 
-  // 🛡️ التعديل الجوهري: فحص شامل ومرن يمنع طرد المستخدم
   useEffect(() => {
-    const sessionUser = sessionStorage.getItem('user');
-    const localUser = localStorage.getItem('user');
-    const currentUser = sessionUser ? JSON.parse(sessionUser) : (localUser ? JSON.parse(localUser) : {});
-    const uName = currentUser.username ? currentUser.username.toLocaleUpperCase('tr-TR') : '';
-    
-    const isGlobalAdmin = uName === 'ADMIN' || currentUser.role === 'YÖNETİCİ' || currentUser.role === 'ADMIN';
-    
-    // السماح بكل أشكال صلاحيات الأطباء أو الأقسام الممنوحة
-    const hasPermission = 
-      isGlobalAdmin || 
-      Boolean(currentUser.permissions?.canEditDoctors) || 
-      Boolean(currentUser.permissions?.canEditSchedule) || 
-      Boolean(currentUser.permissions?.canDeleteDoctors) || 
-      Boolean(currentUser.permissions?.canDeleteSchedule);
-
-    if (!hasPermission) {
+    if (!canManageDocs) {
       router.push('/dashboard');
       return;
     }
@@ -251,7 +241,7 @@ export default function AdminDoctorsPage() {
       setDepartments(defaultDepartments);
       localStorage.setItem('app_departments', JSON.stringify(defaultDepartments));
     }
-  }, [router]);
+  }, [canManageDocs, router]);
 
   useEffect(() => {
     if ((showScheduleModal && !isMinimized) || editingDoctor || deletingDept || deletingDoc) {
@@ -321,6 +311,11 @@ export default function AdminDoctorsPage() {
 
   const handleCloseScheduleModal = async () => {
     if (selectedDoctor && isScheduleDirtyRef.current) {
+      if (!canChangeStatus) {
+        alert('Çalışma durumunu değiştirme yetkiniz bulunmamaktadır!');
+        setShowScheduleModal(false);
+        return;
+      }
       try {
         await updateDoc(doc(db, 'doctors', selectedDoctor.id), {
           scheduleDays: selectedDoctor.scheduleDays,
@@ -347,6 +342,10 @@ export default function AdminDoctorsPage() {
   };
 
   const handleDayStatusChange = (index, newStatus) => {
+    if (!canChangeStatus) {
+      alert('Çalışma durumunu değiştirme yetkiniz bulunmamaktadır!');
+      return;
+    }
     if (!selectedDoctor) return;
     const updatedSchedule = [...selectedDoctor.scheduleDays];
     updatedSchedule[index].status = newStatus;
@@ -357,6 +356,10 @@ export default function AdminDoctorsPage() {
 
   const handleAddCustomDepartment = (e) => {
     e.preventDefault();
+    if (!canManageDocs) {
+      alert('Bölüm ekleme yetkiniz bulunmamaktadır!');
+      return;
+    }
     if (!newCustomDept.trim()) return;
     const deptUpper = newCustomDept.trim().toLocaleUpperCase('tr-TR');
     if (!departments.includes(deptUpper)) {
@@ -369,6 +372,11 @@ export default function AdminDoctorsPage() {
   };
 
   const handleConfirmDeleteDepartment = () => {
+    if (!canDeleteDocs) {
+      alert('Bölüm silme yetkiniz bulunmamaktadır!');
+      setDeletingDept(null);
+      return;
+    }
     if (!deletingDept) return;
     const updatedDepts = departments.filter(d => d !== deletingDept);
     setDepartments(updatedDepts);
@@ -378,6 +386,11 @@ export default function AdminDoctorsPage() {
   };
 
   const handleConfirmDeleteDoctor = async () => {
+    if (!canDeleteDocs) {
+      alert('Doktor silme yetkiniz bulunmamaktadır!');
+      setDeletingDoc(null);
+      return;
+    }
     if (!deletingDoc) return;
     try {
       await deleteDoc(doc(db, 'doctors', deletingDoc.id));
@@ -393,6 +406,10 @@ export default function AdminDoctorsPage() {
 
   const handleSaveNewDoctor = async (e) => {
     e.preventDefault();
+    if (!canManageDocs) {
+      alert('Doktor ekleme yetkiniz bulunmamaktadır!');
+      return;
+    }
     if (!docName) return;
     const now = Date.now();
     const newDoc = {
@@ -419,6 +436,11 @@ export default function AdminDoctorsPage() {
 
   const handleSaveEditedDoctor = async (e) => {
     e.preventDefault();
+    if (!canEditDocs) {
+      alert('Doktor bilgilerini düzeltme yetkiniz bulunmamaktadır!');
+      setEditingDoctor(null);
+      return;
+    }
     if (!editingDoctor) return;
     try {
       const updatedData = {
@@ -722,13 +744,15 @@ export default function AdminDoctorsPage() {
                         {deptDocs.length} DOKTOR
                       </span>
                       
-                      <button
-                        onClick={() => setDeletingDept(dept)}
-                        className="p-1 text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all cursor-pointer"
-                        title="Bölümü Sil"
-                      >
-                        🗑️
-                      </button>
+                      {canDeleteDocs && (
+                        <button
+                          onClick={() => setDeletingDept(dept)}
+                          className="p-1 text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all cursor-pointer"
+                          title="Bölümü Sil"
+                        >
+                          🗑️
+                        </button>
+                      )}
 
                       <button
                         onClick={() => toggleDept(dept)}
@@ -767,26 +791,30 @@ export default function AdminDoctorsPage() {
                             </div>
 
                             <div className="flex items-center gap-1 shrink-0">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setEditingDoctor(docItem);
-                                }}
-                                className="p-1.5 bg-amber-500/10 hover:bg-amber-500 text-amber-500 hover:text-slate-950 rounded-lg border border-amber-500/30 text-[11px] font-black cursor-pointer transition-all"
-                                title="Doktoru Düzenle"
-                              >
-                                ✏️
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setDeletingDoc(docItem);
-                                }}
-                                className="p-1.5 bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white rounded-lg border border-rose-500/30 text-[11px] font-black cursor-pointer transition-all"
-                                title="Doktoru Sil"
-                              >
-                                🗑️
-                              </button>
+                              {canEditDocs && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingDoctor(docItem);
+                                  }}
+                                  className="p-1.5 bg-amber-500/10 hover:bg-amber-500 text-amber-500 hover:text-slate-950 rounded-lg border border-amber-500/30 text-[11px] font-black cursor-pointer transition-all"
+                                  title="Doktoru Düzenle"
+                                >
+                                  ✏️
+                                </button>
+                              )}
+                              {canDeleteDocs && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeletingDoc(docItem);
+                                  }}
+                                  className="p-1.5 bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white rounded-lg border border-rose-500/30 text-[11px] font-black cursor-pointer transition-all"
+                                  title="Doktoru Sil"
+                                >
+                                  🗑️
+                                </button>
+                              )}
                             </div>
                           </div>
                         ))
@@ -806,7 +834,7 @@ export default function AdminDoctorsPage() {
       )}
 
       {/* Modal - Doctor Info Edit */}
-      {editingDoctor && (
+      {editingDoctor && canEditDocs && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs p-4">
           <div className={`w-full max-w-md rounded-2xl border-2 p-5 shadow-2xl ${
             isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
@@ -878,7 +906,7 @@ export default function AdminDoctorsPage() {
       )}
 
       {/* Modal - Delete Department */}
-      {deletingDept && (
+      {deletingDept && canDeleteDocs && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-xs p-4">
           <div className={`w-full max-w-xs rounded-2xl border-2 p-5 shadow-2xl text-center ${
             isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
@@ -896,7 +924,7 @@ export default function AdminDoctorsPage() {
       )}
 
       {/* Modal - Delete Doctor */}
-      {deletingDoc && (
+      {deletingDoc && canDeleteDocs && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-xs p-4">
           <div className={`w-full max-w-xs rounded-2xl border-2 p-5 shadow-2xl text-center ${
             isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
@@ -1067,10 +1095,10 @@ export default function AdminDoctorsPage() {
 
                         <select
                           value={sd.status}
-                          disabled={isPast}
+                          disabled={isPast || !canChangeStatus}
                           onChange={(e) => handleDayStatusChange(idx, e.target.value)}
                           className={`px-3 py-1.5 rounded-lg border-2 text-[11px] font-black outline-none transition-all cursor-pointer ${getStatusBadgeStyle(sd.status)} ${
-                            isPast ? 'cursor-not-allowed opacity-60' : ''
+                            isPast || !canChangeStatus ? 'cursor-not-allowed opacity-60' : ''
                           }`}
                         >
                           <option value="POLİKLİNİK" className="bg-emerald-600 text-white">POLİKLİNİK</option>

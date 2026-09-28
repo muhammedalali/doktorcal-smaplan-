@@ -129,7 +129,7 @@ const getDateTextColor = (status, dayName, isPast, isDarkMode) => {
 };
 
 export default function AdminScheduleTable({ onEditDoctor, onDeleteDoctor }) {   
-  const { doctors: rawDoctors } = useData(); 
+  const { doctors: rawDoctors, checkPermission } = useData(); 
 
   const [currentUser, setCurrentUser] = useState(null);
   const [filter, setFilter] = useState('HEPSİ');   
@@ -145,7 +145,7 @@ export default function AdminScheduleTable({ onEditDoctor, onDeleteDoctor }) {
   const [showMenuDropdown, setShowMenuDropdown] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // ✏️ حالات نافذة التعديل المباشر
+  // حالات نافذة التعديل المباشر
   const [editingDoctor, setEditingDoctor] = useState(null);
   const [editName, setEditName] = useState('');
   const [editClinic, setEditClinic] = useState('');
@@ -163,7 +163,7 @@ export default function AdminScheduleTable({ onEditDoctor, onDeleteDoctor }) {
 
   const todayRef = useRef(null);   
   const modalBoxRef = useRef(null);
-  const modalScrollContainerRef = useRef(null);
+  const modalScrollContainerRef = useRef(null); // 👈 تم إضافة const هنا لتفادي خطأ ReferenceError
   const searchInputRef = useRef(null);
   
   const filterDropdownRef = useRef(null);
@@ -203,16 +203,13 @@ export default function AdminScheduleTable({ onEditDoctor, onDeleteDoctor }) {
 
   const activeUser = currentUser || (typeof window !== 'undefined' ? JSON.parse(sessionStorage.getItem('user') || localStorage.getItem('user') || 'null') : null);
 
-  // 🔒 الفحص الديناميكي للصلاحيات
-  const uName = activeUser?.username ? activeUser.username.toLocaleUpperCase('tr-TR') : '';
-  const uRole = activeUser?.role ? activeUser.role.toLocaleUpperCase('tr-TR') : '';
+  // 🔒 الفحص الدقيق للصلاحيات المطلوبة
+  const canEditDocs = checkPermission ? checkPermission('bölüm ve doktor düzeltme yetkisi') : true;
+  const canDeleteDocs = checkPermission ? checkPermission('bölüm ve doktor silme yetkisi') : true;
+  const canChangeStatus = checkPermission ? (checkPermission('bölüm ve doktor yönetimi') || checkPermission('çalışma durumu değiştirme')) : true;
 
-  const isGlobalAdmin = uName === 'ADMIN' || uRole === 'YÖNETİCİ' || uRole === 'ADMIN';
-
-  const canEdit = isGlobalAdmin || Boolean(activeUser?.permissions?.canEditDoctors) || Boolean(activeUser?.permissions?.canEditSchedule);
-  const canDelete = isGlobalAdmin || Boolean(activeUser?.permissions?.canDeleteDoctors) || Boolean(activeUser?.permissions?.canDeleteSchedule);
-  
-  const showActionsColumn = canEdit || canDelete;
+  // 👁️ عمود الإجراءات يظهر فقط في حال وجود صلاحية الحذف أو صلاحية التعديل
+  const showActionsColumn = canEditDocs || canDeleteDocs;
 
   const handleGoBack = () => {
     if (activeUser && activeUser.username) {
@@ -352,7 +349,6 @@ export default function AdminScheduleTable({ onEditDoctor, onDeleteDoctor }) {
     }
   }, [rawDoctors]);
 
-  // 🏢 تجميع الأقسام لاستخدامها في اقتراحات الإدخال
   const availableClinics = useMemo(() => {
     const setClinics = new Set(doctors.map(d => d.clinic).filter(Boolean));
     return Array.from(setClinics).sort((a, b) => a.localeCompare(b, 'tr'));
@@ -364,8 +360,12 @@ export default function AdminScheduleTable({ onEditDoctor, onDeleteDoctor }) {
     setIsMaximized(false);     
   };   
 
-  // ✏️ فتح نافذة التعديل المباشر
+  // فتح نافذة التعديل المباشر
   const handleStartDirectEdit = (docItem) => {
+    if (!canEditDocs) {
+      alert('Bölüm ve doktor düzeltme yetkiniz bulunmamaktadır!');
+      return;
+    }
     setEditingDoctor(docItem);
     setEditName(docItem.name || '');
     setEditClinic(docItem.clinic || '');
@@ -373,9 +373,15 @@ export default function AdminScheduleTable({ onEditDoctor, onDeleteDoctor }) {
     setEditStatus(getCurrentDayStatus(docItem));
   };
 
-  // 💾 حفظ التعديل المباشر في Firebase
+  // حفظ التعديل المباشر في Firebase
   const handleSaveDirectEdit = async (e) => {
     e.preventDefault();
+    if (!canEditDocs) {
+      alert('Bölüm ve doktor düzeltme yetkiniz bulunmamaktadır!');
+      setEditingDoctor(null);
+      return;
+    }
+
     if (!editingDoctor || !editName.trim() || !editClinic.trim()) return;
 
     setIsSavingEdit(true);
@@ -399,7 +405,6 @@ export default function AdminScheduleTable({ onEditDoctor, onDeleteDoctor }) {
         scheduleDays: updatedDays
       });
 
-      // تحديث البيانات محلياً
       setDoctors(prev => prev.map(d => d.id === editingDoctor.id ? {
         ...d,
         name: editName.trim(),
@@ -538,7 +543,7 @@ export default function AdminScheduleTable({ onEditDoctor, onDeleteDoctor }) {
         
         <div className="w-full flex flex-row items-center justify-between gap-2 sm:gap-4">                          
           
-          {/* ↩️ سهم العودة */}
+          {/* سهم العودة */}
           <div className="flex items-center shrink-0">
             <button
               onClick={handleGoBack}
@@ -555,7 +560,7 @@ export default function AdminScheduleTable({ onEditDoctor, onDeleteDoctor }) {
             </button>
           </div>
 
-          {/* 🔍 البحث المدمج */}
+          {/* البحث المدمج */}
           <div className="relative flex-1 max-w-lg mx-1 sm:mx-2">               
             <div 
               onClick={() => searchInputRef.current?.focus()}
@@ -597,7 +602,7 @@ export default function AdminScheduleTable({ onEditDoctor, onDeleteDoctor }) {
           {/* الأزرار العلوية */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             
-            {/* ⛶ زر ملء الشاشة */}
+            {/* زر ملء الشاشة */}
             <button
               onClick={toggleFullscreen}
               className={`p-1.5 rounded-xl flex items-center justify-center transition-all duration-150 transform hover:scale-110 active:scale-95 outline-none ${
@@ -618,7 +623,7 @@ export default function AdminScheduleTable({ onEditDoctor, onDeleteDoctor }) {
               )}
             </button>
 
-            {/* 🌙 / ☀️ الوضع الليلي */}
+            {/* الوضع الليلي */}
             <button
               onClick={(e) => {
                 toggleTheme();
@@ -757,7 +762,7 @@ export default function AdminScheduleTable({ onEditDoctor, onDeleteDoctor }) {
               </button>
             </div>
 
-            {/* ☰ MENÜ */}
+            {/* MENÜ */}
             <div className="relative" ref={menuDropdownRef}>
               <button
                 onClick={() => {
@@ -846,6 +851,7 @@ export default function AdminScheduleTable({ onEditDoctor, onDeleteDoctor }) {
                     </th>                   
                   )}
 
+                  {/* يظهر هذا العمود فقط وفقط إذا وُجدت صلاحية التعديل أو صلاحية الحذف */}
                   {showActionsColumn && (
                     <th className={`${getRowPaddingClass()} font-black text-center tracking-wider text-xs sm:text-sm w-1/4`}>
                       İŞLEMLER
@@ -899,10 +905,11 @@ export default function AdminScheduleTable({ onEditDoctor, onDeleteDoctor }) {
                           </td>                       
                         )}
 
+                        {/* إظهار الأزرار المحددة بحسب الصلاحيات الممنوحة */}
                         {showActionsColumn && (
                           <td className={`${getRowPaddingClass()} text-center`} onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center justify-center gap-1.5 sm:gap-2">
-                              {canEdit && (
+                              {canEditDocs && (
                                 <button
                                   type="button"
                                   onClick={(e) => {
@@ -915,7 +922,7 @@ export default function AdminScheduleTable({ onEditDoctor, onDeleteDoctor }) {
                                 </button>
                               )}
 
-                              {canDelete && (
+                              {canDeleteDocs && (
                                 <button
                                   type="button"
                                   onClick={(e) => {
@@ -953,8 +960,8 @@ export default function AdminScheduleTable({ onEditDoctor, onDeleteDoctor }) {
         </div>       
       </div>       
 
-      {/* ✏️ MODAL: النافذة المعتمة الحديثة مع خيار الكتابة اليدوية للقسم */}
-      {editingDoctor && (
+      {/* MODAL: النافذة المعتمة لتعديل بيانات الطبيب (تفتح فقط لمن لديه صلاحية التعديل) */}
+      {editingDoctor && canEditDocs && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/85 p-3 sm:p-4 transition-all">
           <div className={`w-full max-w-lg rounded-3xl p-6 sm:p-7 shadow-2xl border ${
             isDarkMode 
@@ -962,7 +969,6 @@ export default function AdminScheduleTable({ onEditDoctor, onDeleteDoctor }) {
               : 'bg-white border-emerald-500/40 text-slate-900 shadow-emerald-500/10'
           }`}>
             
-            {/* Header */}
             <div className="flex justify-between items-center pb-4 mb-4 border-b border-slate-200 dark:border-slate-800">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 rounded-2xl bg-amber-500/15 text-amber-500 font-black text-xl">
@@ -985,10 +991,7 @@ export default function AdminScheduleTable({ onEditDoctor, onDeleteDoctor }) {
               </button>
             </div>
 
-            {/* Form */}
             <form onSubmit={handleSaveDirectEdit} className="space-y-4 font-black">
-              
-              {/* Doctor Name */}
               <div>
                 <label className="block text-xs font-extrabold text-slate-400 uppercase mb-1.5">
                   DOKTOR ADI SOYADI
@@ -1007,13 +1010,10 @@ export default function AdminScheduleTable({ onEditDoctor, onDeleteDoctor }) {
                 />
               </div>
 
-              {/* Clinic Input / Selection & Room No */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                
-                {/* 🏢 إدخال القسم (يدوياً + اقتراحات تلقائية) */}
                 <div className="sm:col-span-2">
                   <label className="block text-xs font-extrabold text-slate-400 uppercase mb-1.5">
-                    BİRİM / POLİKLİNİK (SEÇİN VEYA YAZIN)
+                    BİRİM / POLİKLİNİK
                   </label>
                   <div className="relative">
                     <input
@@ -1037,7 +1037,6 @@ export default function AdminScheduleTable({ onEditDoctor, onDeleteDoctor }) {
                   </div>
                 </div>
 
-                {/* Oda No */}
                 <div>
                   <label className="block text-xs font-extrabold text-slate-400 uppercase mb-1.5">
                     ODA NO
@@ -1054,10 +1053,8 @@ export default function AdminScheduleTable({ onEditDoctor, onDeleteDoctor }) {
                     }`}
                   />
                 </div>
-
               </div>
 
-              {/* Status */}
               <div>
                 <label className="block text-xs font-extrabold text-slate-400 uppercase mb-1.5">
                   BUGÜNKÜ ÇALIŞMA DURUMU
@@ -1065,12 +1062,13 @@ export default function AdminScheduleTable({ onEditDoctor, onDeleteDoctor }) {
                 <div className="relative">
                   <select
                     value={editStatus}
+                    disabled={!canChangeStatus}
                     onChange={(e) => setEditStatus(e.target.value)}
                     className={`w-full p-3 rounded-2xl border-2 text-xs sm:text-sm font-black outline-none transition-all appearance-none cursor-pointer ${
                       isDarkMode 
                         ? 'bg-slate-950 border-slate-800 text-emerald-400 focus:border-amber-500' 
                         : 'bg-slate-50 border-slate-200 text-emerald-700 focus:border-amber-500'
-                    }`}
+                    } ${!canChangeStatus ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <option value="POLİKLİNİK">🟢 POLİKLİNİK</option>
                     <option value="AMELİYATTA">🟣 AMELİYATTA</option>
@@ -1086,7 +1084,6 @@ export default function AdminScheduleTable({ onEditDoctor, onDeleteDoctor }) {
                 </div>
               </div>
 
-              {/* Actions */}
               <div className="flex gap-2.5 pt-3">
                 <button
                   type="button"
@@ -1116,7 +1113,7 @@ export default function AdminScheduleTable({ onEditDoctor, onDeleteDoctor }) {
         </div>
       )}
 
-      {/* ⚠️ MODAL: Sorun Bildir */}
+      {/* MODAL: Sorun Bildir */}
       {showReportModal && (
         <div className="fixed inset-0 z-[180] flex items-center justify-center bg-black/85 p-4">
           <div className={`w-full max-w-md rounded-3xl p-6 shadow-2xl border space-y-4 ${
@@ -1187,7 +1184,7 @@ export default function AdminScheduleTable({ onEditDoctor, onDeleteDoctor }) {
         </div>
       )}
 
-      {/* 📥 Printable A4 Modal */}       
+      {/* Printable A4 Modal */}       
       {showPrintModal && (         
         <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/85 p-3">           
           <div className="w-full max-w-4xl bg-white text-slate-900 rounded-3xl p-6 shadow-2xl max-h-[95vh] overflow-y-auto border border-slate-300">             
@@ -1253,7 +1250,7 @@ export default function AdminScheduleTable({ onEditDoctor, onDeleteDoctor }) {
         </div>       
       )}       
 
-      {/* 📅 MODAL DETAIL */}
+      {/* MODAL DETAIL (يسمح بتغيير الحالة اليومية لمن يملك صلاحية Yönetim) */}
       {selectedDoctorDetail && (         
         <>           
           {isMinimized ? (
@@ -1319,7 +1316,8 @@ export default function AdminScheduleTable({ onEditDoctor, onDeleteDoctor }) {
                   </div>                   
                   
                   <div className="flex items-center gap-2 font-mono">
-                    {canEdit && (
+                    {/* يظهر زر التعديل إذا توفرت صلاحية التعديل */}
+                    {canEditDocs && (
                       <button
                         onClick={() => handleStartDirectEdit(selectedDoctorDetail)}
                         className="px-3 py-1.5 rounded-xl bg-amber-500 text-slate-950 font-black text-xs hover:bg-amber-400 shadow-md transition-all cursor-pointer"
@@ -1328,7 +1326,8 @@ export default function AdminScheduleTable({ onEditDoctor, onDeleteDoctor }) {
                       </button>
                     )}
 
-                    {canDelete && (
+                    {/* يظهر زر الحذف إذا توفرت صلاحية الحذف */}
+                    {canDeleteDocs && (
                       <button
                         onClick={() => {
                           const docId = selectedDoctorDetail.id;

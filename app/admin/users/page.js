@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from '@/context/ThemeContext';
+import { useData } from '@/context/DataContext';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, onSnapshot } from 'firebase/firestore';
 
@@ -25,19 +26,22 @@ const ModernIcons = {
 };
 
 const DEFAULT_PERMISSIONS = {
-  canEditDoctors: false,
-  canDeleteDoctors: false,
-  canEditSchedule: false,
-  canDeleteSchedule: false,
-  canChangeStatus: false,
-  canManageIssues: false,
-  canViewReports: false,
+  'bölüm ve doktor yönetimi': false,
+  'bölüm ve doktor düzeltme yetkisi': false,
+  'bölüm ve doktor silme yetkisi': false,
+  'çalışma durumu değiştirme': false,
+  'kullanıcı ekleme ve yetkilendirme': false,
+  'kullanıcı düzenleme yetkisi': false,
+  'kullanıcı silme yetkisi': false,
 };
 
 export default function AdminUsersPage() {
   const themeContext = useTheme();
   const isDarkMode = themeContext?.isDarkMode ?? true;
 
+  const { checkPermission, currentUser } = useData();
+
+  const [mounted, setMounted] = useState(false); // 👈 لضمان اكتمال التحميل بالمتصفح منعاً لخطأ الـ Hydration
   const [users, setUsers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -54,6 +58,19 @@ export default function AdminUsersPage() {
 
   const router = useRouter();
 
+  // 1️⃣ تعيين الحساب الجاري للتأكد من المونتاج في المتصفح
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // 🛡️ فحص صلاحية الوصول للمستخدمين
+  const activeUser = mounted ? (currentUser || (typeof window !== 'undefined' ? JSON.parse(sessionStorage.getItem('user') || localStorage.getItem('user') || '{}') : {})) : {};
+  const nameStr = activeUser.username ? activeUser.username.toLocaleUpperCase('tr-TR') : '';
+  const isGlobalAdmin = nameStr === 'ADMIN' || activeUser.role === 'YÖNETİCİ' || nameStr === 'ADMIN';
+  const hasUserPermission = checkPermission ? checkPermission('kullanıcı ekleme ve yetkilendirme') : false;
+
+  const canAccessUsersPage = isGlobalAdmin || hasUserPermission;
+
   // تجميد تمرير الصفحة خلف النافذة المنبثقة عند فتحها
   useEffect(() => {
     if (isAddModalOpen) {
@@ -67,12 +84,9 @@ export default function AdminUsersPage() {
   }, [isAddModalOpen]);
 
   useEffect(() => {
-    const sessionUser = sessionStorage.getItem('user');
-    const localUser = localStorage.getItem('user');
-    const currentUser = sessionUser ? JSON.parse(sessionUser) : (localUser ? JSON.parse(localUser) : {});
-    const nameStr = currentUser.username ? currentUser.username.toLocaleUpperCase('tr-TR') : '';
+    if (!mounted) return;
 
-    if (nameStr !== 'ADMIN' && currentUser.role !== 'YÖNETİCİ' && nameStr !== 'admin') {
+    if (!canAccessUsersPage) {
       router.push('/dashboard');
       return;
     }
@@ -83,7 +97,7 @@ export default function AdminUsersPage() {
     });
 
     return () => unsubscribeUsers();
-  }, [router]);
+  }, [mounted, canAccessUsersPage, router]);
 
   const filteredUsers = useMemo(() => {
     const uniqueMap = new Map();
@@ -127,7 +141,17 @@ export default function AdminUsersPage() {
       phone: phone || '05555555555',
       password: password,
       role: role,
-      permissions: DEFAULT_PERMISSIONS,
+      permissions: role === 'YÖNETİCİ' || role === 'ADMIN'
+        ? {
+            'bölüm ve doktor yönetimi': true,
+            'bölüm ve doktor düzeltme yetkisi': true,
+            'bölüm ve doktor silme yetkisi': true,
+            'çalışma durumu değiştirme': true,
+            'kullanıcı ekleme ve yetkilendirme': true,
+            'kullanıcı düzenleme yetkisi': true,
+            'kullanıcı silme yetkisi': true,
+          }
+        : DEFAULT_PERMISSIONS,
       createdAt: new Date().toISOString()
     };
 
@@ -151,6 +175,22 @@ export default function AdminUsersPage() {
       alert(`Hata: ${error.message}`);
     }
   };
+
+  // 🚫 التوقف عن الرندرة حتى يكتمل التحميل في المتصفح تجنباً لاختلاف الـ HTML
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-[#0b0f19] text-slate-100 flex items-center justify-center font-black">
+        <div className="flex items-center gap-2 text-amber-500">
+          <span className="w-5 h-5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin"></span>
+          <span>Yükleniyor...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!canAccessUsersPage) {
+    return null;
+  }
 
   return (
     <div className={`min-h-screen select-none transition-colors duration-300 font-sans ${
@@ -201,7 +241,7 @@ export default function AdminUsersPage() {
         </div>
       </div>
 
-      {/* Table - مع التعديل ليكون KULLANICI ADI, SOYADI وإظهار تاريخ الخروج الحقيقي */}
+      {/* Table */}
       <div className="w-full space-y-0 mt-0">
         <div className={`w-full border-b overflow-hidden shadow-none ${
           isDarkMode ? 'bg-slate-900/95 border-slate-800' : 'bg-white border-slate-300'
@@ -215,7 +255,7 @@ export default function AdminUsersPage() {
                   isDarkMode ? 'border-slate-800 bg-slate-950 text-slate-100' : 'border-slate-300 bg-slate-100 text-slate-900'
                 }`}>
                   <th className={`py-2.5 px-3 pl-4 w-[12%] border-r ${isDarkMode ? 'border-slate-800' : 'border-slate-200'}`}>Kullanıcı Numarası</th>
-                  <th className={`py-2.5 px-3 w-[24%] border-r ${isDarkMode ? 'border-slate-800' : 'border-slate-200'}`}>KULLANICI ADI, SOYADI</th>
+                  <th className={`py-2.5 px-3 w-[24%] border-r ${isDarkMode ? 'border-slate-800' : 'border-slate-200'}`}>Kullanıcı (İsim, Soyisim)</th>
                   <th className={`py-2.5 px-3 w-[10%] border-r ${isDarkMode ? 'border-slate-800' : 'border-slate-200'}`}>Rol</th>
                   <th className={`py-2.5 px-3 w-[14%] border-r ${isDarkMode ? 'border-slate-800' : 'border-slate-200'}`}>Telefon</th>
                   <th className={`py-2.5 px-3 w-[15%] border-r ${isDarkMode ? 'border-slate-800' : 'border-slate-200'}`}>Son Giriş</th>
@@ -233,7 +273,7 @@ export default function AdminUsersPage() {
                         key={u.id || idx} 
                         onDoubleClick={() => router.push(`/admin/users/${u.id}`)}
                         title="Detaylar ve işlemler için çift tıklayın"
-                        className={`cursor-default transition-colors ${
+                        className={`cursor-pointer transition-colors ${
                           isDarkMode ? 'hover:bg-slate-800/50 border-slate-800' : 'hover:bg-slate-50 border-slate-200'
                         }`}
                       >
@@ -242,7 +282,7 @@ export default function AdminUsersPage() {
                           {u.userNumber || '1000'}
                         </td>
 
-                        {/* KULLANICI ADI, SOYADI */}
+                        {/* Kullanıcı (İsim, Soyisim) */}
                         <td className={`py-2 px-3 truncate border-r ${isDarkMode ? 'border-slate-800' : 'border-slate-200'}`}>
                           <span className={`font-black text-xs block truncate ${isDarkMode ? 'text-slate-100' : 'text-slate-900'}`}>
                             {u.name || u.username} {u.surname || ''}
@@ -270,9 +310,9 @@ export default function AdminUsersPage() {
                           {u.lastLogin ? new Date(u.lastLogin).toLocaleString('tr-TR') : 'Kayıt yok'}
                         </td>
 
-                        {/* Son Çıkış (عرض الخروج الحقيقي بدقة) */}
+                        {/* Son Çıkış */}
                         <td className={`py-2 px-3 font-mono text-xs font-black truncate border-r ${isDarkMode ? 'border-slate-800 text-slate-100' : 'border-slate-200 text-slate-900'}`}>
-                          {u.lastLogout ? new Date(u.lastLogout).toLocaleString('tr-TR') : 'Kayıt yok'}
+                          {u.lastLogout ? new Date(u.lastLogout).toLocaleString('tr-TR') : 'Aktif'}
                         </td>
 
                         {/* Durum */}
@@ -304,7 +344,7 @@ export default function AdminUsersPage() {
         </div>
       </div>
 
-      {/* Modal Ekleme */}
+      {/* Yeni Kullanıcı Ekleme Modalı */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
           <div className={`max-w-xl w-full rounded-2xl border p-6 space-y-4 shadow-2xl ${
@@ -318,6 +358,8 @@ export default function AdminUsersPage() {
             </div>
 
             <form onSubmit={handleAddUser} className="space-y-3.5 font-bold text-xs">
+              
+              {/* İsim ve Soyadı */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className={`block mb-1.5 uppercase text-xs font-black ${isDarkMode ? 'text-slate-200' : 'text-slate-900'}`}>
@@ -351,6 +393,7 @@ export default function AdminUsersPage() {
                 </div>
               </div>
 
+              {/* Kullanıcı Adı ve Telefon */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className={`block mb-1.5 uppercase text-xs font-black ${isDarkMode ? 'text-slate-200' : 'text-slate-900'}`}>
@@ -376,13 +419,14 @@ export default function AdminUsersPage() {
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     placeholder="05xxxxxxxx"
-                    className={`w-full px-3.5 py-2.5 border rounded-xl outline-none font-bold transition-colors focus:bg-[#ffff00] focus:text-slate-950 focus:border-[#ffff00] ${
+                    className={`w-full px-3.5 py-2.5 border rounded-xl outline-none font-bold transition-colors focus:bg-[#ffff00] focus:text-[#000] focus:border-[#ffff00] ${
                       isDarkMode ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
                     }`}
                   />
                 </div>
               </div>
 
+              {/* Şifre ve Şifre Tekrarı */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className={`block mb-1.5 uppercase text-xs font-black ${isDarkMode ? 'text-slate-200' : 'text-slate-900'}`}>
@@ -416,6 +460,7 @@ export default function AdminUsersPage() {
                 </div>
               </div>
 
+              {/* Rol */}
               <div>
                 <label className={`block mb-1.5 uppercase text-xs font-black ${isDarkMode ? 'text-slate-200' : 'text-slate-900'}`}>
                   Rol
@@ -432,6 +477,7 @@ export default function AdminUsersPage() {
                 </select>
               </div>
 
+              {/* Butonlar */}
               <div className="flex gap-3 pt-3">
                 <button
                   type="button"

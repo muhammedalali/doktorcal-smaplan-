@@ -1,361 +1,428 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useState, useEffect, use } from 'react';
+import { useRouter } from 'next/navigation';
 import { useTheme } from '@/context/ThemeContext';
+import { useData } from '@/context/DataContext';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 
-const ModernIcons = {
-  ArrowLeft: () => (
-    <svg className="w-4 h-4 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
-    </svg>
-  ),
-  Key: () => (
-    <svg className="w-4 h-4 stroke-[2.2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
-    </svg>
-  ),
-  Trash: () => (
-    <svg className="w-4 h-4 stroke-[2.2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-    </svg>
-  ),
-  ShieldCheck: () => (
-    <svg className="w-5 h-5 text-amber-500 stroke-[2.2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
-    </svg>
-  )
-};
+// 🎯 الصلاحيات المحددة بدقة متناهية
+const SPECIFIC_PERMISSIONS = [
+  { key: 'bölüm ve doktor yönetimi', label: 'Bölüm ve Doktor Yönetimi (Ekleme/Erişim)' },
+  { key: 'bölüm ve doktor düzeltme yetkisi', label: 'Bölüm ve Doktor Düzeltme Yetkisi' },
+  { key: 'bölüm ve doktor silme yetkisi', label: 'Bölüm ve Doktor Silme Yetkisi' },
+  { key: 'çalışma durumu değiştirme', label: 'Çalışma Durumu Değiştirme (Takvim)' },
+  { key: 'kullanıcı ekleme ve yetkilendirme', label: 'Kullanıcı Ekleme ve Yetkilendirme' },
+  { key: 'kullanıcı düzenleme yetkisi', label: 'Kullanıcı Düzenleme Yetkisi' },
+  { key: 'kullanıcı silme yetkisi', label: 'Kullanıcı Silme Yetkisi' }
+];
 
-const DEFAULT_PERMISSIONS = {
-  canEditDoctors: false,
-  canDeleteDoctors: false,
-  canEditSchedule: false,
-  canDeleteSchedule: false,
-  canChangeStatus: false,
-  canManageIssues: false
-};
+export default function EditUserPage({ params }) {
+  const unwrappedParams = use(params);
+  const userId = unwrappedParams.id;
 
-export default function UserDetailPage() {
-  const themeContext = useTheme();
-  const isDarkMode = themeContext?.isDarkMode ?? true;
-
+  const { isDarkMode } = useTheme();
+  const { checkPermission, users = [], setUsers } = useData();
   const router = useRouter();
-  const params = useParams();
-  const userId = params?.id;
 
-  const [user, setUser] = useState(null);
+  const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
-  
-  // حقول كلمة المرور والتأكيد
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  
-  const [msg, setMsg] = useState('');
-  const [errorMsg, setErrorMsg] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [showToast, setShowToast] = useState(false);
+
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [role, setRole] = useState('PERSONEL');
+  const [permissions, setPermissions] = useState({});
 
   useEffect(() => {
-    if (!userId) return;
+    setMounted(true);
+  }, []);
+
+  const canManageUsers = checkPermission ? checkPermission('kullanıcı ekleme ve yetkilendirme') : true;
+  const canEditUser = checkPermission ? checkPermission('kullanıcı düzenleme yetkisi') : true;
+  const canAccessPage = canManageUsers || canEditUser;
+
+  const triggerToast = (msg) => {
+    setToastMessage(msg);
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 3000);
+  };
+
+  useEffect(() => {
+    if (!mounted) return;
+
+    if (!canAccessPage) {
+      router.push('/dashboard');
+      return;
+    }
+
     const fetchUserData = async () => {
       try {
+        setLoading(true);
         const docRef = doc(db, 'users', userId);
         const docSnap = await getDoc(docRef);
+
         if (docSnap.exists()) {
-          setUser({ id: docSnap.id, ...docSnap.data() });
+          const data = docSnap.data();
+          setUsername(data.username || '');
+          setPassword(data.password || '');
+          setRole(data.role || 'PERSONEL');
+          setPermissions(data.permissions || {});
         } else {
-          router.push('/admin/users');
+          const localUser = users.find(u => u.id === userId);
+          if (localUser) {
+            setUsername(localUser.username || '');
+            setPassword(localUser.password || '');
+            setRole(localUser.role || 'PERSONEL');
+            setPermissions(localUser.permissions || {});
+          } else {
+            alert('Kullanıcı bulunamadı!');
+            router.push('/admin/users');
+          }
         }
       } catch (e) {
-        console.error(e);
+        console.error('Kullanıcı verisi çekme hatası:', e);
       } finally {
         setLoading(false);
       }
     };
-    fetchUserData();
-  }, [userId, router]);
 
-  // 🔄 تبديل الصلاحية وتحديثها
-  const handleTogglePermission = async (permKey) => {
-    if (!user) return;
-    const currentPerms = user.permissions || DEFAULT_PERMISSIONS;
-    const newToggleValue = !currentPerms[permKey];
-
-    const updatedPerms = { ...currentPerms, [permKey]: newToggleValue };
-
-    // 🔗 ربط صلاحية "Bölüm ve Doktor Yönetimi" مع الصلاحيات الفعية لتفعيل زر "Yetkili İşlemler" في الـ Dashboard
-    if (permKey === 'canEditDoctors') {
-      updatedPerms.canEditSchedule = newToggleValue;
+    if (userId) {
+      fetchUserData();
     }
-    if (permKey === 'canDeleteDoctors') {
-      updatedPerms.canDeleteSchedule = newToggleValue;
-    }
+  }, [userId, canAccessPage, router, mounted, users]);
 
-    setUser(prev => ({ ...prev, permissions: updatedPerms }));
-
-    try {
-      await updateDoc(doc(db, 'users', userId), { permissions: updatedPerms });
-      setMsg('İzin Yetkisi Başarıyla Güncellendi 🟢');
-      setTimeout(() => setMsg(''), 2500);
-    } catch (e) {
-      console.error(e);
-      alert('İzin güncellenirken hata oluştu.');
+  const handlePermissionChange = (key, value) => {
+    if (!canEditUser) {
+      alert('Kullanıcı düzenleme yetkiniz bulunmamaktadır!');
+      return;
     }
+    setPermissions(prev => ({
+      ...prev,
+      [key]: value
+    }));
   };
 
-  // 🔑 تحديث كلمة المرور مع التأكيد
-  const handleUpdatePassword = async (e) => {
+  const handleSelectAllPermissions = () => {
+    if (!canEditUser) return;
+    const allPerms = {};
+    SPECIFIC_PERMISSIONS.forEach(p => {
+      allPerms[p.key] = true;
+    });
+    setPermissions(allPerms);
+  };
+
+  const handleClearAllPermissions = () => {
+    if (!canEditUser) return;
+    setPermissions({});
+  };
+
+  const handleSaveUser = async (e) => {
     e.preventDefault();
-    setErrorMsg('');
-
-    if (!newPassword || newPassword.trim().length < 3) {
-      setErrorMsg('Lütfen en az 3 karakterden oluşan geçerli bir şifre giriniz!');
+    if (!canEditUser) {
+      alert('Kullanıcı düzenleme yetkiniz bulunmamaktadır!');
       return;
     }
 
-    if (newPassword !== confirmPassword) {
-      setErrorMsg('Girilen şifreler birbiriyle eşleşmiyor! Lütfen kontrol ediniz.');
+    if (!username.trim()) {
+      alert('Lütfen kullanıcı adını giriniz.');
       return;
     }
 
+    setIsSaving(true);
     try {
-      await updateDoc(doc(db, 'users', userId), { password: newPassword.trim() });
-      setMsg('Şifre Başarıyla Güncellendi 🔑');
-      setNewPassword('');
-      setConfirmPassword('');
-      setTimeout(() => setMsg(''), 2500);
+      const formattedRole = role.toLocaleUpperCase('tr-TR');
+      
+      const finalPermissions = formattedRole === 'ADMIN' || formattedRole === 'YÖNETİCİ'
+        ? SPECIFIC_PERMISSIONS.reduce((acc, p) => ({ ...acc, [p.key]: true }), {})
+        : permissions;
+
+      const updatedData = {
+        username: username.trim().toLocaleUpperCase('tr-TR'),
+        password: password.trim(),
+        role: formattedRole,
+        permissions: finalPermissions,
+        updatedAt: Date.now()
+      };
+
+      const userDocRef = doc(db, 'users', userId);
+      await updateDoc(userDocRef, updatedData);
+
+      if (setUsers) {
+        setUsers(prev => prev.map(u => u.id === userId ? { ...u, ...updatedData, id: userId } : u));
+      }
+
+      const currentStoredUser = JSON.parse(sessionStorage.getItem('user') || localStorage.getItem('user') || '{}');
+      if (currentStoredUser && currentStoredUser.id === userId) {
+        const updatedLocalUser = { ...currentStoredUser, ...updatedData };
+        if (sessionStorage.getItem('user')) {
+          sessionStorage.setItem('user', JSON.stringify(updatedLocalUser));
+        }
+        if (localStorage.getItem('user')) {
+          localStorage.setItem('user', JSON.stringify(updatedLocalUser));
+        }
+      }
+
+      triggerToast('Kullanıcı bilgileri ve yetkileri başarıyla güncellendi!');
+      setTimeout(() => {
+        router.push('/admin/users');
+      }, 800);
     } catch (e) {
-      setErrorMsg('Şifre güncellenirken bir hata oluştu!');
+      console.error('Kullanıcı güncelleme hatası:', e);
+      alert('Güncelleme yapılırken bir hata oluştu.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const handleDeleteUser = async () => {
-    if (!confirm('Bu kullanıcıyı sistemden tamamen silmek istediğinizden emin misiniz?')) return;
+    const canDelete = checkPermission ? checkPermission('kullanıcı silme yetkisi') : true;
+    if (!canDelete) {
+      alert('Kullanıcı silme yetkiniz bulunmamaktadır!');
+      setShowDeleteModal(false);
+      return;
+    }
+
+    setIsDeleting(true);
     try {
       await deleteDoc(doc(db, 'users', userId));
-      router.push('/admin/users');
+      if (setUsers) {
+        setUsers(prev => prev.filter(u => u.id !== userId));
+      }
+      triggerToast('Kullanıcı başarıyla silindi.');
+      setTimeout(() => {
+        router.push('/admin/users');
+      }, 800);
     } catch (e) {
-      alert('Silme işleminde hata oluştu!');
+      console.error('Kullanıcı silme hatası:', e);
+      alert('Kullanıcı silinirken bir hata oluştu.');
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteModal(false);
     }
   };
 
-  if (loading) {
+  if (!mounted || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center font-black text-amber-500">
-        Yükleniyor...
+      <div className="min-h-screen flex items-center justify-center font-black">
+        <div className="flex items-center gap-3 text-amber-500">
+          <span className="w-6 h-6 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></span>
+          <span>Kullanıcı Bilgileri Yükleniyor...</span>
+        </div>
       </div>
     );
   }
 
-  if (!user) return null;
-
-  const isMasterAdmin = user.username?.toUpperCase() === 'ADMIN';
-
   return (
-    <div className={`min-h-screen w-full px-4 sm:px-8 py-6 space-y-6 font-sans ${
-      isDarkMode ? 'bg-[#0b0f19] text-slate-100' : 'bg-[#f1f5f9] text-slate-900'
-    }`}>
+    <div className="p-4 sm:p-8 max-w-4xl mx-auto space-y-6 min-h-screen">
       
       {/* Header */}
-      <div className="w-full flex items-center justify-between pb-4 border-b border-slate-700/50">
-        <button
-          onClick={() => router.push('/admin/users')}
-          className={`px-5 py-2.5 rounded-2xl border flex items-center gap-2 text-xs sm:text-sm font-black uppercase transition-all cursor-pointer ${
-            isDarkMode 
-              ? 'bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-800' 
-              : 'bg-white border-slate-300 text-slate-800 hover:bg-slate-100'
-          }`}
-        >
-          <ModernIcons.ArrowLeft />
-          <span>Kullanıcı Listesine Dön</span>
-        </button>
-
-        {!isMasterAdmin && (
+      <div className="flex justify-between items-center pb-4 border-b border-slate-700/50">
+        <div className="flex items-center gap-3">
           <button
-            onClick={handleDeleteUser}
-            className="px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-2xl text-xs sm:text-sm font-black uppercase flex items-center gap-2 shadow-md cursor-pointer transition-all active:scale-95"
+            onClick={() => router.push('/admin/users')}
+            className="p-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-500 hover:bg-amber-500 hover:text-slate-950 transition-all font-black text-xs flex items-center gap-2 cursor-pointer"
           >
-            <ModernIcons.Trash />
-            <span>Kullanıcıyı Sil</span>
+            ← GERİ DÖN
+          </button>
+          <h1 className="text-base sm:text-xl font-black text-amber-500 uppercase tracking-wide">
+            👤 KULLANICI VE YETKİ DÜZENLEME
+          </h1>
+        </div>
+
+        <button
+          onClick={() => setShowDeleteModal(true)}
+          className="px-4 py-2 bg-rose-600/10 hover:bg-rose-600 text-rose-500 hover:text-white border border-rose-500/30 rounded-2xl text-xs font-black transition-all cursor-pointer shadow-md"
+        >
+          🗑️ KULLANICIYI SİL
+        </button>
+      </div>
+
+      {/* Form Container */}
+      <form onSubmit={handleSaveUser} className="space-y-6">
+        
+        {/* 1. Temel Kullanıcı Bilgileri */}
+        <div className={`p-5 sm:p-6 rounded-3xl border-2 shadow-xl space-y-4 ${
+          isDarkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
+        }`}>
+          <h2 className="text-xs font-black text-emerald-500 uppercase tracking-wider pb-2 border-b border-slate-800">
+            1. HESAP BİLGİLERİ
+          </h2>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 font-black">
+            <div>
+              <label className="block text-[11px] mb-1.5 text-slate-400 uppercase">KULLANICI ADI</label>
+              <input
+                type="text"
+                required
+                disabled={!canEditUser}
+                value={username}
+                onChange={(e) => setUsername(e.target.value.toLocaleUpperCase('tr-TR'))}
+                className={`w-full px-4 py-3 rounded-2xl border-2 text-xs font-black outline-none transition-all uppercase ${
+                  isDarkMode ? 'bg-slate-950 border-slate-800 text-slate-100 focus:border-amber-500' : 'bg-slate-50 border-slate-300 focus:border-amber-500'
+                } ${!canEditUser ? 'opacity-60 cursor-not-allowed' : ''}`}
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] mb-1.5 text-slate-400 uppercase">PAROLA</label>
+              <input
+                type="text"
+                required
+                disabled={!canEditUser}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className={`w-full px-4 py-3 rounded-2xl border-2 text-xs font-black outline-none transition-all ${
+                  isDarkMode ? 'bg-slate-950 border-slate-800 text-slate-100 focus:border-amber-500' : 'bg-slate-50 border-slate-300 focus:border-amber-500'
+                } ${!canEditUser ? 'opacity-60 cursor-not-allowed' : ''}`}
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] mb-1.5 text-slate-400 uppercase">HESAP ROLÜ</label>
+              <select
+                value={role}
+                disabled={!canEditUser}
+                onChange={(e) => setRole(e.target.value)}
+                className={`w-full px-4 py-3 rounded-2xl border-2 text-xs font-black outline-none transition-all cursor-pointer ${
+                  isDarkMode ? 'bg-slate-950 border-slate-800 text-amber-400' : 'bg-slate-50 border-slate-300 text-amber-600'
+                } ${!canEditUser ? 'opacity-60 cursor-not-allowed' : ''}`}
+              >
+                <option value="PERSONEL">PERSONEL</option>
+                <option value="DOKTOR">DOKTOR</option>
+                <option value="YÖNETİCİ">YÖNETİCİ (ADMIN)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* 2. Özel Cihaz ve Modül Yetkileri */}
+        <div className={`p-5 sm:p-6 rounded-3xl border-2 shadow-xl space-y-4 ${
+          isDarkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
+        }`}>
+          <div className="flex justify-between items-center pb-2 border-b border-slate-800">
+            <h2 className="text-xs font-black text-amber-500 uppercase tracking-wider">
+              2. SİSTEM VE MODÜL YETKİLERİ
+            </h2>
+
+            {canEditUser && role !== 'ADMIN' && role !== 'YÖNETİCİ' && (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleSelectAllPermissions}
+                  className="px-2.5 py-1 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white rounded-lg text-[10px] font-black transition-all cursor-pointer"
+                >
+                  Tümünü Seç
+                </button>
+                <button
+                  type="button"
+                  onClick={handleClearAllPermissions}
+                  className="px-2.5 py-1 bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white rounded-lg text-[10px] font-black transition-all cursor-pointer"
+                >
+                  Temizle
+                </button>
+              </div>
+            )}
+          </div>
+
+          {role === 'ADMIN' || role === 'YÖNETİCİ' ? (
+            <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 font-black text-xs text-center">
+              👑 YÖNETİCİ (ADMIN) ROLÜNDEKİ KULLANICILAR TÜM YETKİLERE TAM ERİŞİME SAHİPTİR.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 font-black">
+              {SPECIFIC_PERMISSIONS.map((perm) => {
+                const isChecked = Boolean(permissions[perm.key]);
+                return (
+                  <label
+                    key={perm.key}
+                    className={`flex items-center justify-between p-3.5 rounded-2xl border-2 transition-all cursor-pointer ${
+                      isChecked
+                        ? isDarkMode
+                          ? 'bg-amber-500/15 border-amber-500/50 text-amber-300'
+                          : 'bg-emerald-50 border-emerald-500 text-emerald-950'
+                        : isDarkMode
+                        ? 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300'
+                    } ${!canEditUser ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  >
+                    <span className="text-xs tracking-wide pr-2">{perm.label}</span>
+                    <input
+                      type="checkbox"
+                      disabled={!canEditUser}
+                      checked={isChecked}
+                      onChange={(e) => handlePermissionChange(perm.key, e.target.checked)}
+                      className="w-4 h-4 rounded accent-amber-500 cursor-pointer"
+                    />
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Save Button */}
+        {canEditUser && (
+          <button
+            type="submit"
+            disabled={isSaving}
+            className="w-full py-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black rounded-2xl text-xs sm:text-sm shadow-xl transition-all uppercase tracking-wider cursor-pointer active:scale-98 disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {isSaving ? (
+              <>
+                <span className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></span>
+                <span>KAYDEDİLİYOR...</span>
+              </>
+            ) : (
+              <span>GÜNCELLEMELERİ KAYDET 💾</span>
+            )}
           </button>
         )}
-      </div>
+      </form>
 
-      {msg && (
-        <div className={`w-full p-4 border text-xs sm:text-sm font-black rounded-2xl text-center shadow-lg transition-all ${
-          isDarkMode ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300' : 'bg-emerald-100 border-emerald-400 text-emerald-900'
-        }`}>
-          {msg}
-        </div>
-      )}
-
-      {errorMsg && (
-        <div className={`w-full p-4 border text-xs sm:text-sm font-black rounded-2xl text-center shadow-lg transition-all ${
-          isDarkMode ? 'bg-rose-500/20 border-rose-500/50 text-rose-300' : 'bg-rose-100 border-rose-400 text-rose-900'
-        }`}>
-          {errorMsg}
-        </div>
-      )}
-
-      {/* 👤 معلومات المستخدم كاملة العرض */}
-      <div className={`w-full p-6 sm:p-8 rounded-3xl border shadow-xl space-y-6 ${
-        isDarkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-300'
-      }`}>
-        <div className="flex justify-between items-center pb-3 border-b border-slate-800/50">
-          <h2 className="text-base sm:text-lg font-black text-amber-500 uppercase tracking-wide flex items-center gap-2">
-            <span>👤</span> Kullanıcı Profil Detayları
-          </h2>
-          <span className="text-xs font-black px-3 py-1.5 rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20">
-            ID: {user.id}
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs sm:text-sm font-bold">
-          <div className={`p-4 rounded-2xl border ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-            <span className="text-slate-400 block mb-1">Kullanıcı Adı / Rumuz:</span>
-            <span className="text-sm sm:text-base font-mono font-black text-emerald-400">@{user.username?.toLowerCase()}</span>
-          </div>
-
-          <div className={`p-4 rounded-2xl border ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-            <span className="text-slate-400 block mb-1">Telefon Numarası:</span>
-            <span className="text-sm sm:text-base font-mono font-black">{user.phone || 'Girilmedi'}</span>
-          </div>
-
-          <div className={`p-4 rounded-2xl border ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-            <span className="text-slate-400 block mb-1">Kayıt Tarihi:</span>
-            <span className="text-xs sm:text-sm font-mono font-black">{user.createdAt ? new Date(user.createdAt).toLocaleString('tr-TR') : 'Bilinmiyor'}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* ⚙️ قسم التحكم بالصلاحيات - بعرض الشاشة الكامل */}
-      <div className={`w-full p-6 sm:p-8 rounded-3xl border shadow-xl space-y-6 ${
-        isDarkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-300'
-      }`}>
-        <div className="flex items-center gap-2 pb-2 border-b border-slate-800/50">
-          <ModernIcons.ShieldCheck />
-          <h3 className="text-base sm:text-lg font-black text-amber-500 uppercase tracking-wide">
-            Özel Yetki ve İşlem Kontrolleri
-          </h3>
-        </div>
-
-        <p className={`text-xs sm:text-sm font-bold ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
-          Bu kullanıcının sistem içindeki yetkilerini anlık olarak yönetebilirsiniz. "Bölüm ve Doktor Yönetimi" açıldığında kullanıcı ana sayfada (Dashboard) <strong>Yetkili İşlemler</strong> butonunu görebilecektir.
-        </p>
-
-        <div className="space-y-3.5 pt-2">
-          {[
-            { 
-              key: 'canEditDoctors', 
-              label: '✏️ Bölüm ve Doktor Yönetimi Yetkisi', 
-              desc: 'Ana sayfada "Yetkili İşlemler" butonunu açar, bölüm ve doktor ekleme/düzenleme imkanı sağlar' 
-            },
-            { 
-              key: 'canDeleteDoctors', 
-              label: '🗑️ Doktor ve Kayıt Silme Yetkisi', 
-              desc: 'Sistemden doktor kaydı silebilme yetkisini tanımlar' 
-            },
-            { 
-              key: 'canChangeStatus', 
-              label: '🔄 Çalışma Durumu Değiştirme', 
-              desc: 'Poliklinik/Nöbet/İzin durumlarını hızlıca değiştirebilme' 
-            },
-            { 
-              key: 'canManageIssues', 
-              label: '🔔 Sorun Bildirim Yönetimi', 
-              desc: 'Kullanıcılardan gelen sorun bildirimlerini inceleyebilme' 
-            },
-          ].map((perm) => {
-            const isChecked = Boolean(user.permissions?.[perm.key]);
-
-            return (
-              <div 
-                key={perm.key} 
-                onClick={() => !isMasterAdmin && handleTogglePermission(perm.key)}
-                className={`w-full p-4 sm:p-5 rounded-2xl border flex items-center justify-between transition-all cursor-pointer ${
-                  isDarkMode 
-                    ? 'bg-slate-950 border-slate-800 hover:border-slate-700' 
-                    : 'bg-slate-50 border-slate-200 hover:border-slate-300'
-                }`}
+      {/* Modal: Delete Confirmation */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-xs p-4">
+          <div className={`w-full max-w-sm rounded-3xl border-2 p-6 shadow-2xl text-center space-y-4 ${
+            isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
+          }`}>
+            <h3 className="text-base font-black text-rose-500">🗑️ KULLANICIYI SİL</h3>
+            <p className="text-xs font-bold text-slate-400">
+              <span className="text-amber-400 font-black">{username}</span> isimli kullanıcı hesabını silmek istediğinize emin misiniz? Bu işlem geri alınamaz.
+            </p>
+            <div className="flex gap-3 font-black pt-2">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="flex-1 py-3 bg-slate-800 text-slate-300 rounded-2xl text-xs cursor-pointer hover:bg-slate-700 transition-all"
               >
-                <div className="pr-4">
-                  <span className={`text-xs sm:text-sm font-black block ${isDarkMode ? 'text-slate-100' : 'text-slate-900'}`}>
-                    {perm.label}
-                  </span>
-                  <span className="text-[11px] sm:text-xs text-slate-400 font-bold block mt-1">
-                    {perm.desc}
-                  </span>
-                </div>
-
-                {/* Switch Toggle Button */}
-                <div className={`relative w-14 h-7 rounded-full transition-colors duration-200 shrink-0 ${
-                  isChecked || isMasterAdmin ? 'bg-emerald-500' : 'bg-slate-700'
-                }`}>
-                  <div className={`absolute top-1 left-1 bg-white w-5 h-5 rounded-full transition-transform duration-200 shadow-md ${
-                    isChecked || isMasterAdmin ? 'transform translate-x-7' : ''
-                  }`} />
-                </div>
-              </div>
-            );
-          })}
+                İPTAL
+              </button>
+              <button
+                onClick={handleDeleteUser}
+                disabled={isDeleting}
+                className="flex-1 py-3 bg-rose-600 hover:bg-rose-500 text-white rounded-2xl text-xs shadow-lg cursor-pointer transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+              >
+                {isDeleting ? 'SİLİNİYOR...' : 'EVET, SİL'}
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* 🔑 تغيير كلمة المرور وتأكيدها - بعرض كامل */}
-      <div className={`w-full p-6 sm:p-8 rounded-3xl border shadow-xl space-y-6 ${
-        isDarkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-300'
-      }`}>
-        <h3 className="text-base sm:text-lg font-black text-amber-500 uppercase tracking-wide flex items-center gap-2 pb-2 border-b border-slate-800/50">
-          <span>🔑</span> Şifre Değiştirme ve Onay İşlemi
-        </h3>
-
-        <form onSubmit={handleUpdatePassword} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-black text-slate-400 uppercase mb-1.5">YENİ ŞİFRE</label>
-              <input
-                type="password"
-                required
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Yeni şifreyi giriniz..."
-                className={`w-full p-3.5 rounded-2xl border text-xs sm:text-sm font-black outline-none transition-all ${
-                  isDarkMode 
-                    ? 'bg-slate-950 border-slate-800 text-white focus:border-amber-500' 
-                    : 'bg-slate-100 border-slate-300 text-slate-900 focus:border-amber-500'
-                }`}
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-black text-slate-400 uppercase mb-1.5">YENİ ŞİFRE TEKRARI</label>
-              <input
-                type="password"
-                required
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Yeni şifreyi tekrar giriniz..."
-                className={`w-full p-3.5 rounded-2xl border text-xs sm:text-sm font-black outline-none transition-all ${
-                  isDarkMode 
-                    ? 'bg-slate-950 border-slate-800 text-white focus:border-amber-500' 
-                    : 'bg-slate-100 border-slate-300 text-slate-900 focus:border-amber-500'
-                }`}
-              />
-            </div>
+      {/* Toast Notification */}
+      {showToast && (
+        <div className="fixed bottom-5 right-5 z-[250]">
+          <div className="bg-emerald-600 text-white px-5 py-3 rounded-2xl shadow-2xl border-2 border-emerald-400 text-xs font-black flex items-center gap-2 animate-fadeIn">
+            <span>✅</span>
+            <span>{toastMessage}</span>
           </div>
-
-          <div className="pt-2">
-            <button
-              type="submit"
-              className="w-full py-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs sm:text-sm uppercase rounded-2xl shadow-lg cursor-pointer flex items-center justify-center gap-2 transition-all active:scale-95"
-            >
-              <ModernIcons.Key />
-              <span>Şifreyi Onayla ve Güncelle</span>
-            </button>
-          </div>
-        </form>
-      </div>
+        </div>
+      )}
 
     </div>
   );

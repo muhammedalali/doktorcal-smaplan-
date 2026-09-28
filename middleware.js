@@ -3,32 +3,34 @@ import { NextResponse } from 'next/server';
 export default function middleware(request) {
   const { pathname } = request.nextUrl;
 
-  // 1. جلب كوكيز الجلسة والدور
+  // جلب الجلسة والدور من الكوكيز
   const userSessionCookie = request.cookies.get('user_session')?.value;
-  const userRole = request.cookies.get('user_role')?.value;
+  const userRole = request.cookies.get('user_role')?.value?.toUpperCase();
 
   const isAuthenticated = !!userSessionCookie;
 
-  // 2. السماح الفوري لصفحة تسجيل الدخول والصفحة الرئيسية والجدول بدون أي معالجة توجيه
+  // 1. مسارات الوصول العام بدون قيود
   if (pathname === '/' || pathname === '/login' || pathname === '/schedule') {
     return NextResponse.next();
   }
 
-  // 3. حماية المسارات المحمية فقط (مثل /dashboard, /admin, /profile, /report)
-  // إذا لم يكن المستخدم مسجلاً لدخوله، اطرده لصفحة اللوجن
+  // 2. إذا لم يكن المستخدم مسجلاً دخوله، يتم تحويله لصفحة التسجيل
   if (!isAuthenticated) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  // 4. حماية مسارات الأدمن حصراً (/admin/...)
-  if (pathname.startsWith('/admin') && userRole !== 'ADMIN') {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+  // 3. حماية مسارات الإدارة العامة (/admin/users وغيرها)
+  // السماح للمدراء (ADMIN / YÖNETİCİ) واستثناء صفحة الأطباء لتفحص داخلياً
+  if (pathname.startsWith('/admin') && !pathname.startsWith('/admin/doctors')) {
+    const isAllowedAdmin = userRole === 'ADMIN' || userRole === 'YÖNETİCİ';
+    if (!isAllowedAdmin) {
+      return NextResponse.redirect(new URL('/dashboard', request.url));
+    }
   }
 
   return NextResponse.next();
 }
 
-// استثناء الملفات الثابتة والصور وأيقونات النظام والـ API لمنع التعارض
 export const config = {
   matcher: [
     '/((?!_next/static|_next/image|favicon.ico|api|public|.*\\..*).*)',

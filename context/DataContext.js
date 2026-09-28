@@ -1,7 +1,7 @@
 'use client';
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, doc } from 'firebase/firestore';
 
 const DataContext = createContext();
 
@@ -11,7 +11,7 @@ export function DataProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // 1. Yerel Depolamadan Mevcut Kullanıcıyı Yükleme
+  // 1. تحميل وتحديث بيانات المستخدم الحالي
   useEffect(() => {
     const updateCurrentUser = () => {
       const sessionUser = sessionStorage.getItem('user');
@@ -30,9 +30,38 @@ export function DataProvider({ children }) {
     return () => window.removeEventListener('storage', updateCurrentUser);
   }, []);
 
-  // 2. Doktorlar ve Kullanıcılar İçin Canlı Veri Aboneliği
+  // 2. الاشتراك اللحظي في Firestore لبيانات المستخدم الحالي لمنح وتجريد الصلاحيات فوراً
   useEffect(() => {
-    // Doktorlar Aboneliği
+    if (!currentUser?.id) return;
+
+    const unsubscribeLiveUser = onSnapshot(
+      doc(db, 'users', currentUser.id),
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const freshUserData = { id: docSnap.id, ...docSnap.data() };
+          
+          // تحديث الجلسة المحلية إذا اختلفت الصلاحيات أو البيانات
+          if (JSON.stringify(freshUserData.permissions) !== JSON.stringify(currentUser.permissions) ||
+              freshUserData.role !== currentUser.role) {
+            setCurrentUser(freshUserData);
+            if (sessionStorage.getItem('user')) {
+              sessionStorage.setItem('user', JSON.stringify(freshUserData));
+            }
+            if (localStorage.getItem('user')) {
+              localStorage.setItem('user', JSON.stringify(freshUserData));
+            }
+          }
+        }
+      },
+      (err) => console.error('Kullanıcı verisi güncellenirken hata:', err)
+    );
+
+    return () => unsubscribeLiveUser();
+  }, [currentUser?.id, currentUser?.permissions, currentUser?.role]);
+
+  // 3. الاشتراك اللحظي للأطباء والمستخدمين
+  useEffect(() => {
+    // الأطباء
     const unsubscribeDoctors = onSnapshot(
       collection(db, 'doctors'),
       (snapshot) => {
@@ -49,7 +78,7 @@ export function DataProvider({ children }) {
       }
     );
 
-    // Kullanıcılar Aboneliği
+    // المستخدمين
     const unsubscribeUsers = onSnapshot(
       collection(db, 'users'),
       (snapshot) => {
@@ -70,6 +99,34 @@ export function DataProvider({ children }) {
     };
   }, []);
 
+  // 🛡️ دالة فحص الصلاحيات الموحدة الدقيقة دون تداخل
+  const checkPermission = useCallback((permKey) => {
+    if (!currentUser) return false;
+
+    const roleUpper = currentUser.role?.toUpperCase() || '';
+    const usernameUpper = currentUser.username?.toUpperCase() || '';
+
+    // المسؤول الرئيسي يملك كل الصلاحيات دائماً
+    if (roleUpper === 'ADMIN' || roleUpper === 'YÖNETİCİ' || usernameUpper === 'ADMIN') {
+      return true;
+    }
+
+    const perms = currentUser.permissions;
+    if (!perms) return false;
+
+    // 1. إذا كانت الصلاحيات محفوظة كـ Object
+    if (typeof perms === 'object' && !Array.isArray(perms)) {
+      return Boolean(perms[permKey]);
+    }
+
+    // 2. إذا كانت الصلاحيات محفوظة كمصفوفة Array
+    if (Array.isArray(perms)) {
+      return perms.includes(permKey);
+    }
+
+    return false;
+  }, [currentUser]);
+
   return (
     <DataContext.Provider
       value={{
@@ -80,6 +137,7 @@ export function DataProvider({ children }) {
         currentUser,
         setCurrentUser,
         loading,
+        checkPermission,
       }}
     >
       {children}
