@@ -1,20 +1,66 @@
 'use client';
 
 import './globals.css';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
 import { DataProvider } from '@/context/DataContext';
 import { useRouter, usePathname } from 'next/navigation';
 import { Geist } from "next/font/google";
 import { cn } from "@/lib/utils";
 
-const geist = Geist({subsets:['latin'],variable:'--font-sans'});
-
+const geist = Geist({ subsets: ['latin'], variable: '--font-sans' });
 
 interface TabItem {
   id: string;
   title: string;
   path: string;
+}
+
+// ⏱️ مكون مراقبة الخمول وتسجيل الخروج التلقائي
+function AutoLogoutHandler() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // تحديد مدة الخمول: 15 دقيقة (15 * 60 * 1000 مللي ثانية)
+  const INACTIVITY_TIME = 15 * 60 * 1000;
+
+  useEffect(() => {
+    // عدم تفعيل مؤقت الخمول في صفحة تسجيل الدخول أو الصفحة الرئيسية
+    if (pathname === '/' || pathname === '/login') return;
+
+    const performLogout = () => {
+      sessionStorage.removeItem('user');
+      localStorage.removeItem('user');
+      router.push('/');
+    };
+
+    const resetTimer = () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(performLogout, INACTIVITY_TIME);
+    };
+
+    // قائمة الأحداث التي تعتبر تفاعلاً من المستخدم
+    const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
+
+    // بدء المؤقت لأول مرة
+    resetTimer();
+
+    // الاستماع لحركات التفاعل لإعادة ضبط المؤقت
+    events.forEach((event) => {
+      window.addEventListener(event, resetTimer);
+    });
+
+    // التنظيف عند تغيير الصفحة أو الخروج
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      events.forEach((event) => {
+        window.removeEventListener(event, resetTimer);
+      });
+    };
+  }, [pathname, router]);
+
+  return null;
 }
 
 function GlobalBottomTabBar() {
@@ -27,7 +73,6 @@ function GlobalBottomTabBar() {
   ]);
 
   useEffect(() => {
-    // 🛡️ حظر إظهار الشريط السفلي في الصفحات العامة وصفحة الجدول للزوار
     if (pathname === '/' || pathname === '/login' || pathname === '/schedule') return;
 
     let tabTitle = '';
@@ -40,6 +85,10 @@ function GlobalBottomTabBar() {
       tabTitle = 'Kullanıcı Yönetimi';
     } else if (pathname === '/phonebook') {
       tabTitle = 'Telefon Rehberi';
+    } else if (pathname === '/admin/reports') {
+      tabTitle = 'Arıza / Sorun Bildirimleri';
+    } else if (pathname === '/report' || pathname === '/reports') {
+      tabTitle = 'Arıza Bildir';
     } else {
       return;
     }
@@ -53,7 +102,6 @@ function GlobalBottomTabBar() {
     });
   }, [pathname]);
 
-  // 🔒 عدم عرض الشريط في الصفحات العامة مطلقاً
   if (pathname === '/' || pathname === '/login' || pathname === '/schedule') return null;
 
   const handleCloseTab = (e: React.MouseEvent, tabPath: string) => {
@@ -123,6 +171,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="cursor-default pb-10">
         <ThemeProvider>
           <DataProvider>
+            <AutoLogoutHandler />
             {children}
             <GlobalBottomTabBar />
           </DataProvider>

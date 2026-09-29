@@ -1,11 +1,12 @@
 'use client'; 
+
 import { useState, useEffect, useRef } from 'react'; 
 import { useRouter } from 'next/navigation'; 
 import { db } from '@/lib/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { useTheme } from '@/context/ThemeContext';
 
-// 🩺 شاشة التحميل بنمط نبض النيون الأخضر الطبي Soft Luxe
+// 🩺 شاشة التحميل بنمط نبض النيون الأخضر Soft Luxe
 function SeamlessECGLoader({ title = "YÜKLENİYOR...", isDarkMode }) {
   const canvasRef = useRef(null);
 
@@ -31,26 +32,12 @@ function SeamlessECGLoader({ title = "YÜKLENİYOR...", isDarkMode }) {
       const cycleLength = width * 0.45; 
       const pos = (xPos % cycleLength) / cycleLength;
 
-      if (pos >= 0.15 && pos < 0.22) {
-        return midY - Math.sin((pos - 0.15) / 0.07 * Math.PI) * 3;
-      }
-      if (pos >= 0.25 && pos < 0.28) {
-        return midY + 4;
-      }
-      if (pos >= 0.28 && pos < 0.33) {
-        const t = (pos - 0.28) / 0.05;
-        return midY - (Math.sin(t * Math.PI) * (height * 0.42));
-      }
-      if (pos >= 0.33 && pos < 0.37) {
-        const t = (pos - 0.33) / 0.04;
-        return midY + (Math.sin(t * Math.PI) * (height * 0.30));
-      }
-      if (pos >= 0.37 && pos < 0.40) {
-        return midY - 3;
-      }
-      if (pos >= 0.45 && pos < 0.58) {
-        return midY - Math.sin((pos - 0.45) / 0.13 * Math.PI) * 6;
-      }
+      if (pos >= 0.15 && pos < 0.22) return midY - Math.sin((pos - 0.15) / 0.07 * Math.PI) * 3;
+      if (pos >= 0.25 && pos < 0.28) return midY + 4;
+      if (pos >= 0.28 && pos < 0.33) return midY - (Math.sin(((pos - 0.28) / 0.05) * Math.PI) * (height * 0.42));
+      if (pos >= 0.33 && pos < 0.37) return midY + (Math.sin(((pos - 0.33) / 0.04) * Math.PI) * (height * 0.30));
+      if (pos >= 0.37 && pos < 0.40) return midY - 3;
+      if (pos >= 0.45 && pos < 0.58) return midY - Math.sin((pos - 0.45) / 0.13 * Math.PI) * 6;
       return midY;
     };
 
@@ -103,12 +90,12 @@ function SeamlessECGLoader({ title = "YÜKLENİYOR...", isDarkMode }) {
   }, [isDarkMode]);
 
   return (
-    <div className="fixed inset-0 z-[500] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-fadeIn select-none pointer-events-none">
-      <div className={`flex flex-col items-center text-center gap-4 max-w-sm w-full p-6 rounded-3xl shadow-xl border ${isDarkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-emerald-100 text-slate-800'}`}>
+    <div className="fixed inset-0 z-[500] flex items-center justify-center bg-slate-950/70 backdrop-blur-md p-4 animate-fadeIn select-none pointer-events-none">
+      <div className={`flex flex-col items-center text-center gap-4 max-w-sm w-full p-6 rounded-3xl shadow-2xl border ${isDarkMode ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white/90 border-emerald-100 text-slate-800'}`}>
         <div className={`w-full h-14 relative overflow-hidden rounded-2xl p-2 border ${isDarkMode ? 'bg-slate-950/70 border-emerald-900/40' : 'bg-emerald-50/80 border-emerald-200'}`}>
           <canvas ref={canvasRef} className="w-full h-full block bg-transparent" />
         </div>
-        <h2 className={`text-xs font-bold tracking-wider uppercase ${isDarkMode ? 'text-emerald-400' : 'text-emerald-700'}`}>
+        <h2 className={`text-xs font-black tracking-wider uppercase ${isDarkMode ? 'text-emerald-400' : 'text-emerald-700'}`}>
           {title}
         </h2>
       </div>
@@ -141,26 +128,12 @@ function HeaderECGLogo({ isDarkMode }) {
       const cycleLength = width * 0.48;
       const pos = (xPos % cycleLength) / cycleLength;
 
-      if (pos >= 0.12 && pos < 0.20) {
-        return midY - Math.sin((pos - 0.12) / 0.08 * Math.PI) * 1.2;
-      }
-      if (pos >= 0.22 && pos < 0.25) {
-        return midY + 2;
-      }
-      if (pos >= 0.25 && pos < 0.30) {
-        const t = (pos - 0.25) / 0.05;
-        return midY - (Math.sin(t * Math.PI) * (height * 0.40));
-      }
-      if (pos >= 0.30 && pos < 0.35) {
-        const t = (pos - 0.30) / 0.05;
-        return midY + (Math.sin(t * Math.PI) * (height * 0.35));
-      }
-      if (pos >= 0.35 && pos < 0.38) {
-        return midY - 1.5;
-      }
-      if (pos >= 0.45 && pos < 0.60) {
-        return midY - Math.sin((pos - 0.45) / 0.15 * Math.PI) * 2.5;
-      }
+      if (pos >= 0.12 && pos < 0.20) return midY - Math.sin((pos - 0.12) / 0.08 * Math.PI) * 1.2;
+      if (pos >= 0.22 && pos < 0.25) return midY + 2;
+      if (pos >= 0.25 && pos < 0.30) return midY - (Math.sin(((pos - 0.25) / 0.05) * Math.PI) * (height * 0.40));
+      if (pos >= 0.30 && pos < 0.35) return midY + (Math.sin(((pos - 0.30) / 0.05) * Math.PI) * (height * 0.35));
+      if (pos >= 0.35 && pos < 0.38) return midY - 1.5;
+      if (pos >= 0.45 && pos < 0.60) return midY - Math.sin((pos - 0.45) / 0.15 * Math.PI) * 2.5;
       return midY;
     };
 
@@ -236,6 +209,15 @@ export default function DashboardPage() {
   const profileRef = useRef(null);
   const router = useRouter();   
 
+  // 🛡️ دالة التدمير التام للجلسة مع التوجيه القسري
+  const clearSessionAndLogout = () => {
+    document.cookie = 'user_session=; path=/; max-age=0;';
+    document.cookie = 'user_role=; path=/; max-age=0;';
+    sessionStorage.clear();
+    localStorage.removeItem('user');
+    router.replace('/login');
+  };
+
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (otherOperationsRef.current && !otherOperationsRef.current.contains(event.target)) {
@@ -252,17 +234,27 @@ export default function DashboardPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // 🔐 نظام التحقق من الجلسة ومراقبة حالة المستخدم
   useEffect(() => {     
     const sessionUser = sessionStorage.getItem('user');
     const localUser = localStorage.getItem('user');
     const activeUser = sessionUser ? JSON.parse(sessionUser) : (localUser ? JSON.parse(localUser) : null);
 
     if (!activeUser || !activeUser.username) {
-      router.push('/');
+      clearSessionAndLogout();
       return;
     }
+
     setCurrentUser(activeUser);   
 
+    // 🔒 حظر أزرار التنقل بالمتصفح للـ Dashboard
+    window.history.pushState(null, '', window.location.href);
+    const handlePopState = () => {
+      clearSessionAndLogout();
+    };
+    window.addEventListener('popstate', handlePopState);
+
+    // المزامنة اللحظية مع Firestore
     let unsubscribeUser = () => {};
     if (activeUser.id) {
       unsubscribeUser = onSnapshot(doc(db, 'users', activeUser.id), (docSnap) => {
@@ -271,24 +263,29 @@ export default function DashboardPage() {
           setCurrentUser(freshData);
           sessionStorage.setItem('user', JSON.stringify(freshData));
           if (localUser) localStorage.setItem('user', JSON.stringify(freshData));
+        } else {
+          clearSessionAndLogout();
         }
       });
     }
 
-    return () => unsubscribeUser();
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      unsubscribeUser();
+    };
   }, [router]);   
 
   const handleConfirmExit = () => {
     setShowExitModal(false);
     setLoadingTitle('SİSTEMDEN ÇIKIŞ YAPILIYOR...');
     setIsEcgLoading(true);
+
     setTimeout(() => {
-      sessionStorage.removeItem('user');
-      localStorage.removeItem('user');
-      router.push('/');
-    }, 600);
+      clearSessionAndLogout();
+    }, 400);
   };
 
+  // 🚀 التنقل السليم والتلقائي بين الوحدات
   const handleOpenModule = (path, title) => {
     setIsOtherOperationsOpen(false);
     setIsModulesOpen(false);
@@ -314,17 +311,14 @@ export default function DashboardPage() {
   const uName = currentUser?.username ? currentUser.username.toLocaleUpperCase('tr-TR') : '';   
   const isGlobalAdmin = uName === 'ADMIN' || currentUser?.role === 'YÖNETİCİ' || currentUser?.role === 'ADMIN';   
 
-  // 🛡️ دالة التحقق المرنة من الصلاحية (تدعم المصفوفة أو الكائن)
   const checkPermission = (permKey) => {
     if (isGlobalAdmin) return true;
     if (!currentUser) return false;
 
-    // إذا كانت الصلاحيات محفوظة كمصفوفة نصوص
     if (Array.isArray(currentUser.permissions)) {
       return currentUser.permissions.includes(permKey);
     }
 
-    // إذا كانت الصلاحيات محفوظة كـ Object
     if (typeof currentUser.permissions === 'object' && currentUser.permissions !== null) {
       return Boolean(currentUser.permissions[permKey]);
     }
@@ -332,11 +326,9 @@ export default function DashboardPage() {
     return false;
   };
 
-  // 🩺 الصلاحيات المحددة
   const canManageDoctors = checkPermission('bölüm ve doktor yönetimi') || checkPermission('canEditDoctors');
   const canManageReports = checkPermission('sorun bildirme yönetimi') || checkPermission('canManageReports');
 
-  // إجمالي خيارات yetkili İşlemler المتاحة للمستخدم الحالي
   const hasAuthorizedModules = isGlobalAdmin || canManageDoctors || canManageReports;
 
   const otherOperationsList = [
@@ -344,59 +336,50 @@ export default function DashboardPage() {
     { id: 'phonebook', title: 'TELEFON REHBERİ', path: '/phonebook', show: true },
   ];
 
-  const softLuxeBtnStyle = `h-10 px-4 rounded-xl flex items-center gap-2 text-xs font-bold transition-all duration-150 cursor-pointer border shadow-xs active:scale-95 ${
+  const softLuxeBtnStyle = `h-9 sm:h-10 px-2.5 sm:px-4 rounded-xl flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs font-black transition-all duration-200 cursor-pointer border shadow-xs active:scale-95 backdrop-blur-md ${
     isDarkMode 
-      ? 'bg-slate-800/80 border-slate-700/80 text-slate-100 hover:bg-slate-800 hover:border-emerald-500/50 hover:text-emerald-400' 
-      : 'bg-slate-50/90 border-slate-200/90 text-slate-800 hover:bg-emerald-50/60 hover:border-emerald-300 hover:text-emerald-700'
+      ? 'bg-slate-900/60 border-slate-800 text-slate-200 hover:border-emerald-500/50 hover:bg-slate-800/80 hover:text-emerald-400 shadow-black/40' 
+      : 'bg-white/70 border-slate-200 text-slate-800 hover:border-emerald-400 hover:bg-emerald-50/60 hover:text-emerald-700 shadow-slate-200/50'
   }`;
 
-  const statsData = [
-    { label: 'TOPLAM', value: 128, color: '#10b981' },
-    { label: 'POLİKLİNİK', value: 84, color: '#06b6d4' },
-    { label: 'İZİN', value: 8, color: '#6366f1' },
-    { label: 'AMELİYAT', value: 12, color: '#f43f5e' },
-    { label: 'RAPOR', value: 14, color: '#f59e0b' },
-    { label: 'DİĞER', value: 10, color: '#a855f7' },
-  ];
-
   return (     
-    <div className={`h-screen overflow-hidden flex flex-col font-sans antialiased transition-colors duration-150 ${isDarkMode ? 'bg-[#0b0f19] text-slate-100' : 'bg-slate-50 text-slate-900'}`}>              
+    <div className={`h-[100dvh] w-[100vw] fixed inset-0 overflow-hidden flex flex-col font-sans antialiased transition-colors duration-200 select-none ${isDarkMode ? 'bg-[#030712] text-slate-100' : 'bg-slate-50 text-slate-900'}`}>              
       
       {/* 🩺 شاشة التحميل */}
       {isEcgLoading && <SeamlessECGLoader title={loadingTitle} isDarkMode={isDarkMode} />}
 
-      {/* 🔵 الشريط العلوي العصري */}
-      <header className={`w-full border-b shrink-0 px-4 py-2 flex items-center justify-between transition-colors duration-150 ${isDarkMode ? 'bg-[#0b0f19] border-slate-800/80' : 'bg-white border-slate-200/80'}`}>
+      {/* 🔵 الشريط العلوي المتجاوب بالكامل بدون أي سحب أفقي */}
+      <header className={`w-full border-b shrink-0 px-2 sm:px-6 py-2 flex items-center justify-between flex-wrap lg:flex-nowrap gap-2 transition-colors duration-200 z-30 ${isDarkMode ? 'bg-[#030712]/90 border-slate-800/80 backdrop-blur-md' : 'bg-white/90 border-slate-200/80 backdrop-blur-md'}`}>
         
         {/* ✨ الشعار */}
-        <div className="flex items-center gap-2 select-none pointer-events-none cursor-default">
+        <div className="flex items-center gap-2 pointer-events-none cursor-default shrink-0">
           <div className="flex flex-col relative items-center">
-            <span className={`font-black text-sm sm:text-base tracking-[0.15em] bg-clip-text text-transparent uppercase ${
+            <span className={`font-black text-xs sm:text-base tracking-[0.15em] bg-clip-text text-transparent uppercase ${
               isDarkMode 
                 ? 'bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400' 
                 : 'bg-gradient-to-r from-emerald-700 via-teal-600 to-cyan-700 font-extrabold'
             }`}>
               DOKTORSYS
             </span>
-            <div className="-mt-0.5 opacity-90">
+            <div className="-mt-0.5 opacity-90 scale-90 sm:scale-100 origin-top">
               <HeaderECGLogo isDarkMode={isDarkMode} />
             </div>
           </div>
         </div>
 
-        {/* أزرار الهيدر */}
-        <div className="flex items-center gap-2">
+        {/* أزرار الهيدر متجاوبة بالكامل وظاهرة بدون أي اخفاء */}
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap justify-end">
           
           <button 
             onClick={() => handleOpenModule('/notifications', 'BİLDİRİMLER')}
-            className={`relative h-10 w-10 rounded-xl border flex items-center justify-center transition-all duration-150 active:scale-95 cursor-pointer ${
+            className={`relative h-9 w-9 sm:h-10 sm:w-10 rounded-xl border flex items-center justify-center transition-all duration-200 active:scale-95 cursor-pointer backdrop-blur-md shrink-0 ${
               isDarkMode 
-                ? 'bg-slate-800/80 border-slate-700/80 text-emerald-400 hover:bg-slate-800' 
-                : 'bg-slate-50/90 border-slate-200/90 text-emerald-600 hover:bg-emerald-50/80'
+                ? 'bg-slate-900/60 border-slate-800 text-emerald-400 hover:bg-slate-800' 
+                : 'bg-white/70 border-slate-200 text-emerald-600 hover:bg-emerald-50'
             }`}
             title="Bildirimler"
           >
-            <span className="absolute -top-1 -right-1 bg-rose-500 text-[10px] text-white font-bold w-4 h-4 rounded-full flex items-center justify-center border-2 border-white dark:border-slate-900">1</span>
+            <span className="absolute -top-1 -right-1 bg-rose-500 text-[9px] text-white font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-white dark:border-slate-900">1</span>
             <svg className="w-4 h-4 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
             </svg>
@@ -404,10 +387,10 @@ export default function DashboardPage() {
 
           <button 
             onClick={toggleFullScreen}
-            className={`h-10 w-10 rounded-xl border flex items-center justify-center transition-all duration-150 active:scale-95 cursor-pointer ${
+            className={`hidden sm:flex h-10 w-10 rounded-xl border items-center justify-center transition-all duration-200 active:scale-95 cursor-pointer backdrop-blur-md shrink-0 ${
               isDarkMode 
-                ? 'bg-slate-800/80 border-slate-700/80 text-slate-300 hover:bg-slate-800' 
-                : 'bg-slate-50/90 border-slate-200/90 text-slate-600 hover:bg-slate-100'
+                ? 'bg-slate-900/60 border-slate-800 text-slate-300 hover:bg-slate-800' 
+                : 'bg-white/70 border-slate-200 text-slate-600 hover:bg-slate-100'
             }`}
             title="Tam Ekran"
           >
@@ -419,50 +402,43 @@ export default function DashboardPage() {
           <button
             type="button"
             onClick={toggleTheme}
-            className={`h-10 w-10 rounded-xl border flex items-center justify-center transition-all duration-150 active:scale-95 cursor-pointer ${
+            className={`h-9 w-9 sm:h-10 sm:w-10 rounded-xl border flex items-center justify-center transition-all duration-200 active:scale-95 cursor-pointer backdrop-blur-md shrink-0 ${
               isDarkMode 
-                ? 'bg-slate-800/80 border-slate-700/80 text-amber-400 hover:bg-slate-800' 
-                : 'bg-slate-50/90 border-slate-200/90 text-slate-700 hover:bg-amber-50'
+                ? 'bg-slate-900/60 border-slate-800 text-amber-400 hover:bg-slate-800' 
+                : 'bg-white/70 border-slate-200 text-amber-600 hover:bg-amber-50'
             }`}
             title={isDarkMode ? 'Gündüz Modu' : 'Gece Modu'}
           >
             {isDarkMode ? (
-              <svg className="w-4.5 h-4.5 text-amber-400 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 text-amber-400 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
               </svg>
             ) : (
-              <svg className="w-4.5 h-4.5 text-slate-700 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 text-slate-700 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
               </svg>
             )}
           </button>
 
           {/* Diğer İşlemler */}
-          <div className="relative" ref={otherOperationsRef}>
-            <button
-              onClick={() => setIsOtherOperationsOpen(!isOtherOperationsOpen)}
-              className={softLuxeBtnStyle}
-            >
+          <div className="relative shrink-0" ref={otherOperationsRef}>
+            <button onClick={() => setIsOtherOperationsOpen(!isOtherOperationsOpen)} className={softLuxeBtnStyle}>
               <svg className="w-4 h-4 text-sky-500 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
               <span className="hidden md:inline tracking-tight">Diğer İşlemler</span>
-              <svg className={`w-3.5 h-3.5 stroke-[2] opacity-70 transition-transform duration-150 ${isOtherOperationsOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className={`w-3.5 h-3.5 stroke-[2] opacity-70 transition-transform duration-200 ${isOtherOperationsOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
               </svg>
             </button>
 
             {isOtherOperationsOpen && (
-              <div className={`absolute right-0 top-full mt-2 w-56 border rounded-2xl shadow-lg py-2 z-[120] text-xs font-semibold ${
-                isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-700'
-              }`}>
+              <div className={`absolute right-0 top-full mt-2 w-56 border rounded-2xl shadow-xl py-2 z-[120] text-xs font-bold backdrop-blur-md ${isDarkMode ? 'bg-slate-900/95 border-slate-800 text-slate-200' : 'bg-white/95 border-slate-200 text-slate-700'}`}>
                 {otherOperationsList.filter(m => m.show).map((mod) => (
                   <button
                     key={mod.id}
                     onClick={() => handleOpenModule(mod.path, mod.title)}
-                    className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors ${
-                      isDarkMode ? 'hover:bg-slate-700 hover:text-emerald-400' : 'hover:bg-emerald-50 hover:text-emerald-700'
-                    }`}
+                    className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors ${isDarkMode ? 'hover:bg-slate-800 hover:text-emerald-400' : 'hover:bg-emerald-50 hover:text-emerald-700'}`}
                   >
                     <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
                     <span>{mod.title}</span>
@@ -472,32 +448,25 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* yetkili İşlemler (يظهر الخيار فقط إذا امتلك المستخدم صلاحيات) */}
+          {/* Yetkili İşlemler */}
           {hasAuthorizedModules && (
-            <div className="relative" ref={modulesRef}>
-              <button
-                onClick={() => setIsModulesOpen(!isModulesOpen)}
-                className={softLuxeBtnStyle}
-              >
+            <div className="relative shrink-0" ref={modulesRef}>
+              <button onClick={() => setIsModulesOpen(!isModulesOpen)} className={softLuxeBtnStyle}>
                 <svg className="w-4 h-4 text-sky-500 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                 </svg>
-                <span className="hidden md:inline tracking-tight">yetkili İşlemler</span>
-                <svg className={`w-3.5 h-3.5 stroke-[2] opacity-70 transition-transform duration-150 ${isModulesOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <span className="hidden md:inline tracking-tight">Yetkili İşlemler</span>
+                <svg className={`w-3.5 h-3.5 stroke-[2] opacity-70 transition-transform duration-200 ${isModulesOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
 
               {isModulesOpen && (
-                <div className={`absolute right-0 top-full mt-2 w-64 border rounded-2xl shadow-lg py-2 z-[120] text-xs font-semibold ${
-                  isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-700'
-                }`}>
+                <div className={`absolute right-0 top-full mt-2 w-64 border rounded-2xl shadow-xl py-2 z-[120] text-xs font-bold backdrop-blur-md ${isDarkMode ? 'bg-slate-900/95 border-slate-800 text-slate-200' : 'bg-white/95 border-slate-200 text-slate-700'}`}>
                   {isGlobalAdmin && (
                     <button
                       onClick={() => handleOpenModule('/admin/users', 'Kullanıcı Yönetimi')}
-                      className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors font-semibold ${
-                        isDarkMode ? 'hover:bg-slate-700 hover:text-emerald-400' : 'hover:bg-emerald-50 hover:text-emerald-700'
-                      }`}
+                      className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors ${isDarkMode ? 'hover:bg-slate-800 hover:text-emerald-400' : 'hover:bg-emerald-50 hover:text-emerald-700'}`}
                     >
                       <svg className="w-4 h-4 text-emerald-500 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
@@ -508,15 +477,25 @@ export default function DashboardPage() {
 
                   {canManageDoctors && (
                     <button
-                      onClick={() => handleOpenModule('/admin/doctors', 'Bölüm ve Doktor yönetimi')}
-                      className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors font-semibold ${
-                        isDarkMode ? 'hover:bg-slate-700 hover:text-emerald-400' : 'hover:bg-emerald-50 hover:text-emerald-700'
-                      }`}
+                      onClick={() => handleOpenModule('/admin/doctors', 'Bölüm و Doktor Yönetimi')}
+                      className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors ${isDarkMode ? 'hover:bg-slate-800 hover:text-emerald-400' : 'hover:bg-emerald-50 hover:text-emerald-700'}`}
                     >
                       <svg className="w-4 h-4 text-emerald-500 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                       </svg>
-                      <span>Bölüm ve Doktor yönetimi</span>
+                      <span>Bölüm ve Doktor Yönetimi</span>
+                    </button>
+                  )}
+
+                  {canManageReports && (
+                    <button
+                      onClick={() => handleOpenModule('/admin/reports', 'Arıza / Sorun Bildirimleri')}
+                      className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors ${isDarkMode ? 'hover:bg-slate-800 hover:text-amber-400' : 'hover:bg-amber-50 hover:text-amber-700'}`}
+                    >
+                      <svg className="w-4 h-4 text-amber-500 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                      <span>Arıza / Sorun Bildirimleri</span>
                     </button>
                   )}
                 </div>
@@ -525,75 +504,47 @@ export default function DashboardPage() {
           )}
 
           {/* Profil */}
-          <div className="relative" ref={profileRef}>
-            <button
-              onClick={() => setIsProfileOpen(!isProfileOpen)}
-              className={softLuxeBtnStyle}
-            >
+          <div className="relative shrink-0" ref={profileRef}>
+            <button onClick={() => setIsProfileOpen(!isProfileOpen)} className={softLuxeBtnStyle}>
               <svg className="w-4 h-4 text-emerald-500 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
-              <span className="tracking-tight">Profil ({uName || 'KULLANICI'})</span>
-              <svg className={`w-3.5 h-3.5 stroke-[2] opacity-70 transition-transform duration-150 ${isProfileOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <span className="tracking-tight max-w-[80px] sm:max-w-none truncate">{uName || 'KULLANICI'}</span>
+              <svg className={`w-3.5 h-3.5 stroke-[2] opacity-70 transition-transform duration-200 ${isProfileOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
               </svg>
             </button>
 
             {isProfileOpen && (
-              <div className={`absolute right-0 top-full mt-2 w-60 border rounded-2xl shadow-lg py-2 z-[120] text-xs font-semibold ${
-                isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-700'
-              }`}>
-                <div className={`px-4 py-3 border-b ${isDarkMode ? 'border-slate-700 bg-slate-900/50' : 'border-slate-100 bg-slate-50/70'}`}>
-                  <p className="font-bold text-sm text-emerald-600 dark:text-emerald-400">{uName || 'Kullanıcı'}</p>
-                  <p className="text-[11px] opacity-70 font-normal">{currentUser?.role || 'Kullanıcı'}</p>
+              <div className={`absolute right-0 top-full mt-2 w-60 border rounded-2xl shadow-xl py-2 z-[120] text-xs font-bold backdrop-blur-md ${isDarkMode ? 'bg-slate-900/95 border-slate-800 text-slate-200' : 'bg-white/95 border-slate-200 text-slate-700'}`}>
+                <div className={`px-4 py-3 border-b ${isDarkMode ? 'border-slate-800 bg-slate-950/40' : 'border-slate-100 bg-slate-50/70'}`}>
+                  <p className="font-black text-sm text-emerald-500">{uName || 'Kullanıcı'}</p>
+                  <p className="text-[11px] opacity-70 font-bold">{currentUser?.role || 'Kullanıcı'}</p>
                 </div>
 
                 <div className="py-1">
-                  <button
-                    onClick={() => handleOpenModule('/profile', 'Profil Bilgileri')}
-                    className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors ${
-                      isDarkMode ? 'hover:bg-slate-700 hover:text-emerald-400' : 'hover:bg-emerald-50 hover:text-emerald-700'
-                    }`}
-                  >
+                  <button onClick={() => handleOpenModule('/profile', 'Profil Bilgileri')} className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors ${isDarkMode ? 'hover:bg-slate-800 hover:text-emerald-400' : 'hover:bg-emerald-50 hover:text-emerald-700'}`}>
                     <svg className="w-4 h-4 text-emerald-500 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
                     <span>Profil Bilgileri</span>
                   </button>
 
-                  <button
-                    onClick={() => handleOpenModule('/profile', 'Şifre Değiştir')}
-                    className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors ${
-                      isDarkMode ? 'hover:bg-slate-700 hover:text-emerald-400' : 'hover:bg-emerald-50 hover:text-emerald-700'
-                    }`}
-                  >
+                  <button onClick={() => handleOpenModule('/profile', 'Şifre Değiştir')} className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors ${isDarkMode ? 'hover:bg-slate-800 hover:text-emerald-400' : 'hover:bg-emerald-50 hover:text-emerald-700'}`}>
                     <svg className="w-4 h-4 text-emerald-500 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                     </svg>
                     <span>Şifre Değiştir</span>
                   </button>
 
-                  <button
-                    onClick={() => handleOpenModule('/report', 'Arıza Bildir')}
-                    className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors ${
-                      isDarkMode ? 'hover:bg-amber-950/40 text-amber-400' : 'hover:bg-amber-50 text-amber-700'
-                    }`}
-                  >
+                  <button onClick={() => handleOpenModule('/report', 'Arıza Bildir')} className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors ${isDarkMode ? 'hover:bg-amber-950/40 text-amber-400' : 'hover:bg-amber-50 text-amber-700'}`}>
                     <svg className="w-4 h-4 text-amber-500 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                     </svg>
                     <span>Arıza Bildir</span>
                   </button>
 
-                  <button
-                    onClick={() => {
-                      setIsProfileOpen(false);
-                      setShowExitModal(true);
-                    }}
-                    className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors border-t font-semibold ${
-                      isDarkMode ? 'border-slate-700 hover:bg-rose-950/40 text-rose-400' : 'border-slate-100 hover:bg-rose-50 text-rose-600'
-                    }`}
-                  >
+                  <button onClick={() => { setIsProfileOpen(false); setShowExitModal(true); }} className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors border-t font-black ${isDarkMode ? 'border-slate-800 hover:bg-rose-950/40 text-rose-400' : 'border-slate-100 hover:bg-rose-50 text-rose-600'}`}>
                     <svg className="w-4 h-4 text-rose-500 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                     </svg>
@@ -607,38 +558,38 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      {/* 📄 المحتوى الرئيسي */}
-      <main className="px-6 py-4 w-full flex-1 flex flex-col justify-between max-w-7xl mx-auto">
+      {/* 📄 المحتوى الرئيسي المتناسب تماماً مع الشاشات بدون أي أشرطة سحب */}
+      <main className="p-3 sm:p-6 w-full flex-1 flex flex-col justify-start max-w-7xl mx-auto overflow-hidden">
         
-        <div className="flex flex-col sm:flex-row justify-end items-center gap-3 w-full">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 w-full">
           
           {/* Card 1: DOKTOR ÇALIŞMA PLANLARI */}
           <div 
             onClick={() => handleOpenModule('/schedule', 'DOKTOR ÇALIŞMA PLANLARI')}
-            className={`group rounded-2xl px-3.5 py-2.5 max-w-[270px] w-full border cursor-pointer transition-all duration-200 flex items-center justify-between shadow-xs hover:shadow-md ${
+            className={`group rounded-2xl p-4 sm:p-5 border cursor-pointer transition-all duration-200 flex items-center justify-between shadow-sm hover:shadow-xl active:scale-[0.98] backdrop-blur-md ${
               isDarkMode 
-                ? 'bg-slate-900/80 border-slate-800/80 hover:border-emerald-500/60 hover:bg-slate-800/90' 
-                : 'bg-white/90 border-slate-200/80 hover:border-emerald-400 hover:bg-emerald-50/30'
+                ? 'bg-slate-900/50 border-slate-800 hover:border-emerald-500/60 hover:bg-slate-800/80 shadow-black/40' 
+                : 'bg-white/80 border-slate-200/80 hover:border-emerald-400 hover:bg-emerald-50/40 shadow-slate-200/60'
             }`}
           >
-            <div className="flex items-center gap-2.5">
-              <div className={`p-2 rounded-xl border transition-all duration-200 shrink-0 ${
+            <div className="flex items-center gap-3.5">
+              <div className={`p-3 rounded-xl border transition-all duration-200 shrink-0 ${
                 isDarkMode 
                   ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 group-hover:bg-emerald-500 group-hover:text-slate-950' 
                   : 'bg-emerald-50 border-emerald-100 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white'
               }`}>
-                <svg className="w-4 h-4 stroke-[2.2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 stroke-[2.2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
                 </svg>
               </div>
-              <span className={`text-xs font-black tracking-tight whitespace-nowrap transition-colors ${
+              <span className={`text-xs sm:text-sm font-black tracking-tight transition-colors ${
                 isDarkMode ? 'text-slate-200 group-hover:text-emerald-400' : 'text-slate-800 group-hover:text-emerald-700'
               }`}>
                 DOKTOR ÇALIŞMA PLANLARI
               </span>
             </div>
 
-            <div className={`p-1 rounded-lg transition-all duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 ${
+            <div className={`p-1.5 rounded-lg transition-all duration-200 group-hover:translate-x-1 ${
               isDarkMode ? 'text-emerald-400 group-hover:bg-emerald-500/10' : 'text-emerald-600 group-hover:bg-emerald-50'
             }`}>
               <svg className="w-4 h-4 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -650,30 +601,30 @@ export default function DashboardPage() {
           {/* Card 2: TELEFON REHBERİ */}
           <div 
             onClick={() => handleOpenModule('/phonebook', 'TELEFON REHBERİ')}
-            className={`group rounded-2xl px-3.5 py-2.5 max-w-[270px] w-full border cursor-pointer transition-all duration-200 flex items-center justify-between shadow-xs hover:shadow-md ${
+            className={`group rounded-2xl p-4 sm:p-5 border cursor-pointer transition-all duration-200 flex items-center justify-between shadow-sm hover:shadow-xl active:scale-[0.98] backdrop-blur-md ${
               isDarkMode 
-                ? 'bg-slate-900/80 border-slate-800/80 hover:border-cyan-500/60 hover:bg-slate-800/90' 
-                : 'bg-white/90 border-slate-200/80 hover:border-cyan-400 hover:bg-cyan-50/30'
+                ? 'bg-slate-900/50 border-slate-800 hover:border-cyan-500/60 hover:bg-slate-800/80 shadow-black/40' 
+                : 'bg-white/80 border-slate-200/80 hover:border-cyan-400 hover:bg-cyan-50/40 shadow-slate-200/60'
             }`}
           >
-            <div className="flex items-center gap-2.5">
-              <div className={`p-2 rounded-xl border transition-all duration-200 shrink-0 ${
+            <div className="flex items-center gap-3.5">
+              <div className={`p-3 rounded-xl border transition-all duration-200 shrink-0 ${
                 isDarkMode 
                   ? 'bg-cyan-500/10 border-cyan-500/20 text-cyan-400 group-hover:bg-cyan-500 group-hover:text-slate-950' 
                   : 'bg-cyan-50 border-cyan-100 text-cyan-600 group-hover:bg-cyan-600 group-hover:text-white'
               }`}>
-                <svg className="w-4 h-4 stroke-[2.2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 stroke-[2.2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-2.826-1.47-5.11-3.754-6.58-6.58l1.293-.97c.362-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
                 </svg>
               </div>
-              <span className={`text-xs font-black tracking-tight whitespace-nowrap transition-colors ${
+              <span className={`text-xs sm:text-sm font-black tracking-tight transition-colors ${
                 isDarkMode ? 'text-slate-200 group-hover:text-cyan-400' : 'text-slate-800 group-hover:text-cyan-700'
               }`}>
                 TELEFON REHBERİ
               </span>
             </div>
 
-            <div className={`p-1 rounded-lg transition-all duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 ${
+            <div className={`p-1.5 rounded-lg transition-all duration-200 group-hover:translate-x-1 ${
               isDarkMode ? 'text-cyan-400 group-hover:bg-cyan-500/10' : 'text-cyan-600 group-hover:bg-cyan-50'
             }`}>
               <svg className="w-4 h-4 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -684,75 +635,31 @@ export default function DashboardPage() {
 
         </div>
 
-        {/* 📊 الإحصائيات */}
-        <div className="w-full my-auto pt-4">
-          <div className="flex items-center gap-2 mb-4 px-1">
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-            </span>
-            <h3 className={`text-xs font-black uppercase tracking-widest ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
-              GENEL CANLI DURUM İSTATİSTİKLERİ
-            </h3>
-          </div>
-
-          <div className="w-full px-2">
-            <div className="h-44 sm:h-52 flex items-end justify-between gap-4 sm:gap-8 w-full">
-              {statsData.map((item) => {
-                const maxVal = 128;
-                const heightPercent = Math.max((item.value / maxVal) * 100, 8);
-
-                return (
-                  <div key={item.label} className="flex-1 flex flex-col items-center h-full justify-end group">
-                    <span className="text-xs sm:text-sm font-mono font-black mb-2 transition-transform group-hover:scale-110" style={{ color: item.color }}>
-                      {item.value}
-                    </span>
-                    
-                    <div 
-                      className="w-full max-w-[36px] sm:max-w-[42px] rounded-t-xl transition-all duration-300 group-hover:brightness-125 shadow-md" 
-                      style={{ 
-                        height: `${heightPercent}%`, 
-                        backgroundColor: item.color,
-                        boxShadow: isDarkMode ? `0 0 12px ${item.color}40` : 'none'
-                      }} 
-                    />
-
-                    <span className={`text-[11px] sm:text-xs font-black uppercase tracking-wider mt-2.5 text-center whitespace-nowrap ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
-                      {item.label}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-        </div>
-
       </main>
 
       {/* ⚠️ نافذة تأكيد الخروج */}
       {showExitModal && (
-        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fadeIn">
-          <div className={`w-full max-w-sm rounded-3xl p-6 shadow-2xl border space-y-4 text-center ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-100 text-slate-800'}`}>
-            <div className="w-12 h-12 rounded-2xl bg-rose-50 dark:bg-rose-950/40 text-rose-500 mx-auto flex items-center justify-center">
+        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-slate-950/70 backdrop-blur-md p-4 animate-fadeIn">
+          <div className={`w-full max-w-sm rounded-3xl p-6 shadow-2xl border space-y-4 text-center backdrop-blur-xl ${isDarkMode ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white/90 border-slate-100 text-slate-800'}`}>
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/10 text-rose-500 mx-auto flex items-center justify-center">
               <svg className="w-6 h-6 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
               </svg>
             </div>
             <div>
-              <h3 className="text-base font-bold">SİSTEMDEN ÇIKIŞ YAPILSIN MI?</h3>
-              <p className="text-xs opacity-70 mt-1">Oturumunuz sonlandırılacaktır.</p>
+              <h3 className="text-base font-black">SİSTEMDEN ÇIKIŞ YAPILSIN MI?</h3>
+              <p className="text-xs font-bold opacity-70 mt-1">Oturumunuz sonlandırılacaktır.</p>
             </div>
-            <div className="flex gap-2 pt-2">
+            <div className="flex gap-2.5 pt-2">
               <button
                 onClick={() => setShowExitModal(false)}
-                className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-colors ${isDarkMode ? 'bg-slate-700 hover:bg-slate-600 text-slate-200' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}
+                className={`flex-1 py-3 text-xs font-black rounded-xl transition-all active:scale-95 cursor-pointer ${isDarkMode ? 'bg-slate-800 hover:bg-slate-700 text-slate-200' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}
               >
                 İPTAL
               </button>
               <button
                 onClick={handleConfirmExit}
-                className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-md shadow-rose-600/20 transition-colors"
+                className="flex-1 py-3 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white text-xs font-black rounded-xl shadow-lg shadow-rose-600/20 transition-all active:scale-95 cursor-pointer"
               >
                 ÇIKIŞ YAP
               </button>

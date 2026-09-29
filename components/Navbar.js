@@ -21,6 +21,7 @@ export default function Navbar() {
     { name: 'لوحة التحكم', href: '/dashboard', icon: '📊' },
     { name: 'جدول الدوام', href: '/schedule', icon: '📅' },
     { name: 'دليل الاتصال', href: '/phonebook', icon: '📞' },
+    { name: 'Arıza Sorun Bildir', href: '/reports', icon: '⚠️' },
   ];
 
   if (user?.role === 'admin') {
