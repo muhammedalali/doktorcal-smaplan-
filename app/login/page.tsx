@@ -6,100 +6,6 @@ import { useTheme } from '@/context/ThemeContext';
 import { db } from '@/lib/firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
 
-function SeamlessECGCanvas({ isError = false }: { isError?: boolean }) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    let animationFrameId: number;
-    let x = 0;
-    const speed = isError ? 4.0 : 2.5;
-
-    const resize = () => {
-      canvas.width = canvas.parentElement?.clientWidth || 300;
-      canvas.height = 60;
-    };
-    resize();
-    window.addEventListener('resize', resize);
-
-    const getECGPoint = (xPos: number, width: number, height: number) => {
-      const midY = height / 2;
-      const cycle = xPos % width;
-      const progress = cycle / width;
-
-      if (progress > 0.35 && progress < 0.38) return midY - 5;
-      if (progress >= 0.38 && progress < 0.41) return midY + 3;
-      if (progress >= 0.41 && progress < 0.44) return midY - 26;
-      if (progress >= 0.44 && progress < 0.48) return midY + 18;
-      if (progress >= 0.48 && progress < 0.51) return midY - 8;
-      if (progress >= 0.51 && progress < 0.54) return midY + 2;
-      return midY;
-    };
-
-    const render = () => {
-      const { width, height } = canvas;
-      ctx.clearRect(0, 0, width, height);
-
-      const primaryColor = isError ? '244, 63, 94' : '16, 185, 129';
-      const glowColor = isError ? '#f43f5e' : '#10b981';
-
-      ctx.beginPath();
-      ctx.strokeStyle = `rgba(${primaryColor}, 0.18)`;
-      ctx.lineWidth = 1.8;
-      for (let i = 0; i < width; i++) {
-        const y = getECGPoint(i, width, height);
-        if (i === 0) ctx.moveTo(i, y);
-        else ctx.lineTo(i, y);
-      }
-      ctx.stroke();
-
-      const tailLength = 80;
-      for (let i = 0; i < tailLength; i++) {
-        const currentX = (x - i + width) % width;
-        const currentY = getECGPoint(currentX, width, height);
-        const alpha = Math.pow(1 - i / tailLength, 1.5);
-
-        ctx.strokeStyle = `rgba(${primaryColor}, ${alpha})`;
-        ctx.shadowColor = glowColor;
-        ctx.shadowBlur = alpha * 10;
-        ctx.lineWidth = 2.0;
-
-        ctx.beginPath();
-        const prevX = (currentX - 1 + width) % width;
-        const prevY = getECGPoint(prevX, width, height);
-        ctx.moveTo(prevX, prevY);
-        ctx.lineTo(currentX, currentY);
-        ctx.stroke();
-      }
-
-      const headY = getECGPoint(x, width, height);
-      ctx.shadowColor = glowColor;
-      ctx.shadowBlur = 15;
-
-      ctx.beginPath();
-      ctx.arc(x, headY, 3, 0, Math.PI * 2);
-      ctx.fillStyle = isError ? '#ffe4e6' : '#a7f3d0';
-      ctx.fill();
-
-      x = (x + speed) % width;
-      animationFrameId = requestAnimationFrame(render);
-    };
-
-    render();
-
-    return () => {
-      cancelAnimationFrame(animationFrameId);
-      window.removeEventListener('resize', resize);
-    };
-  }, [isError]);
-
-  return <canvas ref={canvasRef} className="w-full h-full block bg-transparent" />;
-}
-
 // 🛡️ هيكل الصلاحيات الشامل الموحد
 const DEFAULT_PERMISSIONS = {
   'bölüm ve doktor yönetimi': true,
@@ -133,12 +39,161 @@ export default function LoginPage() {
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
 
-  const { isDarkMode, toggleTheme } = useTheme();
+  const { isDarkMode } = useTheme();
   const router = useRouter();
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const gridCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const passwordInputRef = useRef<HTMLInputElement | null>(null); // 🎯 Ref لحقل كلمة المرور
+  
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const lockIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 🌐 الكانفاس المائل الممتد 100%
+  useEffect(() => {
+    const canvas = gridCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d', { alpha: true });
+    if (!ctx) return;
+
+    let animationFrameId: number;
+    let width = (canvas.width = window.innerWidth);
+    let height = (canvas.height = window.innerHeight);
+
+    let isMobile = width < 640;
+    const step = isMobile ? 42 : 54;
+
+    let mouse = {
+      x: -1000,
+      y: -1000,
+      targetX: -1000,
+      targetY: -1000
+    };
+
+    const handleResize = () => {
+      if (!canvas) return;
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+      isMobile = width < 640;
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      mouse.targetX = e.clientX;
+      mouse.targetY = e.clientY;
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length > 0) {
+        mouse.targetX = e.touches[0].clientX;
+        mouse.targetY = e.touches[0].clientY;
+      }
+    };
+
+    window.addEventListener('resize', handleResize, { passive: true });
+    window.addEventListener('mousemove', handleMouseMove, { passive: true });
+    window.addEventListener('touchmove', handleTouchMove, { passive: true });
+
+    const render = () => {
+      mouse.x += (mouse.targetX - mouse.x) * 0.22;
+      mouse.y += (mouse.targetY - mouse.y) * 0.22;
+
+      ctx.clearRect(0, 0, width, height);
+
+      const strokeColor = isDarkMode ? 'rgba(56, 189, 248, ' : 'rgba(14, 165, 233, ';
+      const dotColor = isDarkMode ? 'rgba(125, 211, 252, ' : 'rgba(56, 189, 248, ';
+
+      const cols = Math.ceil(width / step) + 6;
+      const rows = Math.ceil(height / step) + 6;
+      const craterRadius = isMobile ? 85 : 120;
+
+      const points: { x: number; y: number }[][] = [];
+
+      const tiltAngle = Math.PI / 12;
+      const cosA = Math.cos(tiltAngle);
+      const sinA = Math.sin(tiltAngle);
+
+      for (let r = -3; r <= rows; r++) {
+        const rIndex = r + 3;
+        points[rIndex] = [];
+
+        for (let c = -3; c <= cols; c++) {
+          const rawX = c * step;
+          const rawY = r * step;
+
+          const centerX = width / 2;
+          const centerY = height / 2;
+          const relX = rawX - centerX;
+          const relY = rawY - centerY;
+
+          const rotatedX = relX * cosA - relY * sinA + centerX;
+          const rotatedY = relX * sinA + relY * cosA + centerY;
+
+          const distToMouse = Math.hypot(rotatedX - mouse.x, rotatedY - mouse.y);
+          let shiftX = 0;
+          let shiftY = 0;
+
+          if (distToMouse < craterRadius && distToMouse > 0) {
+            const factor = (1 - distToMouse / craterRadius);
+            const angle = Math.atan2(rotatedY - mouse.y, rotatedX - mouse.x);
+            const push = factor * (isMobile ? 8 : 14);
+
+            shiftX = Math.cos(angle) * push;
+            shiftY = Math.sin(angle) * push;
+          }
+
+          points[rIndex][c + 3] = {
+            x: rotatedX + shiftX,
+            y: rotatedY + shiftY
+          };
+        }
+      }
+
+      ctx.lineWidth = 0.85;
+
+      for (let r = 0; r < points.length; r++) {
+        for (let c = 0; c < points[r].length; c++) {
+          const pt = points[r][c];
+          const baseAlpha = isDarkMode ? 0.22 : 0.18;
+
+          if (c < points[r].length - 1) {
+            const ptNext = points[r][c + 1];
+            ctx.beginPath();
+            ctx.moveTo(pt.x, pt.y);
+            ctx.lineTo(ptNext.x, ptNext.y);
+            ctx.strokeStyle = `${strokeColor}${baseAlpha})`;
+            ctx.stroke();
+          }
+
+          if (r < points.length - 1 && points[r + 1][c]) {
+            const ptDown = points[r + 1][c];
+            ctx.beginPath();
+            ctx.moveTo(pt.x, pt.y);
+            ctx.lineTo(ptDown.x, ptDown.y);
+            ctx.strokeStyle = `${strokeColor}${baseAlpha * 0.7})`;
+            ctx.stroke();
+          }
+
+          if (r % 2 === 0 && c % 2 === 0) {
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, isDarkMode ? 1.2 : 1.4, 0, Math.PI * 2);
+            ctx.fillStyle = `${dotColor}${baseAlpha * 1.4})`;
+            ctx.fill();
+          }
+        }
+      }
+
+      animationFrameId = requestAnimationFrame(render);
+    };
+
+    render();
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('touchmove', handleTouchMove);
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, [isDarkMode]);
 
   useEffect(() => {
     const storedLockTime = localStorage.getItem('login_lock_until');
@@ -194,6 +249,27 @@ export default function LoginPage() {
       if (lockIntervalRef.current) clearInterval(lockIntervalRef.current);
     };
   }, []);
+
+  // 🎯 فحص اسم المستخدم وتمرير التركيز تلقائياً لحقل كلمة المرور عند اكتمال المطابقة
+  const handleUsernameChange = (value: string) => {
+    const formattedVal = value.toLocaleUpperCase('tr-TR');
+    setUsername(formattedVal);
+    setShowUserDropdown(true);
+
+    const cleanInput = formattedVal.trim();
+    if (cleanInput.length > 0) {
+      const isExactMatch = allUsers.some(
+        (u: any) => u.username?.toLocaleUpperCase('tr-TR') === cleanInput
+      );
+
+      if (isExactMatch) {
+        setShowUserDropdown(false);
+        setTimeout(() => {
+          passwordInputRef.current?.focus();
+        }, 50);
+      }
+    }
+  };
 
   const startLockCountdown = (seconds: number) => {
     if (lockIntervalRef.current) clearInterval(lockIntervalRef.current);
@@ -253,11 +329,9 @@ export default function LoginPage() {
       setShowSuccessToast(true);
       setLoadingProgress(0);
 
-      // 1. تخزين الجلسة في Local & Session Storage
       sessionStorage.setItem('user', JSON.stringify(foundUser));
       localStorage.setItem('user', JSON.stringify(foundUser));
 
-      // 2. تخزين الجلسة في Cookies ليتعرف عليها الـ Middleware
       const userRole = isUserAdmin ? 'ADMIN' : 'USER';
       document.cookie = `user_session=${encodeURIComponent(JSON.stringify(foundUser))}; path=/; max-age=604800; SameSite=Lax`;
       document.cookie = `user_role=${userRole}; path=/; max-age=604800; SameSite=Lax`;
@@ -331,42 +405,28 @@ export default function LoginPage() {
     : [];
 
   return (
-    <div className={`min-h-screen flex items-center justify-center transition-colors duration-300 px-4 relative overflow-hidden ${
-      isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'
+    <div className={`h-screen w-screen overflow-hidden fixed inset-0 flex items-center justify-center transition-colors duration-500 font-sans ${
+      isDarkMode ? 'bg-[#020617] text-slate-100' : 'bg-[#f8fafc] text-slate-900'
     }`}>
 
-      <button
-        onClick={toggleTheme}
-        type="button"
-        className={`absolute top-6 right-6 flex items-center gap-3 px-4 py-2.5 rounded-2xl border backdrop-blur-md transition-all duration-300 shadow-lg cursor-pointer group active:scale-95 z-30 ${
+      {/* 🌐 خلفية الكانفاس المائلة الحديثة والعصرية */}
+      <div className="absolute inset-0 z-0 pointer-events-none select-none">
+        <div className={`absolute inset-0 transition-opacity duration-500 ${
           isDarkMode 
-            ? 'bg-slate-900/80 border-slate-700/80 text-amber-400 hover:border-amber-400/50 hover:shadow-amber-500/10' 
-            : 'bg-white/90 border-slate-200 text-slate-800 hover:border-emerald-500/40 hover:shadow-emerald-500/10'
-        }`}
-      >
-        <div className="relative w-5 h-5 flex items-center justify-center transition-transform duration-500 group-hover:rotate-45">
-          {isDarkMode ? (
-            <svg className="w-5 h-5 text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-            </svg>
-          ) : (
-            <svg className="w-5 h-5 text-emerald-600 drop-shadow-[0_0_8px_rgba(16,185,129,0.4)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-            </svg>
-          )}
-        </div>
-        <span className="text-xs font-black tracking-wider uppercase">
-          {isDarkMode ? 'GÜNDÜZ' : 'GECE'}
-        </span>
-      </button>
+            ? 'bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-950/40 via-[#020617] to-[#020617]' 
+            : 'bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-sky-200/50 via-slate-100/80 to-[#f8fafc]'
+        }`} />
+
+        <canvas ref={gridCanvasRef} className="absolute inset-0 w-full h-full block z-0" />
+
+        <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[85vw] max-w-[550px] h-[320px] rounded-full blur-[130px] pointer-events-none transition-all duration-300 ${
+          isDarkMode ? 'bg-cyan-500/10' : 'bg-sky-400/25'
+        }`} />
+      </div>
 
       {showSuccessToast && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fadeIn">
           <div className="flex flex-col items-center text-center gap-6 max-w-sm w-full relative z-10">
-            
-            <div className="w-full h-16 relative my-2 overflow-hidden">
-              <SeamlessECGCanvas isError={false} />
-            </div>
 
             <div className="space-y-2 w-full">
               <div className="flex items-center justify-center gap-2">
@@ -413,15 +473,20 @@ export default function LoginPage() {
         </div>
       )}
 
-      <div className={`max-w-md w-full border-2 rounded-3xl p-8 shadow-2xl transition-all duration-300 ${
-        isDarkMode ? 'bg-slate-900/90 border-slate-800 shadow-black/50' : 'bg-white border-slate-200/80 shadow-slate-200/80'
+      {/* 🎯 كرت تسجيل الدخول الشفاف الفاخر */}
+      <div className={`max-w-md w-full border border-transparent rounded-3xl p-7 sm:p-8 shadow-xl transition-all duration-300 z-10 relative select-none ${
+        isDarkMode 
+          ? 'bg-[#020617]/10 backdrop-blur-[2px] hover:border-cyan-400/40 hover:bg-slate-950/20 hover:shadow-cyan-500/10 hover:shadow-2xl' 
+          : 'bg-white/20 backdrop-blur-[2px] hover:border-blue-400/50 hover:bg-white/40 hover:shadow-sky-500/10 hover:shadow-2xl'
       }`}>
         <div className="text-center mb-6 flex flex-col items-center">
-          <div className="w-full h-16 relative flex items-center justify-center mb-2 overflow-hidden">
-            <SeamlessECGCanvas isError={isLocked || !!error} />
-          </div>
-
-          <h2 className="text-2xl font-black uppercase tracking-wide">SİSTEME GİRİŞ YAP</h2>
+          <h2 className={`text-xl sm:text-2xl font-black uppercase tracking-wider transition-colors duration-300 ${
+            isDarkMode 
+              ? 'text-cyan-300 drop-shadow-[0_2px_10px_rgba(34,211,238,0.3)]' 
+              : 'text-blue-950 drop-shadow-sm'
+          }`}>
+            SİSTEME GİRİŞ YAP
+          </h2>
         </div>
 
         {error && (
@@ -458,7 +523,7 @@ export default function LoginPage() {
 
         <form onSubmit={handleLogin} className="space-y-5">
           <div className="relative" ref={dropdownRef}>
-            <label className={`block text-sm font-black mb-1.5 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
+            <label className={`block text-xs sm:text-sm font-black mb-1.5 uppercase tracking-wide ${isDarkMode ? 'text-slate-200' : 'text-slate-800'}`}>
               Kullanıcı Adı
             </label>
             <input
@@ -467,16 +532,13 @@ export default function LoginPage() {
               disabled={isLocked}
               value={username}
               onFocus={() => setShowUserDropdown(true)}
-              onChange={(e) => {
-                setUsername(e.target.value.toLocaleUpperCase('tr-TR'));
-                setShowUserDropdown(true);
-              }}
-              className={`w-full px-4 py-3 rounded-xl border-2 font-black uppercase outline-none transition-all duration-150 ${
+              onChange={(e) => handleUsernameChange(e.target.value)}
+              className={`w-full px-4 py-3 rounded-xl border-2 font-black uppercase outline-none transition-all duration-200 ${
                 isLocked
                   ? 'opacity-50 cursor-not-allowed bg-slate-900 border-slate-800'
                   : isDarkMode 
-                    ? 'bg-slate-950 border-slate-800 text-slate-100 focus:border-emerald-400 focus:bg-emerald-950/20' 
-                    : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-600 focus:bg-emerald-50/50'
+                    ? 'bg-slate-950/60 border-slate-800/80 text-slate-100 focus:border-cyan-400 focus:bg-slate-900/90' 
+                    : 'bg-white/80 border-slate-300/80 text-slate-900 focus:border-blue-600 focus:bg-white'
               }`}
               placeholder="Kullanıcı Adı"
               autoComplete="off"
@@ -490,18 +552,22 @@ export default function LoginPage() {
                   <div
                     key={u.id || `${u.username}-${idx}`}
                     onClick={() => {
-                      setUsername(u.username.toLocaleUpperCase('tr-TR'));
+                      const selectedName = u.username.toLocaleUpperCase('tr-TR');
+                      setUsername(selectedName);
                       setShowUserDropdown(false);
+                      setTimeout(() => {
+                        passwordInputRef.current?.focus();
+                      }, 50);
                     }}
                     className={`flex justify-between items-center p-3 cursor-pointer transition-colors duration-150 text-sm font-black border-b last:border-b-0 ${
                       isDarkMode 
-                        ? 'hover:bg-emerald-950/40 border-slate-800 text-slate-200 hover:text-emerald-300' 
-                        : 'hover:bg-emerald-50 border-slate-100 text-slate-800 hover:text-emerald-900'
+                        ? 'hover:bg-cyan-950/40 border-slate-800 text-slate-200 hover:text-cyan-300' 
+                        : 'hover:bg-blue-50 border-slate-100 text-slate-800 hover:text-blue-900'
                     }`}
                   >
                     <div className="flex items-center gap-2.5">
                       <div className={`w-7 h-7 rounded-full font-black flex items-center justify-center text-xs ${
-                        isDarkMode ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-800'
+                        isDarkMode ? 'bg-cyan-500/20 text-cyan-400' : 'bg-blue-100 text-blue-800'
                       }`}>
                         {u.username ? u.username.charAt(0).toLocaleUpperCase('tr-TR') : 'U'}
                       </div>
@@ -515,20 +581,23 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className={`block text-sm font-black mb-1.5 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Şifre</label>
+            <label className={`block text-xs sm:text-sm font-black mb-1.5 uppercase tracking-wide ${isDarkMode ? 'text-slate-200' : 'text-slate-800'}`}>
+              Şifre
+            </label>
             <div className="relative">
               <input
+                ref={passwordInputRef}
                 type={showPassword ? 'text' : 'password'}
                 required
                 disabled={isLocked}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className={`w-full px-4 py-3 rounded-xl border-2 font-black outline-none transition-all duration-150 pr-12 ${
+                className={`w-full px-4 py-3 rounded-xl border-2 font-black outline-none transition-all duration-200 pr-12 ${
                   isLocked
                     ? 'opacity-50 cursor-not-allowed bg-slate-900 border-slate-800'
                     : isDarkMode 
-                      ? 'bg-slate-950 border-slate-800 text-slate-100 focus:border-emerald-400 focus:bg-emerald-950/20' 
-                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-600 focus:bg-emerald-50/50'
+                      ? 'bg-slate-950/60 border-slate-800/80 text-slate-100 focus:border-cyan-400 focus:bg-slate-900/90' 
+                      : 'bg-white/80 border-slate-300/80 text-slate-900 focus:border-blue-600 focus:bg-white'
                 }`}
                 placeholder="••••••••"
               />
@@ -536,7 +605,7 @@ export default function LoginPage() {
                 type="button"
                 disabled={isLocked}
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-500 transition-colors cursor-pointer p-1"
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-cyan-400 transition-colors cursor-pointer p-1"
                 title={showPassword ? 'Şifreyi Gizle' : 'Şifreyi Göster'}
               >
                 {showPassword ? (
@@ -557,10 +626,12 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={isLocked}
-            className={`w-full py-3.5 px-4 font-black rounded-xl text-base transition-all duration-150 shadow-lg cursor-pointer mt-2 flex items-center justify-center gap-2 ${
+            className={`w-full py-3.5 px-4 font-black rounded-xl text-base transition-all duration-200 shadow-lg cursor-pointer mt-2 flex items-center justify-center gap-2 active:scale-[0.98] ${
               isLocked
                 ? 'bg-slate-800 text-slate-500 cursor-not-allowed shadow-none'
-                : 'bg-emerald-600 hover:bg-emerald-500 text-white active:scale-[0.98]'
+                : isDarkMode
+                  ? 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black shadow-cyan-500/20'
+                  : 'bg-gradient-to-r from-blue-700 to-sky-600 hover:from-blue-800 hover:to-sky-700 text-white font-black shadow-blue-500/20'
             }`}
           >
             {isLocked ? (

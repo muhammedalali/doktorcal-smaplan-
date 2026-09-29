@@ -1,22 +1,24 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from '@/context/ThemeContext';
 import { 
   CalendarDays, 
   LogIn, 
-  ArrowRight,
   Sun,
-  Moon,
-  ChevronRight
+  Moon
 } from 'lucide-react';
 
 export default function LandingPage() {
   const router = useRouter();
   const { isDarkMode, toggleTheme } = useTheme();
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // 🔄 فحص تلقائي: إذا كان المستخدم مسجلاً للدخول يتم توجيهه فوراً لـ /dashboard
+  // إحداثيات الماوس للبطاقات التفاعلية (Spotlight Effect)
+  const [mousePos, setMousePos] = useState({ x: -500, y: -500 });
+
+  // 🔄 فحص تلقائي للتوجيه السريع إذا كان المستخدم مسجلاً
   useEffect(() => {
     const sessionUser = sessionStorage.getItem('user');
     const localUser = localStorage.getItem('user');
@@ -27,202 +29,301 @@ export default function LandingPage() {
     }
   }, [router]);
 
+  // 🌐 شبكة ثلاثية الأبعاد متكيفة ذكياً مع كافة أبعاد الكمبيوتر والهواتف
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d', { alpha: true });
+    if (!ctx) return;
+
+    let animationFrameId: number;
+    let width = (canvas.width = window.innerWidth);
+    let height = (canvas.height = window.innerHeight);
+
+    // حساب متكيف لكثافة الشبكة بناءً على أبعاد الشاشة الحالية
+    let isMobile = width < 640;
+    let isLargeScreen = width > 1440;
+    let rows = isMobile ? 24 : (isLargeScreen ? 48 : 36);
+    let cols = isMobile ? 24 : (isLargeScreen ? 48 : 36);
+
+    let mouse = {
+      x: -1000,
+      y: -1000,
+      targetX: -1000,
+      targetY: -1000
+    };
+
+    const handleResize = () => {
+      if (!canvas) return;
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+      isMobile = width < 640;
+      isLargeScreen = width > 1440;
+      rows = isMobile ? 24 : (isLargeScreen ? 48 : 36);
+      cols = isMobile ? 24 : (isLargeScreen ? 48 : 36);
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      mouse.targetX = e.clientX;
+      mouse.targetY = e.clientY;
+      setMousePos({ x: e.clientX, y: e.clientY });
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length > 0) {
+        mouse.targetX = e.touches[0].clientX;
+        mouse.targetY = e.touches[0].clientY;
+        setMousePos({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+      }
+    };
+
+    window.addEventListener('resize', handleResize, { passive: true });
+    window.addEventListener('mousemove', handleMouseMove, { passive: true });
+    window.addEventListener('touchmove', handleTouchMove, { passive: true });
+
+    const render = () => {
+      mouse.x += (mouse.targetX - mouse.x) * 0.25;
+      mouse.y += (mouse.targetY - mouse.y) * 0.25;
+
+      ctx.clearRect(0, 0, width, height);
+
+      const strokeColor = isDarkMode ? 'rgba(56, 189, 248, ' : 'rgba(2, 132, 199, ';
+      const dotColor = isDarkMode ? 'rgba(125, 211, 252, ' : 'rgba(3, 105, 161, ';
+
+      // متكيف ديناميكياً مع نسبة البعد البؤري للشاشات
+      const fov = isMobile ? 380 : (isLargeScreen ? 620 : 500);
+      const centerY = height * 0.12;
+      const centerX = width * 0.5;
+
+      const spacing = isMobile ? 65 : (isLargeScreen ? 95 : 80); 
+      const craterRadius = isMobile ? 80 : 110;
+
+      const points: { x: number; y: number; alpha: number }[][] = [];
+
+      for (let r = 0; r <= rows; r++) {
+        points[r] = [];
+        const z = (r / rows) * 750 + 100;
+        const scale = fov / z;
+
+        for (let c = 0; c <= cols; c++) {
+          const worldX = (c - cols / 2) * spacing;
+          const worldY = 90; 
+
+          const projX = centerX + worldX * scale;
+          const projY = centerY + worldY * scale;
+
+          const distToMouse = Math.hypot(projX - mouse.x, projY - mouse.y);
+          
+          let craterDepth = 0;
+          if (distToMouse < craterRadius) {
+            const factor = distToMouse / craterRadius;
+            craterDepth = (1 + Math.cos(factor * Math.PI)) * (isMobile ? 8 : 12); 
+          }
+
+          const alpha = Math.min(1, Math.max(0, (z - 50) / 750)) * (isDarkMode ? 0.5 : 0.75);
+
+          points[r][c] = { 
+            x: projX, 
+            y: projY + craterDepth, 
+            alpha
+          };
+        }
+      }
+
+      for (let r = 0; r <= rows; r++) {
+        for (let c = 0; c <= cols; c++) {
+          const pt = points[r][c];
+
+          if (c < cols) {
+            const ptNext = points[r][c + 1];
+            ctx.beginPath();
+            ctx.moveTo(pt.x, pt.y);
+            ctx.lineTo(ptNext.x, ptNext.y);
+            ctx.strokeStyle = `${strokeColor}${pt.alpha})`;
+            ctx.lineWidth = 1;
+            ctx.stroke();
+          }
+
+          if (r < rows) {
+            const ptDown = points[r + 1][c];
+            ctx.beginPath();
+            ctx.moveTo(pt.x, pt.y);
+            ctx.lineTo(ptDown.x, ptDown.y);
+            ctx.strokeStyle = `${strokeColor}${pt.alpha * 0.8})`;
+            ctx.lineWidth = 1;
+            ctx.stroke();
+          }
+
+          if (r % 2 === 0 && c % 2 === 0) {
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, isDarkMode ? 1.2 : 1.6, 0, Math.PI * 2);
+            ctx.fillStyle = `${dotColor}${pt.alpha * 1.1})`;
+            ctx.fill();
+          }
+        }
+      }
+
+      animationFrameId = requestAnimationFrame(render);
+    };
+
+    render();
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('touchmove', handleTouchMove);
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, [isDarkMode]);
+
   return (
-    <div className={`min-h-screen relative overflow-x-hidden flex flex-col justify-between selection:bg-emerald-500 selection:text-white transition-colors duration-200 ${
-      isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'
+    <div className={`h-screen w-screen overflow-hidden fixed inset-0 flex flex-col justify-between selection:bg-cyan-500 selection:text-slate-950 transition-colors duration-300 font-sans ${
+      isDarkMode ? 'bg-[#020617] text-slate-100' : 'bg-slate-50 text-slate-900'
     }`}>
       
-      {/* Dynamic Ambient Background Elements */}
-      <div className="absolute top-1/4 -left-32 w-72 sm:w-96 h-72 sm:h-96 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none transform-gpu" />
-      <div className="absolute bottom-1/4 -right-32 w-72 sm:w-96 h-72 sm:h-96 bg-teal-500/10 rounded-full blur-2xl pointer-events-none transform-gpu" />
+      {/* 🌐 خلفية الكانفاس الحية ملء الشاشة 100% */}
+      <div className="absolute inset-0 z-0 pointer-events-none select-none">
+        <div className={`absolute inset-0 transition-opacity duration-300 ${
+          isDarkMode 
+            ? 'bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-950/60 via-[#020617] to-[#020617]' 
+            : 'bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-sky-100 via-slate-50 to-white'
+        }`} />
 
-      {/* Header Bar */}
-      <header className={`w-full py-4 sm:py-5 px-4 sm:px-10 flex justify-between items-center z-20 border-b sticky top-0 transition-colors duration-200 ${
-        isDarkMode ? 'border-slate-800 bg-slate-950/90' : 'border-slate-300 bg-white/95 shadow-sm'
-      }`}>
+        <canvas ref={canvasRef} className="absolute inset-0 w-full h-full block z-0" />
+
+        <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-[600px] h-[350px] rounded-full blur-[140px] pointer-events-none transition-all duration-300 ${
+          isDarkMode ? 'bg-cyan-500/10' : 'bg-sky-400/20'
+        }`} />
+      </div>
+
+      {/* 📍 الهيدر العلوي الشفاف والمتكيف */}
+      <div className="w-full px-4 py-3 sm:px-8 sm:py-5 flex justify-between items-center z-30 relative bg-transparent select-none">
         
-        <div className="relative cursor-default select-none">
-          <h1 className={`font-black text-lg sm:text-2xl tracking-widest uppercase transition-colors duration-200 bg-clip-text text-transparent ${
-            isDarkMode 
-              ? 'bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-500' 
-              : 'bg-gradient-to-r from-emerald-800 via-teal-700 to-emerald-900'
-          }`}>
-            DOKTOR ÇALIŞMA PLANI
-          </h1>
-        </div>
+        {/* العنوان الرئيسي */}
+        <h1 className={`font-black text-[11px] sm:text-xs md:text-sm tracking-widest uppercase transition-colors duration-300 ${
+          isDarkMode 
+            ? 'text-cyan-300 drop-shadow-[0_2px_10px_rgba(34,211,238,0.3)]' 
+            : 'text-blue-950 drop-shadow-sm'
+        }`}>
+          DOKTOR ÇALIŞMA PLANI
+        </h1>
 
+        {/* 🌙 / ☀️ زر التبديل - أيقونة عصرية مع استجابة سريعة */}
         <button
           onClick={toggleTheme}
-          className={`px-3 sm:px-4 py-2 rounded-xl border-2 text-xs font-black transition-all duration-150 active:scale-95 flex items-center gap-2 cursor-pointer ${
+          aria-label="Toggle Theme"
+          className={`group relative p-2 sm:p-2.5 rounded-2xl border transition-all duration-300 active:scale-90 flex items-center justify-center cursor-pointer shadow-lg backdrop-blur-md overflow-hidden transform-gpu ${
             isDarkMode 
-              ? 'bg-slate-900 border-slate-800 text-amber-400 hover:bg-amber-500/10 hover:border-amber-400' 
-              : 'bg-white border-slate-300 text-slate-800 hover:bg-amber-50 hover:border-amber-500'
+              ? 'bg-slate-900/40 border-cyan-500/30 text-amber-300 hover:border-amber-400 hover:shadow-amber-500/20 hover:bg-slate-900/80' 
+              : 'bg-white/50 border-blue-300/80 text-blue-700 hover:border-blue-600 hover:shadow-blue-500/20 hover:bg-white/90 shadow-slate-200/60'
           }`}
         >
+          <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-amber-400/0 via-cyan-400/20 to-blue-500/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+
           {isDarkMode ? (
-            <>
-              <Sun className="w-4 h-4 text-amber-400" />
-              <span className="hidden sm:inline">GÜNDÜZ MODU</span>
-            </>
+            <Sun className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400 transition-transform duration-500 ease-out group-hover:rotate-180 group-hover:scale-125 drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]" />
           ) : (
-            <>
-              <Moon className="w-4 h-4 text-indigo-600" />
-              <span className="hidden sm:inline">GECE MODU</span>
-            </>
+            <Moon className="w-4 h-4 sm:w-5 sm:h-5 text-blue-700 transition-transform duration-500 ease-out group-hover:-rotate-45 group-hover:scale-125 drop-shadow-[0_0_8px_rgba(29,78,216,0.5)]" />
           )}
         </button>
-      </header>
+      </div>
 
-      {/* Main Container */}
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-10 flex-1 flex flex-col justify-center items-center z-10 w-full space-y-6 sm:space-y-8">
+      {/* 🎯 المحتوى الرئيسي: حقول شفافة ومجهزة للاستجابة الحركية والمرئية الكاملة */}
+      <main className="max-w-md sm:max-w-xl md:max-w-2xl mx-auto z-10 w-full flex-1 flex items-center justify-center p-4 sm:p-6 select-none">
         
-        {/* ECG Wave Animation */}
-        <div className="w-full max-w-2xl py-2 flex flex-col items-center justify-center relative pointer-events-none">
-          <svg 
-            className="w-full h-16 sm:h-20 overflow-visible transform-gpu" 
-            viewBox="0 0 1000 120" 
-            fill="none" 
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <defs>
-              <linearGradient id="ecgGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#10b981" stopOpacity="0.1" />
-                <stop offset="30%" stopColor="#10b981" stopOpacity="0.9" />
-                <stop offset="50%" stopColor="#34d399" stopOpacity="1" />
-                <stop offset="70%" stopColor="#14b8a6" stopOpacity="0.9" />
-                <stop offset="100%" stopColor="#059669" stopOpacity="0.1" />
-              </linearGradient>
-            </defs>
-
-            <path 
-              d="M0,60 L1000,60" 
-              stroke={isDarkMode ? '#334155' : '#cbd5e1'} 
-              strokeWidth="1.5" 
-              strokeDasharray="6 6"
-              opacity="0.5" 
-            />
-
-            <path 
-              stroke="url(#ecgGradient)" 
-              strokeWidth="3.5" 
-              strokeLinecap="round" 
-              strokeLinejoin="round"
-              className="animate-smoothEcg transform-gpu"
-              d="M 0,60 L 150,60 C 165,60 170,52 175,60 C 180,68 185,60 190,60 L 220,60 C 228,60 232,67 236,60 C 240,50 245,70 248,60 L 260,60 L 268,72 L 278,8 L 290,112 L 302,40 L 312,68 L 320,60 L 340,60 C 352,60 360,42 372,42 C 384,42 390,60 400,60 L 550,60 C 565,60 570,52 575,60 C 580,68 585,60 590,60 L 620,60 C 628,60 632,67 636,60 C 640,50 645,70 648,60 L 660,60 L 668,72 L 678,8 L 690,112 L 702,40 L 712,68 L 720,60 L 740,60 C 752,60 760,42 772,42 C 784,42 790,60 800,60 L 1000,60"
-            />
-          </svg>
-        </div>
-
-        {/* High-Contrast Interactive Dynamic Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6 w-full max-w-3xl">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 w-full">
           
-          {/* Card 1: Doktor Çalışma Listesi */}
+          {/* المربع الأول: Doktor Çalışma Listesi */}
           <div 
             onClick={() => router.push('/schedule')}
-            className={`group relative cursor-pointer rounded-2xl p-5 sm:p-6 border-2 transition-all duration-150 ease-out transform-gpu hover:-translate-y-1 active:scale-[0.98] flex flex-col justify-between overflow-hidden shadow-sm hover:shadow-md will-change-transform ${
+            className={`group relative cursor-pointer rounded-2xl p-5 sm:p-7 border border-transparent transition-all duration-200 ease-out transform-gpu hover:-translate-y-1.5 active:scale-[0.98] flex flex-col items-center justify-center text-center overflow-hidden space-y-3.5 sm:space-y-4 ${
               isDarkMode 
-                ? 'bg-slate-900/90 border-slate-800 hover:bg-emerald-950/40 hover:border-emerald-400' 
-                : 'bg-white border-slate-200/90 hover:bg-emerald-50/80 hover:border-emerald-600'
+                ? 'bg-[#020617]/5 backdrop-blur-[2px] hover:border-cyan-400/40 hover:bg-slate-950/20 hover:shadow-cyan-500/10 hover:shadow-2xl' 
+                : 'bg-white/5 backdrop-blur-[2px] hover:border-blue-400/60 hover:bg-white/20 hover:shadow-blue-500/10 hover:shadow-2xl'
             }`}
           >
-            <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-500 opacity-60 group-hover:opacity-100 transition-opacity duration-150" />
-            
-            <div>
-              <div className={`w-12 h-12 rounded-xl border flex items-center justify-center transition-all duration-150 mb-4 ${
-                isDarkMode
-                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 group-hover:bg-emerald-500 group-hover:text-slate-950 group-hover:border-emerald-400'
-                  : 'bg-emerald-100/70 border-emerald-300 text-emerald-800 group-hover:bg-emerald-600 group-hover:text-white group-hover:border-emerald-600'
-              }`}>
-                <CalendarDays className="w-6 h-6" />
-              </div>
+            {/* Spotlight الضوئي المتتبع للماوس */}
+            <div 
+              className="pointer-events-none absolute -inset-px transition-opacity duration-200 opacity-0 group-hover:opacity-100"
+              style={{
+                background: `radial-gradient(220px circle at ${mousePos.x}px ${mousePos.y}px, ${
+                  isDarkMode ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.12)'
+                }, transparent 80%)`
+              }}
+            />
 
-              <h3 className={`text-xl sm:text-2xl font-black transition-colors duration-150 ${
-                isDarkMode 
-                  ? 'text-slate-100 group-hover:text-emerald-300' 
-                  : 'text-slate-900 group-hover:text-emerald-900'
-              }`}>
-                Doktor Çalışma Listesi
-              </h3>
-            </div>
-
-            <div className={`mt-6 pt-4 border-t flex items-center justify-between font-black text-xs sm:text-sm tracking-wide transition-colors duration-150 ${
+            <div className={`absolute top-0 left-0 right-0 h-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 ${
               isDarkMode 
-                ? 'border-slate-800 text-emerald-400 group-hover:text-emerald-300' 
-                : 'border-slate-200 text-emerald-700 group-hover:text-emerald-800'
+                ? 'bg-gradient-to-r from-cyan-400 to-blue-500' 
+                : 'bg-gradient-to-r from-blue-700 to-sky-600'
+            }`} />
+
+            {/* الرمز متكيف مع حجم الشاشات */}
+            <div className={`w-14 h-14 sm:w-18 sm:h-18 md:w-20 md:h-20 rounded-2xl border flex items-center justify-center transition-all duration-200 shadow-md ${
+              isDarkMode
+                ? 'border-cyan-400/30 bg-cyan-950/30 text-cyan-300 group-hover:border-cyan-400 group-hover:bg-cyan-400 group-hover:text-slate-950 group-hover:scale-110 group-hover:shadow-cyan-500/30 group-hover:shadow-lg'
+                : 'border-blue-400/50 bg-blue-50/80 text-blue-900 group-hover:border-blue-700 group-hover:bg-blue-700 group-hover:text-white group-hover:scale-110 group-hover:shadow-blue-500/30 group-hover:shadow-lg'
             }`}>
-              <span>LİSTEYİ İNCELE</span>
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center transition-all duration-150 ${
-                isDarkMode
-                  ? 'bg-emerald-500/10 text-emerald-400 group-hover:bg-emerald-400 group-hover:text-slate-950'
-                  : 'bg-emerald-200/60 text-emerald-800 group-hover:bg-emerald-600 group-hover:text-white'
-              }`}>
-                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform duration-150" />
-              </div>
+              <CalendarDays className="w-7 h-7 sm:w-9 sm:h-9 md:w-10 md:h-10 transition-transform duration-200 stroke-[2.2]" />
             </div>
+
+            {/* النص: سطر واحد فقط محمي ومناسب للهواتف والكمبيوتر */}
+            <h2 className={`text-[11px] sm:text-xs md:text-sm font-black tracking-normal whitespace-nowrap transition-all duration-200 ${
+              isDarkMode 
+                ? 'text-white group-hover:text-cyan-300 group-hover:scale-105 group-hover:drop-shadow-[0_2px_8px_rgba(34,211,238,0.4)]' 
+                : 'text-slate-950 group-hover:text-blue-950 group-hover:scale-105 group-hover:drop-shadow-sm'
+            }`}>
+              Doktor Çalışma Listesi
+            </h2>
           </div>
 
-          {/* Card 2: Sisteme Giriş Yap */}
+          {/* المربع الثاني: Sisteme Giriş Yap */}
           <div 
             onClick={() => router.push('/login')}
-            className={`group relative cursor-pointer rounded-2xl p-5 sm:p-6 border-2 transition-all duration-150 ease-out transform-gpu hover:-translate-y-1 active:scale-[0.98] flex flex-col justify-between overflow-hidden shadow-sm hover:shadow-md will-change-transform ${
+            className={`group relative cursor-pointer rounded-2xl p-5 sm:p-7 border border-transparent transition-all duration-200 ease-out transform-gpu hover:-translate-y-1.5 active:scale-[0.98] flex flex-col items-center justify-center text-center overflow-hidden space-y-3.5 sm:space-y-4 ${
               isDarkMode 
-                ? 'bg-slate-900/90 border-slate-800 hover:bg-teal-950/40 hover:border-teal-400' 
-                : 'bg-white border-slate-200/90 hover:bg-teal-50/80 hover:border-teal-600'
+                ? 'bg-[#020617]/5 backdrop-blur-[2px] hover:border-sky-400/40 hover:bg-slate-950/20 hover:shadow-sky-500/10 hover:shadow-2xl' 
+                : 'bg-white/5 backdrop-blur-[2px] hover:border-sky-400/60 hover:bg-white/20 hover:shadow-sky-500/10 hover:shadow-2xl'
             }`}
           >
-            <div className="absolute top-0 left-0 right-0 h-1 bg-teal-500 opacity-60 group-hover:opacity-100 transition-opacity duration-150" />
-            
-            <div>
-              <div className={`w-12 h-12 rounded-xl border flex items-center justify-center transition-all duration-150 mb-4 ${
-                isDarkMode
-                  ? 'bg-teal-500/10 border-teal-500/30 text-teal-400 group-hover:bg-teal-500 group-hover:text-slate-950 group-hover:border-teal-400'
-                  : 'bg-teal-100/70 border-teal-300 text-teal-800 group-hover:bg-teal-600 group-hover:text-white group-hover:border-teal-600'
-              }`}>
-                <LogIn className="w-6 h-6" />
-              </div>
+            {/* Spotlight الضوئي المتتبع للماوس */}
+            <div 
+              className="pointer-events-none absolute -inset-px transition-opacity duration-200 opacity-0 group-hover:opacity-100"
+              style={{
+                background: `radial-gradient(220px circle at ${mousePos.x}px ${mousePos.y}px, ${
+                  isDarkMode ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.12)'
+                }, transparent 80%)`
+              }}
+            />
 
-              <h3 className={`text-xl sm:text-2xl font-black transition-colors duration-150 ${
-                isDarkMode 
-                  ? 'text-slate-100 group-hover:text-teal-300' 
-                  : 'text-slate-900 group-hover:text-teal-900'
-              }`}>
-                Sisteme Giriş Yap
-              </h3>
-            </div>
-
-            <div className={`mt-6 pt-4 border-t flex items-center justify-between font-black text-xs sm:text-sm tracking-wide transition-colors duration-150 ${
+            <div className={`absolute top-0 left-0 right-0 h-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 ${
               isDarkMode 
-                ? 'border-slate-800 text-teal-400 group-hover:text-teal-300' 
-                : 'border-slate-200 text-teal-700 group-hover:text-teal-800'
+                ? 'bg-gradient-to-r from-blue-500 to-cyan-400' 
+                : 'bg-gradient-to-r from-sky-700 to-blue-700'
+            }`} />
+
+            {/* الرمز متكيف مع حجم الشاشات */}
+            <div className={`w-14 h-14 sm:w-18 sm:h-18 md:w-20 md:h-20 rounded-2xl border flex items-center justify-center transition-all duration-200 shadow-md ${
+              isDarkMode
+                ? 'border-sky-400/30 bg-sky-950/30 text-sky-300 group-hover:border-sky-400 group-hover:bg-sky-400 group-hover:text-slate-950 group-hover:scale-110 group-hover:shadow-sky-500/30 group-hover:shadow-lg'
+                : 'border-sky-400/50 bg-sky-50/80 text-sky-900 group-hover:border-sky-700 group-hover:bg-sky-700 group-hover:text-white group-hover:scale-110 group-hover:shadow-sky-500/30 group-hover:shadow-lg'
             }`}>
-              <span>GİRİŞ EKRANINA GİT</span>
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center transition-all duration-150 ${
-                isDarkMode
-                  ? 'bg-teal-500/10 text-teal-400 group-hover:bg-teal-400 group-hover:text-slate-950'
-                  : 'bg-teal-200/60 text-teal-800 group-hover:bg-teal-600 group-hover:text-white'
-              }`}>
-                <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform duration-150" />
-              </div>
+              <LogIn className="w-7 h-7 sm:w-9 sm:h-9 md:w-10 md:h-10 transition-transform duration-200 stroke-[2.2]" />
             </div>
+
+            {/* النص: سطر واحد فقط محمي ومناسب للهواتف والكمبيوتر */}
+            <h2 className={`text-[11px] sm:text-xs md:text-sm font-black tracking-normal whitespace-nowrap transition-all duration-200 ${
+              isDarkMode 
+                ? 'text-white group-hover:text-sky-300 group-hover:scale-105 group-hover:drop-shadow-[0_2px_8px_rgba(56,189,248,0.4)]' 
+                : 'text-slate-950 group-hover:text-sky-950 group-hover:scale-105 group-hover:drop-shadow-sm'
+            }`}>
+              Sisteme Giriş Yap
+            </h2>
           </div>
 
         </div>
       </main>
 
-      {/* Animation Styles */}
-      <style jsx global>{`
-        @keyframes smoothEcg {
-          0% { stroke-dashoffset: 2000; }
-          100% { stroke-dashoffset: 0; }
-        }
-
-        .animate-smoothEcg {
-          stroke-dasharray: 2000;
-          stroke-dashoffset: 2000;
-          animation: smoothEcg 4s linear infinite;
-          will-change: stroke-dashoffset;
-        }
-      `}</style>
     </div>
   );
 }

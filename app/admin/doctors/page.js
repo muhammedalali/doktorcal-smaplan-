@@ -149,6 +149,7 @@ const parseItemDate = (item) => {
   return null;
 };
 
+// 🌟 تحديث أشكال وألوان الشارات لترتيب كافة الحالات بما فيها الحالات الجديدة
 const getStatusBadgeStyle = (status) => {
   switch (status) {
     case 'POLİKLİNİK':
@@ -156,6 +157,12 @@ const getStatusBadgeStyle = (status) => {
       return 'bg-emerald-600 text-white border-emerald-500 shadow-xs';
     case 'AMELİYATTA':
       return 'bg-purple-600 text-white border-purple-500 shadow-xs';
+    case 'İŞLEM GÜNÜ':
+      return 'bg-teal-600 text-white border-teal-400 shadow-xs font-black';
+    case 'YARIM GÜN':
+      return 'bg-orange-500 text-slate-950 font-black border-orange-400 shadow-xs';
+    case 'SAATLİK İZİN':
+      return 'bg-amber-600 text-white border-amber-400 shadow-xs font-black';
     case 'RESMİ TATİL':
       return 'bg-indigo-700 text-white border-indigo-500 shadow-xs font-black';
     case 'HAFTA SONU':
@@ -1093,6 +1100,7 @@ export default function AdminDoctorsPage() {
                           )}
                         </div>
 
+                        {/* 🌟 تم إضافة الحالات الثلاث الجديدة داخل القائمة المنسدلة */}
                         <select
                           value={sd.status}
                           disabled={isPast || !canChangeStatus}
@@ -1103,6 +1111,9 @@ export default function AdminDoctorsPage() {
                         >
                           <option value="POLİKLİNİK" className="bg-emerald-600 text-white">POLİKLİNİK</option>
                           <option value="AMELİYATTA" className="bg-purple-600 text-white">AMELİYATTA</option>
+                          <option value="İŞLEM GÜNÜ" className="bg-teal-600 text-white">İŞLEM GÜNÜ</option>
+                          <option value="YARIM GÜN" className="bg-orange-500 text-slate-950">YARIM GÜN</option>
+                          <option value="SAATLİK İZİN" className="bg-amber-600 text-white">SAATLİK İZİN</option>
                           <option value="RESMİ TATİL" className="bg-indigo-700 text-white">RESMİ TATİL</option>
                           <option value="HAFTA SONU" className="bg-rose-600 text-white">HAFTA SONU</option>
                           <option value="YILLIK İZİN" className="bg-amber-500 text-slate-950">YILLIK İZİN</option>

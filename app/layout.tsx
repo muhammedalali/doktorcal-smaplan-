@@ -5,6 +5,11 @@ import { useState, useEffect } from 'react';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
 import { DataProvider } from '@/context/DataContext';
 import { useRouter, usePathname } from 'next/navigation';
+import { Geist } from "next/font/google";
+import { cn } from "@/lib/utils";
+
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
+
 
 interface TabItem {
   id: string;
@@ -114,7 +119,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   }, []);
 
   return (
-    <html lang="tr">
+    <html lang="tr" className={cn("font-sans", geist.variable)}>
       <body className="cursor-default pb-10">
         <ThemeProvider>
           <DataProvider>
