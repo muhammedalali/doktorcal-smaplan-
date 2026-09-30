@@ -3,20 +3,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from '@/context/ThemeContext';
-import { 
-  CalendarDays, 
-  LogIn, 
-  Sun,
-  Moon
-} from 'lucide-react';
+import { CalendarDays, LogIn, Sun, Moon } from 'lucide-react';
 
 export default function LandingPage() {
   const router = useRouter();
   const { isDarkMode, toggleTheme } = useTheme();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // إحداثيات الماوس/اللمس للبطاقات التفاعلية (Spotlight Effect)
-  const [mousePos, setMousePos] = useState({ x: -500, y: -500 });
+  // زوايا الإمالة وإحداثيات البؤرة الضوئية للبطاقتين
+  const [card1Style, setCard1Style] = useState({ transform: '', spotX: '50%', spotY: '50%' });
+  const [card2Style, setCard2Style] = useState({ transform: '', spotX: '50%', spotY: '50%' });
 
   // 🔄 فحص تلقائي للتوجيه السريع إذا كان المستخدم مسجلاً
   useEffect(() => {
@@ -29,7 +26,50 @@ export default function LandingPage() {
     }
   }, [router]);
 
-  // 🌐 شبكة ثلاثية الأبعاد متكيفة فائقة الدقة والسرعة ومستجيبة لإمالة الهاتف
+  // ⚡ متابعة حركة الماوس وتحديث متغيرة الـ CSS مباشرة بدون إعادة رندر (للشاشات الكبيرة فقط)
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!containerRef.current || window.innerWidth < 640) return;
+    const { clientX, clientY } = e;
+    
+    containerRef.current.style.setProperty('--mouse-x', `${clientX}px`);
+    containerRef.current.style.setProperty('--mouse-y', `${clientY}px`);
+  };
+
+  // 💎 حساب الإمالة ثلاثية الأبعاد وسبوت لايت الضوء الكريستالي (يعمل فقط على الشاشات الكبيرة)
+  const handleCardMouseMove = (e: React.MouseEvent<HTMLDivElement>, cardNum: number) => {
+    if (window.innerWidth < 640) return; // إلغاء التأثير تماماً على شاشات الهواتف
+
+    const card = e.currentTarget;
+    const rect = card.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+    
+    const rotateX = ((y - centerY) / centerY) * -8;
+    const rotateY = ((x - centerX) / centerX) * 8;
+
+    const spotX = `${(x / rect.width) * 100}%`;
+    const spotY = `${(y / rect.height) * 100}%`;
+
+    const transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+
+    if (cardNum === 1) {
+      setCard1Style({ transform, spotX, spotY });
+    } else {
+      setCard2Style({ transform, spotX, spotY });
+    }
+  };
+
+  const resetCardTilt = (cardNum: number) => {
+    if (window.innerWidth < 640) return;
+    const resetState = { transform: 'perspective(1000px) rotateX(0deg) rotateY(0deg)', spotX: '50%', spotY: '50%' };
+    if (cardNum === 1) setCard1Style(resetState);
+    else setCard2Style(resetState);
+  };
+
+  // 🎨 رسم النجوم والجزيئات المضيئة
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -39,25 +79,12 @@ export default function LandingPage() {
     let animationFrameId: number;
     let width = window.innerWidth;
     let height = window.innerHeight;
-    let dpr = Math.min(window.devicePixelRatio || 1, 3); // دعم الدقة الفائقة للـ Retina Displays
 
-    let isMobile = width < 640;
-    let isLargeScreen = width > 1440;
-    let rows = isMobile ? 24 : (isLargeScreen ? 44 : 34);
-    let cols = isMobile ? 24 : (isLargeScreen ? 44 : 34);
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
 
-    let mouse = {
-      x: width / 2,
-      y: height / 2,
-      targetX: width / 2,
-      targetY: height / 2
-    };
-
-    // 📐 ضبط حجم الكانفاس بدقة البكسلات الحقيقية للشاشة لمنع الضبابية
     const setupCanvasSize = () => {
       width = window.innerWidth;
       height = window.innerHeight;
-      dpr = Math.min(window.devicePixelRatio || 1, 3);
 
       canvas.width = Math.floor(width * dpr);
       canvas.height = Math.floor(height * dpr);
@@ -66,157 +93,54 @@ export default function LandingPage() {
 
       ctx.resetTransform?.();
       ctx.scale(dpr, dpr);
-
-      isMobile = width < 640;
-      isLargeScreen = width > 1440;
-      rows = isMobile ? 24 : (isLargeScreen ? 44 : 34);
-      cols = isMobile ? 24 : (isLargeScreen ? 44 : 34);
     };
 
     setupCanvasSize();
 
+    let resizeTimeout: NodeJS.Timeout;
     const handleResize = () => {
-      setupCanvasSize();
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(setupCanvasSize, 150);
     };
-
-    const handleMouseMove = (e: MouseEvent) => {
-      mouse.targetX = e.clientX;
-      mouse.targetY = e.clientY;
-      setMousePos({ x: e.clientX, y: e.clientY });
-    };
-
-    const handleTouchMove = (e: TouchEvent) => {
-      if (e.touches.length > 0) {
-        mouse.targetX = e.touches[0].clientX;
-        mouse.targetY = e.touches[0].clientY;
-        setMousePos({ x: e.touches[0].clientX, y: e.touches[0].clientY });
-      }
-    };
-
-    // 📱 حسّاس دوران وإمالة الهاتف (Gyroscope Sensor Integration)
-    const handleOrientation = (e: DeviceOrientationEvent) => {
-      if (e.gamma !== null && e.beta !== null) {
-        // gamma: الإمالة أفقياً (-90 إلى 90)
-        // beta: الإمالة شاقولياً (-180 إلى 180)
-        const tiltX = Math.min(Math.max(e.gamma, -40), 40);
-        const tiltY = Math.min(Math.max(e.beta - 25, -40), 40);
-
-        const targetX = (width / 2) + (tiltX / 40) * (width * 0.45);
-        const targetY = (height / 2) + (tiltY / 40) * (height * 0.45);
-
-        mouse.targetX = targetX;
-        mouse.targetY = targetY;
-        setMousePos({ x: targetX, y: targetY });
-      }
-    };
-
-    // طلب إذن الحركات لأجهزة iOS إذا استدعى الأمر
-    const requestGyroPermission = async () => {
-      if (
-        typeof DeviceOrientationEvent !== 'undefined' &&
-        // @ts-ignore
-        typeof DeviceOrientationEvent.requestPermission === 'function'
-      ) {
-        try {
-          // @ts-ignore
-          const permissionState = await DeviceOrientationEvent.requestPermission();
-          if (permissionState === 'granted') {
-            window.addEventListener('deviceorientation', handleOrientation, { passive: true });
-          }
-        } catch (err) {
-          console.error(err);
-        }
-      } else if (window.DeviceOrientationEvent) {
-        window.addEventListener('deviceorientation', handleOrientation, { passive: true });
-      }
-    };
-
-    requestGyroPermission();
 
     window.addEventListener('resize', handleResize, { passive: true });
-    window.addEventListener('mousemove', handleMouseMove, { passive: true });
-    window.addEventListener('touchmove', handleTouchMove, { passive: true });
 
-    // ⚡ حلقة الرسم المحسّنة لأقصى سرعة واستجابة
+    const particleCount = width < 640 ? 20 : 45;
+    const particles = Array.from({ length: particleCount }, () => ({
+      x: Math.random() * width,
+      y: Math.random() * height,
+      size: Math.random() * 2.2 + 0.8,
+      vx: (Math.random() - 0.5) * 0.25,
+      vy: (Math.random() - 0.5) * 0.25,
+      alpha: isDarkMode ? Math.random() * 0.6 + 0.2 : Math.random() * 0.5 + 0.35
+    }));
+
     const render = () => {
-      mouse.x += (mouse.targetX - mouse.x) * 0.25;
-      mouse.y += (mouse.targetY - mouse.y) * 0.25;
-
       ctx.clearRect(0, 0, width, height);
 
-      const strokeColor = isDarkMode ? 'rgba(56, 189, 248, ' : 'rgba(2, 132, 199, ';
-      const dotColor = isDarkMode ? 'rgba(125, 211, 252, ' : 'rgba(3, 105, 161, ';
+      const particleColor = isDarkMode ? '#38bdf8' : '#0284c7';
 
-      const fov = isMobile ? 360 : (isLargeScreen ? 600 : 480);
-      const centerY = height * 0.12;
-      const centerX = width * 0.5;
+      for (let i = 0; i < particleCount; i++) {
+        const p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
 
-      const spacing = isMobile ? 62 : (isLargeScreen ? 92 : 78); 
-      const craterRadius = isMobile ? 95 : 125;
+        if (p.x < 0) p.x = width;
+        if (p.x > width) p.x = 0;
+        if (p.y < 0) p.y = height;
+        if (p.y > height) p.y = 0;
 
-      const points: { x: number; y: number; alpha: number }[][] = [];
+        ctx.save();
+        ctx.globalAlpha = p.alpha;
+        ctx.fillStyle = particleColor;
+        
+        ctx.shadowColor = particleColor;
+        ctx.shadowBlur = isDarkMode ? 4 : 3;
 
-      for (let r = 0; r <= rows; r++) {
-        points[r] = [];
-        const z = (r / rows) * 750 + 100;
-        const scale = fov / z;
-
-        for (let c = 0; c <= cols; c++) {
-          const worldX = (c - cols / 2) * spacing;
-          const worldY = 85; 
-
-          const projX = centerX + worldX * scale;
-          const projY = centerY + worldY * scale;
-
-          const distToMouse = Math.hypot(projX - mouse.x, projY - mouse.y);
-          
-          let craterDepth = 0;
-          if (distToMouse < craterRadius) {
-            const factor = distToMouse / craterRadius;
-            craterDepth = (1 + Math.cos(factor * Math.PI)) * (isMobile ? 12 : 16); 
-          }
-
-          const alpha = Math.min(1, Math.max(0, (z - 50) / 750)) * (isDarkMode ? 0.55 : 0.8);
-
-          points[r][c] = { 
-            x: projX, 
-            y: projY + craterDepth, 
-            alpha
-          };
-        }
-      }
-
-      for (let r = 0; r <= rows; r++) {
-        for (let c = 0; c <= cols; c++) {
-          const pt = points[r][c];
-
-          if (c < cols) {
-            const ptNext = points[r][c + 1];
-            ctx.beginPath();
-            ctx.moveTo(pt.x, pt.y);
-            ctx.lineTo(ptNext.x, ptNext.y);
-            ctx.strokeStyle = `${strokeColor}${pt.alpha})`;
-            ctx.lineWidth = 1;
-            ctx.stroke();
-          }
-
-          if (r < rows) {
-            const ptDown = points[r + 1][c];
-            ctx.beginPath();
-            ctx.moveTo(pt.x, pt.y);
-            ctx.lineTo(ptDown.x, ptDown.y);
-            ctx.strokeStyle = `${strokeColor}${pt.alpha * 0.8})`;
-            ctx.lineWidth = 1;
-            ctx.stroke();
-          }
-
-          if (r % 2 === 0 && c % 2 === 0) {
-            ctx.beginPath();
-            ctx.arc(pt.x, pt.y, isDarkMode ? 1.2 : 1.5, 0, Math.PI * 2);
-            ctx.fillStyle = `${dotColor}${pt.alpha * 1.1})`;
-            ctx.fill();
-          }
-        }
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
       }
 
       animationFrameId = requestAnimationFrame(render);
@@ -226,155 +150,189 @@ export default function LandingPage() {
 
     return () => {
       window.removeEventListener('resize', handleResize);
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('touchmove', handleTouchMove);
-      if (window.DeviceOrientationEvent) {
-        window.removeEventListener('deviceorientation', handleOrientation);
-      }
       cancelAnimationFrame(animationFrameId);
     };
   }, [isDarkMode]);
 
   return (
-    <div className={`h-screen w-screen overflow-hidden fixed inset-0 flex flex-col justify-between selection:bg-cyan-500 selection:text-slate-950 transition-colors duration-300 font-sans overscroll-none touch-none select-none ${
-      isDarkMode ? 'bg-[#020617] text-slate-100' : 'bg-slate-50 text-slate-900'
-    }`}>
-      
-      {/* 🌐 خلفية الكانفاس الحية ملء الشاشة عالية الدقة */}
+    <div 
+      ref={containerRef}
+      onMouseMove={handleMouseMove}
+      className={`h-screen w-screen overflow-hidden fixed inset-0 flex flex-col justify-between selection:bg-cyan-500 selection:text-slate-950 transition-colors duration-500 font-sans overscroll-none touch-none select-none ${
+        isDarkMode ? 'bg-[#030712] text-slate-100' : 'bg-[#f8fafc] text-slate-900'
+      }`}
+      style={{
+        '--mouse-x': '-1000px',
+        '--mouse-y': '-1000px',
+      } as React.CSSProperties}
+    >
+      {/* 🌐 خلفية الأورورا الضوئية والنجوم الممتدة */}
       <div className="absolute inset-0 z-0 pointer-events-none select-none overflow-hidden">
-        <div className={`absolute inset-0 transition-opacity duration-300 ${
-          isDarkMode 
-            ? 'bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-950/60 via-[#020617] to-[#020617]' 
-            : 'bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-sky-100 via-slate-50 to-white'
+        
+        <div className={`absolute top-[-25%] left-[-15%] w-[70vw] h-[70vw] max-w-[800px] max-h-[800px] rounded-full blur-[140px] pointer-events-none ${
+          isDarkMode ? 'bg-cyan-600/15' : 'bg-sky-400/25'
+        }`} />
+
+        <div className={`absolute bottom-[-25%] right-[-15%] w-[70vw] h-[70vw] max-w-[800px] max-h-[800px] rounded-full blur-[140px] pointer-events-none ${
+          isDarkMode ? 'bg-blue-700/15' : 'bg-indigo-300/30'
         }`} />
 
         <canvas ref={canvasRef} className="absolute inset-0 w-full h-full block z-0 transform-gpu" />
 
-        <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-[600px] h-[350px] rounded-full blur-[140px] pointer-events-none transition-all duration-300 ${
-          isDarkMode ? 'bg-cyan-500/10' : 'bg-sky-400/20'
-        }`} />
+        {/* ضوء Spotlight تفاعلي متحرك مع الماوس (مخفي على الهواتف عبر sm:block) */}
+        <div 
+          className={`hidden sm:block absolute w-[450px] h-[450px] -translate-x-1/2 -translate-y-1/2 rounded-full blur-[120px] opacity-75 pointer-events-none transform-gpu transition-opacity duration-300 ${
+            isDarkMode ? 'bg-cyan-400/15' : 'bg-sky-400/30'
+          }`}
+          style={{
+            left: 'var(--mouse-x)',
+            top: 'var(--mouse-y)',
+          }}
+        />
       </div>
 
-      {/* 📍 الهيدر العلوي الشفاف */}
-      <div className="w-full px-4 py-3 sm:px-8 sm:py-5 flex justify-between items-center z-30 relative bg-transparent select-none">
+      {/* 📍 الهيدر العلوي الشفاف مع زر التبديل الانزلاقي */}
+      <div className="w-full px-5 py-4 sm:px-10 sm:py-6 flex justify-end items-center z-30 relative bg-transparent select-none">
         
-        {/* العنوان الرئيسي */}
-        <h1 className={`font-black text-[11px] sm:text-xs md:text-sm tracking-widest uppercase transition-colors duration-300 ${
-          isDarkMode 
-            ? 'text-cyan-300 drop-shadow-[0_2px_10px_rgba(34,211,238,0.3)]' 
-            : 'text-blue-950 drop-shadow-sm'
-        }`}>
-          DOKTOR ÇALIŞMA PLANI
-        </h1>
-
-        {/* 🌙 / ☀️️ زر التبديل الفاخر */}
         <button
           onClick={toggleTheme}
           aria-label="Toggle Theme"
-          className={`group relative p-2 sm:p-2.5 rounded-2xl border transition-all duration-300 active:scale-90 flex items-center justify-center cursor-pointer shadow-lg backdrop-blur-md overflow-hidden transform-gpu ${
+          className={`group relative flex items-center w-20 h-10 sm:w-22 sm:h-11 rounded-full p-1 border transition-all duration-500 cursor-pointer shadow-2xl backdrop-blur-2xl overflow-hidden transform-gpu active:scale-95 ${
             isDarkMode 
-              ? 'bg-slate-900/40 border-cyan-500/30 text-amber-300 hover:border-amber-400 hover:shadow-amber-500/20 hover:bg-slate-900/80' 
-              : 'bg-white/50 border-blue-300/80 text-blue-700 hover:border-blue-600 hover:shadow-blue-500/20 hover:bg-white/90 shadow-slate-200/60'
+              ? 'bg-slate-900/80 border-cyan-500/30 shadow-cyan-950/50 hover:border-cyan-400/60' 
+              : 'bg-white/80 border-slate-300/80 shadow-slate-300/60 hover:border-blue-400'
           }`}
         >
-          <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-amber-400/0 via-cyan-400/20 to-blue-500/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+          <div className={`absolute inset-0 transition-opacity duration-500 rounded-full blur-sm -z-10 ${
+            isDarkMode ? 'bg-cyan-500/20 opacity-100' : 'bg-amber-400/20 opacity-100'
+          }`} />
 
-          {isDarkMode ? (
-            <Sun className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400 transition-transform duration-500 ease-out group-hover:rotate-180 group-hover:scale-125 drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]" />
-          ) : (
-            <Moon className="w-4 h-4 sm:w-5 sm:h-5 text-blue-700 transition-transform duration-500 ease-out group-hover:-rotate-45 group-hover:scale-125 drop-shadow-[0_0_8px_rgba(29,78,216,0.5)]" />
-          )}
+          <div 
+            className={`absolute top-1 bottom-1 w-8 h-8 sm:w-9 sm:h-9 rounded-full transition-transform duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] shadow-lg transform-gpu ${
+              isDarkMode 
+                ? 'translate-x-10 sm:translate-x-11 bg-gradient-to-tr from-cyan-950 to-slate-900 border border-cyan-400/50 shadow-cyan-500/40' 
+                : 'translate-x-0 bg-gradient-to-tr from-amber-400 to-amber-300 border border-amber-200/80 shadow-amber-400/50'
+            }`}
+          />
+
+          <div className="relative z-10 flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9">
+            <Sun className={`w-4 h-4 sm:w-4.5 sm:h-4.5 transition-all duration-500 ${
+              isDarkMode 
+                ? 'text-slate-500 opacity-40 scale-75 rotate-45' 
+                : 'text-slate-950 opacity-100 scale-100 rotate-0 drop-shadow-[0_0_6px_rgba(251,191,36,0.8)]'
+            }`} />
+          </div>
+
+          <div className="relative z-10 flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 ml-2 sm:ml-2.5">
+            <Moon className={`w-4 h-4 sm:w-4.5 sm:h-4.5 transition-all duration-500 ${
+              isDarkMode 
+                ? 'text-cyan-300 opacity-100 scale-100 rotate-0 drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]' 
+                : 'text-slate-400 opacity-40 scale-75 -rotate-45'
+            }`} />
+          </div>
         </button>
       </div>
 
-      {/* 🎯 المحتوى الرئيسي */}
-      <main className="max-w-md sm:max-w-xl md:max-w-2xl mx-auto z-10 w-full flex-1 flex items-center justify-center p-4 sm:p-6 select-none">
+      {/* 🎯 المحتوى الرئيسي: أزرار الهواتف بدون تأثيرات مربعات أو حركة، مع عملها كاملاً على الكومبيوتر */}
+      <main className="max-w-lg sm:max-w-xl md:max-w-2xl mx-auto z-10 w-full flex-1 flex items-center justify-center p-4 sm:p-6 select-none">
         
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 w-full">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-8 md:gap-10 w-full">
           
-          {/* المربع الأول: Doktor Çalışma Listesi */}
+          {/* 1️⃣ البطاقة الأولى: Doktor Çalışma Listesi */}
           <div 
             onClick={() => router.push('/schedule')}
-            className={`group relative cursor-pointer rounded-2xl p-5 sm:p-7 border border-transparent transition-all duration-200 ease-out transform-gpu hover:-translate-y-1.5 active:scale-[0.98] flex flex-col items-center justify-center text-center overflow-hidden space-y-3.5 sm:space-y-4 ${
-              isDarkMode 
-                ? 'bg-[#020617]/5 backdrop-blur-[2px] hover:border-cyan-400/40 hover:bg-slate-950/20 hover:shadow-cyan-500/10 hover:shadow-2xl' 
-                : 'bg-white/5 backdrop-blur-[2px] hover:border-blue-400/60 hover:bg-white/20 hover:shadow-blue-500/10 hover:shadow-2xl'
+            onMouseMove={(e) => handleCardMouseMove(e, 1)}
+            onMouseLeave={() => resetCardTilt(1)}
+            style={{
+              transform: card1Style.transform,
+              transition: card1Style.transform.includes('0deg') ? 'all 0.4s ease-out' : 'none'
+            }}
+            className={`group relative cursor-pointer flex flex-col items-center justify-center text-center p-5 sm:p-6 md:p-7 rounded-[2rem] border border-transparent transition-all duration-500 transform-gpu overflow-hidden active:scale-95 ${
+              isDarkMode
+                ? 'bg-transparent sm:hover:bg-slate-900/60 sm:hover:border-cyan-400/90 sm:hover:backdrop-blur-2xl sm:hover:shadow-2xl sm:hover:shadow-cyan-950/40'
+                : 'bg-transparent sm:hover:bg-white/85 sm:hover:border-sky-500 sm:hover:backdrop-blur-2xl sm:hover:shadow-2xl sm:hover:shadow-slate-300/80'
             }`}
           >
-            {/* Spotlight الضوئي */}
+            {/* إضاءة السبوت لايت الكريستالية (مخفية على الهواتف عبر sm:block) */}
             <div 
-              className="pointer-events-none absolute -inset-px transition-opacity duration-200 opacity-0 group-hover:opacity-100"
+              className="hidden sm:block pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-[2rem]"
               style={{
-                background: `radial-gradient(220px circle at ${mousePos.x}px ${mousePos.y}px, ${
-                  isDarkMode ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.12)'
+                background: `radial-gradient(280px circle at ${card1Style.spotX} ${card1Style.spotY}, ${
+                  isDarkMode ? 'rgba(56, 189, 248, 0.22)' : 'rgba(2, 132, 199, 0.18)'
                 }, transparent 80%)`
               }}
             />
 
-            <div className={`absolute top-0 left-0 right-0 h-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 ${
-              isDarkMode 
-                ? 'bg-gradient-to-r from-cyan-400 to-blue-500' 
-                : 'bg-gradient-to-r from-blue-700 to-sky-600'
-            }`} />
-
             {/* الرمز */}
-            <div className={`w-14 h-14 sm:w-18 sm:h-18 md:w-20 md:h-20 rounded-2xl border flex items-center justify-center transition-all duration-200 shadow-md ${
-              isDarkMode
-                ? 'border-cyan-400/30 bg-cyan-950/30 text-cyan-300 group-hover:border-cyan-400 group-hover:bg-cyan-400 group-hover:text-slate-950 group-hover:scale-110 group-hover:shadow-cyan-500/30 group-hover:shadow-lg'
-                : 'border-blue-400/50 bg-blue-50/80 text-blue-900 group-hover:border-blue-700 group-hover:bg-blue-700 group-hover:text-white group-hover:scale-110 group-hover:shadow-blue-500/30 group-hover:shadow-lg'
-            }`}>
-              <CalendarDays className="w-7 h-7 sm:w-9 sm:h-9 md:w-10 md:h-10 transition-transform duration-200 stroke-[2.2]" />
+            <div className="relative mb-3 sm:mb-4">
+              <div className={`hidden sm:block absolute -inset-3 rounded-3xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 ${
+                isDarkMode ? 'bg-cyan-400/50' : 'bg-sky-400/40'
+              }`} />
+
+              <div className={`relative w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-3xl border transition-all duration-300 flex items-center justify-center shadow-lg ${
+                isDarkMode
+                  ? 'border-cyan-500/30 bg-cyan-950/40 text-cyan-300 sm:group-hover:border-cyan-300 sm:group-hover:bg-cyan-400 sm:group-hover:text-slate-950 sm:group-hover:shadow-[0_0_30px_rgba(34,211,238,0.6)]'
+                  : 'border-sky-300/70 bg-white/90 text-sky-900 sm:group-hover:border-sky-600 sm:group-hover:bg-sky-600 sm:group-hover:text-white sm:group-hover:shadow-[0_0_30px_rgba(2,132,199,0.4)]'
+              }`}>
+                <CalendarDays className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 transition-transform duration-300 stroke-[2.3] sm:group-hover:scale-110 sm:group-hover:rotate-3 subpixel-antialiased" />
+              </div>
             </div>
 
             {/* النص */}
-            <h2 className={`text-[11px] sm:text-xs md:text-sm font-black tracking-normal whitespace-nowrap transition-all duration-200 ${
+            <h2 className={`text-sm sm:text-base md:text-lg font-black tracking-wide whitespace-nowrap transition-all duration-300 ${
               isDarkMode 
-                ? 'text-white group-hover:text-cyan-300 group-hover:scale-105 group-hover:drop-shadow-[0_2px_8px_rgba(34,211,238,0.4)]' 
-                : 'text-slate-950 group-hover:text-blue-950 group-hover:scale-105 group-hover:drop-shadow-sm'
+                ? 'text-slate-100 sm:group-hover:text-cyan-300 sm:group-hover:drop-shadow-[0_1px_8px_rgba(34,211,238,0.8)]' 
+                : 'text-slate-950 sm:group-hover:text-sky-950 font-extrabold'
             }`}>
               Doktor Çalışma Listesi
             </h2>
           </div>
 
-          {/* المربع الثاني: Sisteme Giriş Yap */}
+          {/* 2️⃣ البطاقة الثانية: Sisteme Giriş Yap */}
           <div 
             onClick={() => router.push('/login')}
-            className={`group relative cursor-pointer rounded-2xl p-5 sm:p-7 border border-transparent transition-all duration-200 ease-out transform-gpu hover:-translate-y-1.5 active:scale-[0.98] flex flex-col items-center justify-center text-center overflow-hidden space-y-3.5 sm:space-y-4 ${
-              isDarkMode 
-                ? 'bg-[#020617]/5 backdrop-blur-[2px] hover:border-sky-400/40 hover:bg-slate-950/20 hover:shadow-sky-500/10 hover:shadow-2xl' 
-                : 'bg-white/5 backdrop-blur-[2px] hover:border-sky-400/60 hover:bg-white/20 hover:shadow-sky-500/10 hover:shadow-2xl'
+            onMouseMove={(e) => handleCardMouseMove(e, 2)}
+            onMouseLeave={() => resetCardTilt(2)}
+            style={{
+              transform: card2Style.transform,
+              transition: card2Style.transform.includes('0deg') ? 'all 0.4s ease-out' : 'none'
+            }}
+            className={`group relative cursor-pointer flex flex-col items-center justify-center text-center p-5 sm:p-6 md:p-7 rounded-[2rem] border border-transparent transition-all duration-500 transform-gpu overflow-hidden active:scale-95 ${
+              isDarkMode
+                ? 'bg-transparent sm:hover:bg-slate-900/60 sm:hover:border-blue-400/90 sm:hover:backdrop-blur-2xl sm:hover:shadow-2xl sm:hover:shadow-blue-950/40'
+                : 'bg-transparent sm:hover:bg-white/85 sm:hover:border-blue-600 sm:hover:backdrop-blur-2xl sm:hover:shadow-2xl sm:hover:shadow-slate-300/80'
             }`}
           >
-            {/* Spotlight الضوئي */}
+            {/* إضاءة السبوت لايت الكريستالية (مخفية على الهواتف عبر sm:block) */}
             <div 
-              className="pointer-events-none absolute -inset-px transition-opacity duration-200 opacity-0 group-hover:opacity-100"
+              className="hidden sm:block pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-[2rem]"
               style={{
-                background: `radial-gradient(220px circle at ${mousePos.x}px ${mousePos.y}px, ${
-                  isDarkMode ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.12)'
+                background: `radial-gradient(280px circle at ${card2Style.spotX} ${card2Style.spotY}, ${
+                  isDarkMode ? 'rgba(99, 102, 241, 0.22)' : 'rgba(37, 99, 235, 0.18)'
                 }, transparent 80%)`
               }}
             />
 
-            <div className={`absolute top-0 left-0 right-0 h-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 ${
-              isDarkMode 
-                ? 'bg-gradient-to-r from-blue-500 to-cyan-400' 
-                : 'bg-gradient-to-r from-sky-700 to-blue-700'
-            }`} />
-
             {/* الرمز */}
-            <div className={`w-14 h-14 sm:w-18 sm:h-18 md:w-20 md:h-20 rounded-2xl border flex items-center justify-center transition-all duration-200 shadow-md ${
-              isDarkMode
-                ? 'border-sky-400/30 bg-sky-950/30 text-sky-300 group-hover:border-sky-400 group-hover:bg-sky-400 group-hover:text-slate-950 group-hover:scale-110 group-hover:shadow-sky-500/30 group-hover:shadow-lg'
-                : 'border-sky-400/50 bg-sky-50/80 text-sky-900 group-hover:border-sky-700 group-hover:bg-sky-700 group-hover:text-white group-hover:scale-110 group-hover:shadow-sky-500/30 group-hover:shadow-lg'
-            }`}>
-              <LogIn className="w-7 h-7 sm:w-9 sm:h-9 md:w-10 md:h-10 transition-transform duration-200 stroke-[2.2]" />
+            <div className="relative mb-3 sm:mb-4">
+              <div className={`hidden sm:block absolute -inset-3 rounded-3xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 ${
+                isDarkMode ? 'bg-blue-400/50' : 'bg-blue-500/40'
+              }`} />
+
+              <div className={`relative w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-3xl border transition-all duration-300 flex items-center justify-center shadow-lg ${
+                isDarkMode
+                  ? 'border-blue-500/30 bg-blue-950/40 text-blue-300 sm:group-hover:border-blue-300 sm:group-hover:bg-blue-400 sm:group-hover:text-slate-950 sm:group-hover:shadow-[0_0_30px_rgba(96,165,250,0.6)]'
+                  : 'border-blue-300/70 bg-white/90 text-blue-900 sm:group-hover:border-blue-600 sm:group-hover:bg-blue-600 sm:group-hover:text-white sm:group-hover:shadow-[0_0_30px_rgba(37,99,235,0.4)]'
+              }`}>
+                <LogIn className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 transition-transform duration-300 stroke-[2.3] sm:group-hover:scale-110 sm:group-hover:translate-x-0.5 subpixel-antialiased" />
+              </div>
             </div>
 
             {/* النص */}
-            <h2 className={`text-[11px] sm:text-xs md:text-sm font-black tracking-normal whitespace-nowrap transition-all duration-200 ${
+            <h2 className={`text-sm sm:text-base md:text-lg font-black tracking-wide whitespace-nowrap transition-all duration-300 ${
               isDarkMode 
-                ? 'text-white group-hover:text-sky-300 group-hover:scale-105 group-hover:drop-shadow-[0_2px_8px_rgba(56,189,248,0.4)]' 
-                : 'text-slate-950 group-hover:text-sky-950 group-hover:scale-105 group-hover:drop-shadow-sm'
+                ? 'text-slate-100 sm:group-hover:text-blue-300 sm:group-hover:drop-shadow-[0_1px_8px_rgba(96,165,250,0.8)]' 
+                : 'text-slate-950 sm:group-hover:text-blue-950 font-extrabold'
             }`}>
               Sisteme Giriş Yap
             </h2>

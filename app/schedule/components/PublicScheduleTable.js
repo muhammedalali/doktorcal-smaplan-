@@ -6,6 +6,8 @@ import { useTheme } from '@/context/ThemeContext';
 import { useData } from '@/context/DataContext';
 import { TableSettingsProvider, useTableSettings } from '@/context/TableSettingsContext';
 import TableSettingsModal from '@/components/TableSettingsModal';
+import { db } from '@/lib/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 const TURKEY_OFFICIAL_HOLIDAYS_2026 = {   
   '2026-01-01': 'Yılbaşı',
@@ -142,7 +144,7 @@ const getDateTextColor = (status, dayName, isPast, isDarkMode) => {
   }
 };
 
-// ⚡ DOCTOR ROW COMPONENT (DYNAMIC GRID & BORDER WEIGHT)
+// ⚡ DOCTOR ROW COMPONENT
 const DoctorRow = memo(function DoctorRow({ doc, index, isSelected, isDarkMode, activeStatusToday, rowPaddingClass, tableSettings, onClick }) {
   const borderClasses = useMemo(() => {
     const { gridStyle, borderOpacity } = tableSettings;
@@ -489,7 +491,9 @@ function PublicScheduleTableContent() {
 
   const [reportText, setReportText] = useState('');
   const [reportCategory, setReportCategory] = useState('SİSTEM_HATASI');
-  const [reportSuccessMsg, setReportSuccessMsg] = useState(false);
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+
+  const [toastNotification, setToastNotification] = useState({ show: false, leaving: false });
 
   const searchInputRef = useRef(null);
   const filterDropdownRef = useRef(null);
@@ -662,7 +666,13 @@ function PublicScheduleTableContent() {
       });
   }, [doctors, filter, searchTerm, sortBy, getCurrentDayStatus]);
 
+  // 🛠️ دالة التعامل مع اختصارات لوحة المفاتيح دون التأثير على أدوات الإدخال
   const handleKeyDown = useCallback((e) => {
+    const activeElement = document.activeElement;
+    const isInputActive = activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || activeElement.tagName === 'SELECT');
+    
+    if (isInputActive) return;
+
     if (filteredAndSortedDoctors.length === 0) return;
 
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -689,27 +699,42 @@ function PublicScheduleTableContent() {
     }
   }, [filteredAndSortedDoctors]);
 
-  const handleSendReport = (e) => {
+  const handleSendReport = async (e) => {
     e.preventDefault();
     if (!reportText.trim()) return;
 
-    const existingReports = JSON.parse(localStorage.getItem('app_user_reports') || '[]');
-    const newReport = {
-      id: Date.now(),
-      category: reportCategory,
-      text: reportText,
-      date: new Date().toLocaleString('tr-TR'),
-      user: 'ZİYARETÇİ'
-    };
+    setIsSubmittingReport(true);
 
-    localStorage.setItem('app_user_reports', JSON.stringify([newReport, ...existingReports]));
-    setReportSuccessMsg(true);
+    try {
+      await addDoc(collection(db, 'reports'), {
+        category: reportCategory,
+        title: reportCategory.replace(/_/g, ' '),
+        description: reportText.trim(),
+        reporterName: 'ZİYARETÇİ / ZİYARETÇİ TABLOSU',
+        status: 'BEKLEYEN',
+        source: 'PUBLIC_SCHEDULE_TABLE',
+        createdAt: serverTimestamp()
+      });
 
-    setTimeout(() => {
       setShowReportModal(false);
       setReportText('');
-      setReportSuccessMsg(false);
-    }, 2000);
+
+      setToastNotification({ show: true, leaving: false });
+
+      setTimeout(() => {
+        setToastNotification((prev) => ({ ...prev, leaving: true }));
+      }, 2500);
+
+      setTimeout(() => {
+        setToastNotification({ show: false, leaving: false });
+      }, 3000);
+
+    } catch (err) {
+      console.error('Report submission error:', err);
+      alert('Hata oluştu. Lütfen tekrar deneyin.');
+    } finally {
+      setIsSubmittingReport(false);
+    }
   };
 
   const exportToExcel = useCallback(() => {     
@@ -766,8 +791,64 @@ function PublicScheduleTableContent() {
           body * { visibility: hidden !important; }           
           #printableA4Area, #printableA4Area * { visibility: visible !important; }           
           #printableA4Area { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; }           
-        }       
+        }
+
+        .hardware-accelerated {
+          will-change: transform, opacity;
+          transform: translateZ(0);
+          contain: content;
+        }
+
+        @keyframes toastSlideIn {
+          0% {
+            opacity: 0;
+            transform: translate(-50%, -40px);
+          }
+          100% {
+            opacity: 1;
+            transform: translate(-50%, 0);
+          }
+        }
+
+        @keyframes toastSlideRightOut {
+          0% {
+            opacity: 1;
+            transform: translate(-50%, 0);
+          }
+          100% {
+            opacity: 0;
+            transform: translate(100vw, 0);
+          }
+        }
+
+        .animate-toast-in {
+          animation: toastSlideIn 0.25s ease-out forwards;
+        }
+
+        .animate-toast-out {
+          animation: toastSlideRightOut 0.35s ease-in forwards;
+        }
       `}</style>
+
+      {/* 🔔 Toast Notification */}
+      {toastNotification.show && (
+        <div className={`fixed top-4 left-1/2 z-[300] -translate-x-1/2 px-6 py-3.5 rounded-2xl shadow-2xl border flex items-center gap-3 hardware-accelerated ${
+          toastNotification.leaving ? 'animate-toast-out' : 'animate-toast-in'
+        } ${
+          isDarkMode 
+            ? 'bg-slate-900 border-emerald-500/50 text-emerald-400 shadow-emerald-950/50' 
+            : 'bg-white border-emerald-400 text-emerald-800 shadow-emerald-100'
+        }`}>
+          <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-500 flex items-center justify-center shrink-0">
+            <svg className="w-5 h-5 stroke-[2.8]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+            </svg>
+          </div>
+          <span className="text-xs sm:text-sm font-black tracking-wide uppercase">
+            Başarıyla gönderilmiştir!
+          </span>
+        </div>
+      )}
 
       {/* 🌟 HEADER */}
       <div className={`no-print fixed top-0 left-0 right-0 z-50 h-[52px] px-3 sm:px-6 shadow-sm cursor-default flex items-center ${
@@ -1102,7 +1183,7 @@ function PublicScheduleTableContent() {
       </div>         
 
       {/* 📊 TABLE CONTAINER */}         
-      <div className="w-full space-y-4 px-0 select-none mt-0">
+      <div className="w-full space-y-4 px-0 select-none mt-0 hardware-accelerated">
         <div className={`w-full rounded-none overflow-hidden shadow-2xl border-x-0 border-t-0 border-b ${           
           isDarkMode 
             ? 'bg-slate-900 border-slate-800' 
@@ -1110,7 +1191,7 @@ function PublicScheduleTableContent() {
         }`}>           
           <div 
             style={{ zoom: `${tableZoom}%` }} 
-            className="overflow-x-auto w-full relative transition-all duration-150"
+            className="overflow-x-auto w-full relative"
           >             
             <table className={`w-full text-left border-collapse ${selectedFont} ${tableSettings.fontWeight}`}>               
               
@@ -1377,9 +1458,12 @@ function PublicScheduleTableContent() {
         isDarkMode={isDarkMode}
       />
 
-      {/* ⚠️ MODAL: SORUN BİLDİR */}
+      {/* ⚠️ MODAL: SORUN BİLDİR (منع انتشار الأحداث لضمان استخدام المسطرة وسائر المفاتيح) */}
       {showReportModal && (
-        <div className="fixed inset-0 z-[180] flex items-center justify-center bg-black/80 p-4 cursor-default">
+        <div 
+          onKeyDown={(e) => e.stopPropagation()} 
+          className="fixed inset-0 z-[180] flex items-center justify-center bg-black/80 p-4 cursor-default"
+        >
           <div className={`w-full max-w-md rounded-3xl p-6 shadow-2xl border space-y-4 ${
             isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-300 text-slate-900'
           }`}>
@@ -1391,59 +1475,54 @@ function PublicScheduleTableContent() {
               <button onClick={() => setShowReportModal(false)} className="text-slate-400 hover:text-white font-black text-lg cursor-pointer">✕</button>
             </div>
 
-            {reportSuccessMsg ? (
-              <div className="p-4 bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 font-black text-xs rounded-2xl text-center uppercase">
-                Bildiriminiz yöneticiye başarıyla iletildi. Teşekkür ederiz!
+            <form onSubmit={handleSendReport} className="space-y-4 font-black">
+              <div>
+                <label className="block text-xs text-slate-400 mb-1 uppercase">KATEGORİ</label>
+                <select
+                  value={reportCategory}
+                  onChange={(e) => setReportCategory(e.target.value)}
+                  className={`w-full p-3 rounded-xl border text-xs font-black outline-none cursor-pointer ${
+                    isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-300'
+                  }`}
+                >
+                  <option value="SİSTEM_HATASI">Sistem Hatası / Çalışmıyor</option>
+                  <option value="YANLIS_BILGI">Hatalı Doktor Bilgisi</option>
+                  <option value="ONERI">Öneri / İstek</option>
+                  <option value="DIGER">Diğer</option>
+                </select>
               </div>
-            ) : (
-              <form onSubmit={handleSendReport} className="space-y-4 font-black">
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1 uppercase">KATEGORİ</label>
-                  <select
-                    value={reportCategory}
-                    onChange={(e) => setReportCategory(e.target.value)}
-                    className={`w-full p-3 rounded-xl border text-xs font-black outline-none cursor-pointer ${
-                      isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-300'
-                    }`}
-                  >
-                    <option value="SİSTEM_HATASI">Sistem Hatası / Çalışmıyor</option>
-                    <option value="YANLIS_BILGI">Hatalı Doktor Bilgisi</option>
-                    <option value="ONERI">Öneri / İstek</option>
-                    <option value="DIGER">Diğer</option>
-                  </select>
-                </div>
 
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1 uppercase">SORUN AÇIKLAMASI</label>
-                  <textarea
-                    required
-                    rows="4"
-                    value={reportText}
-                    onChange={(e) => setReportText(e.target.value)}
-                    placeholder="Lütfen yaşadığınız sorunu detaylıca açıklayın..."
-                    className={`w-full p-3 rounded-xl border text-xs font-black outline-none cursor-text ${
-                      isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-300'
-                    }`}
-                  />
-                </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1 uppercase">SORUN AÇIKLAMASI</label>
+                <textarea
+                  required
+                  rows="4"
+                  value={reportText}
+                  onChange={(e) => setReportText(e.target.value)}
+                  placeholder="Lütfen yaşadığınız sorunu detaylıca açıklayın..."
+                  className={`w-full p-3 rounded-xl border text-xs font-black outline-none cursor-text ${
+                    isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-300'
+                  }`}
+                />
+              </div>
 
-                <div className="flex gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowReportModal(false)}
-                    className="flex-1 py-3 bg-slate-800 text-slate-300 rounded-xl text-xs font-black hover:bg-slate-700 cursor-pointer"
-                  >
-                    İPTAL
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black shadow-lg cursor-pointer"
-                  >
-                    BİLDİRİMİ GÖNDER 🚀
-                  </button>
-                </div>
-              </form>
-            )}
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowReportModal(false)}
+                  className="flex-1 py-3 bg-slate-800 text-slate-300 rounded-xl text-xs font-black hover:bg-slate-700 cursor-pointer"
+                >
+                  İPTAL
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingReport}
+                  className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black shadow-lg cursor-pointer disabled:opacity-50"
+                >
+                  {isSubmittingReport ? 'GÖNDERİLİYOR...' : 'BİLDİRİMİ GÖNDER 🚀'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -1464,7 +1543,7 @@ function PublicScheduleTableContent() {
                   <span>📊</span> EXCEL İNDİR                 
                 </button>                 
                 <button onClick={() => window.print()} className="px-4 py-2 bg-blue-900 hover:bg-blue-950 text-white font-black rounded-xl text-xs flex items-center gap-1.5 cursor-pointer">                   
-                  <span>🖨️</span> YAZDIR / PDF               
+                  <span>🖨️️</span> YAZDIR / PDF               
                 </button>                 
                 <button onClick={() => setShowPrintModal(false)} className="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-black rounded-xl text-xs cursor-pointer">                   
                   ✕                
@@ -1572,7 +1651,7 @@ function PublicScheduleTableContent() {
   ); 
 }
 
-// 🛡️ التصدير التلقائي المغلف بـ Provider لمنع أي Runtime Error
+// 🛡️ التصدير التلقائي المغلف بـ Provider
 export default function PublicScheduleTable() {
   return (
     <TableSettingsProvider>

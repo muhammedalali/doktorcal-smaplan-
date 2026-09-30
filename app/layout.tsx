@@ -26,8 +26,16 @@ function AutoLogoutHandler() {
   const INACTIVITY_TIME = 15 * 60 * 1000;
 
   useEffect(() => {
-    // عدم تفعيل مؤقت الخمول في صفحة تسجيل الدخول أو الصفحة الرئيسية
-    if (pathname === '/' || pathname === '/login') return;
+    // 🛑 عدم تفعيل مؤقت الخمول في صفحة تسجيل الدخول، الصفحة الرئيسية، وصفحة جدول الزوار العامة
+    if (
+      pathname === '/' || 
+      pathname === '/login' || 
+      pathname === '/schedule' || 
+      pathname === '/public-schedule'
+    ) {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      return;
+    }
 
     const performLogout = () => {
       sessionStorage.removeItem('user');
@@ -73,7 +81,7 @@ function GlobalBottomTabBar() {
   ]);
 
   useEffect(() => {
-    if (pathname === '/' || pathname === '/login' || pathname === '/schedule') return;
+    if (pathname === '/' || pathname === '/login' || pathname === '/schedule' || pathname === '/public-schedule') return;
 
     let tabTitle = '';
 
@@ -102,7 +110,7 @@ function GlobalBottomTabBar() {
     });
   }, [pathname]);
 
-  if (pathname === '/' || pathname === '/login' || pathname === '/schedule') return null;
+  if (pathname === '/' || pathname === '/login' || pathname === '/schedule' || pathname === '/public-schedule') return null;
 
   const handleCloseTab = (e: React.MouseEvent, tabPath: string) => {
     e.stopPropagation();
