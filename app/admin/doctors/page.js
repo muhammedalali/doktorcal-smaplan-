@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from '@/context/ThemeContext';
 import { useData } from '@/context/DataContext';
@@ -11,6 +11,8 @@ import { addDoc, deleteDoc, doc, updateDoc, collection } from 'firebase/firestor
 const MedicalIcon = ({ name, className = "w-4 h-4" }) => {
   const getSvgPath = (iconName) => {
     switch (iconName) {
+      case 'PALYATİF':
+        return <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />;
       case 'ÇOCUK SAĞLIĞI VE HASTALIKLARI':
         return <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />;
       case 'ENFEKSİYON HASTALIKLARI':
@@ -60,6 +62,7 @@ const MedicalIcon = ({ name, className = "w-4 h-4" }) => {
 };
 
 const defaultDepartments = [
+  'PALYATİF',
   'ÇOCUK SAĞLIĞI VE HASTALIKLARI',
   'ENFEKSİYON HASTALIKLARI',
   'GENEL CERRAHİ',
@@ -97,7 +100,8 @@ const TURKEY_OFFICIAL_HOLIDAYS_2026 = {
   '2026-10-29': 'Cumhuriyet Bayramı'
 };
 
-const generateFullMonthSchedule = (year = 2026, month = 8) => {
+// 🗓️ توليد الجدول تلقائياً مع الشهر والسنة الحاليين
+const generateFullMonthSchedule = (year = new Date().getFullYear(), month = new Date().getMonth()) => {
   const days = [];
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const dayNames = ['PAZAR', 'PAZARTESİ', 'SALI', 'ÇARŞAMBA', 'PERŞEMBE', 'CUMA', 'CUMARTESİ'];
@@ -149,7 +153,7 @@ const parseItemDate = (item) => {
   return null;
 };
 
-// 🌟 تحديث أشكال وألوان الشارات لترتيب كافة الحالات بما فيها الحالات الجديدة
+// 🌟 تنسيق الشارات ليشمل جميع الحالات بما فيها PALYATİF[cite: 7]
 const getStatusBadgeStyle = (status) => {
   switch (status) {
     case 'POLİKLİNİK':
@@ -157,6 +161,8 @@ const getStatusBadgeStyle = (status) => {
       return 'bg-emerald-600 text-white border-emerald-500 shadow-xs';
     case 'AMELİYATTA':
       return 'bg-purple-600 text-white border-purple-500 shadow-xs';
+    case 'PALYATİF':
+      return 'bg-pink-600 text-white border-pink-400 shadow-xs font-black';
     case 'İŞLEM GÜNÜ':
       return 'bg-teal-600 text-white border-teal-400 shadow-xs font-black';
     case 'YARIM GÜN':
@@ -174,6 +180,10 @@ const getStatusBadgeStyle = (status) => {
       return 'bg-sky-600 text-white border-sky-500 shadow-xs';
     case 'ASKERLİK':
       return 'bg-slate-800 text-slate-300 border-slate-600 shadow-xs font-black';
+    case 'ŞUA İZNİ':
+      return 'bg-cyan-600 text-white border-cyan-400 shadow-xs font-black';
+    case 'KONGRE/SEMİNER':
+      return 'bg-blue-600 text-white border-blue-400 shadow-xs font-black';
     default:
       return 'bg-slate-700 text-white border-slate-500';
   }
@@ -181,7 +191,7 @@ const getStatusBadgeStyle = (status) => {
 
 export default function AdminDoctorsPage() {
   const { isDarkMode, activeColor } = useTheme();
-  const { doctors = [], setDoctors, checkPermission } = useData();
+  const { doctors = [], setDoctors, checkPermission, loading, user } = useData();
   
   const [openedFolder, setOpenedFolder] = useState(null); 
   const [searchQuery, setSearchQuery] = useState('');
@@ -198,8 +208,11 @@ export default function AdminDoctorsPage() {
   const [isMinimized, setIsMinimized] = useState(false);
   const [winPos, setWinPos] = useState({ x: 0, y: 0 });
   const [winSize, setWinSize] = useState({ width: 850, height: 600 });
-  const [selectedYear, setSelectedYear] = useState(2026);
-  const [selectedMonth, setSelectedMonth] = useState(8);
+  
+  // 🕒 تعيين الشهر والسنة الحاليين ديناميكياً
+  const currentDate = useMemo(() => new Date(), []);
+  const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth());
 
   const [toastMessage, setToastMessage] = useState('');
   const [showToast, setShowToast] = useState(false);
@@ -220,8 +233,11 @@ export default function AdminDoctorsPage() {
   const isScheduleDirtyRef = useRef(false);
 
   const router = useRouter();
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
 
   // 🛡️ فحص الصلاحيات الموحد
   const canManageDocs = checkPermission ? checkPermission('bölüm ve doktor yönetimi') : true;
@@ -229,15 +245,18 @@ export default function AdminDoctorsPage() {
   const canDeleteDocs = checkPermission ? checkPermission('bölüm ve doktor silme yetkisi') : true;
   const canChangeStatus = checkPermission ? checkPermission('çalışma durumu değiştirme') : true;
 
-  const triggerToast = (msg) => {
+  const triggerToast = useCallback((msg) => {
     setToastMessage(msg);
     setShowToast(true);
     setTimeout(() => setShowToast(false), 3000);
-  };
+  }, []);
 
+  // 🔒 إدارة الانتقال السريع ودون الحاجة لإعادة تحميل الصفحة (F5)
   useEffect(() => {
-    if (!canManageDocs) {
-      router.push('/dashboard');
+    if (loading) return; // عدم اتخاذ أي قرار حتى اكتمال جلب جلسة المستخدم وصلاحياته
+    
+    if (!canManageDocs && !user) {
+      router.replace('/dashboard');
       return;
     }
 
@@ -248,7 +267,7 @@ export default function AdminDoctorsPage() {
       setDepartments(defaultDepartments);
       localStorage.setItem('app_departments', JSON.stringify(defaultDepartments));
     }
-  }, [canManageDocs, router]);
+  }, [canManageDocs, loading, user, router]);
 
   useEffect(() => {
     if ((showScheduleModal && !isMinimized) || editingDoctor || deletingDept || deletingDoc) {
@@ -425,7 +444,7 @@ export default function AdminDoctorsPage() {
       status: 'POLİKLİNİK',
       dahili: docDahili || '',
       roomNo: docRoomNo || '',
-      scheduleDays: generateFullMonthSchedule(2026, 8),
+      scheduleDays: generateFullMonthSchedule(selectedYear, selectedMonth),
       createdAt: now,
       updatedAt: now
     };
@@ -468,7 +487,7 @@ export default function AdminDoctorsPage() {
     }
   };
 
-  const getDoctorsByDept = (deptName) => {
+  const getDoctorsByDept = useCallback((deptName) => {
     const cleanDept = deptName.trim().toLocaleUpperCase('tr-TR');
     let filtered = doctors.filter(d => d.clinic?.trim().toLocaleUpperCase('tr-TR') === cleanDept);
 
@@ -486,13 +505,23 @@ export default function AdminDoctorsPage() {
     }
 
     return filtered;
-  };
+  }, [doctors, searchQuery]);
 
   const toggleDept = (deptName) => {
     setActiveDept(prev => prev === deptName ? null : deptName);
   };
 
-  const uniqueDepartments = Array.from(new Set(departments));
+  const uniqueDepartments = useMemo(() => Array.from(new Set(departments)), [departments]);
+
+  // ⏳ عرض مؤشر التحميل لحين اكتمال تجهيز الجلسة والصلاحيات
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-3 font-black">
+        <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-xs text-slate-400 uppercase tracking-widest">YÜKLENİYOR...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-3 sm:p-6 w-full max-w-[100vw] mx-auto space-y-5 min-h-screen overflow-x-hidden">
@@ -1046,6 +1075,7 @@ export default function AdminDoctorsPage() {
                       <option value={2025}>2025</option>
                       <option value={2026}>2026</option>
                       <option value={2027}>2027</option>
+                      <option value={2028}>2028</option>
                     </select>
                   </div>
                 </div>
@@ -1100,7 +1130,7 @@ export default function AdminDoctorsPage() {
                           )}
                         </div>
 
-                        {/* 🌟 تم إضافة الحالات الثلاث الجديدة داخل القائمة المنسدلة */}
+                        {/* 🌟 القائمة المنسدلة المحدثة تشمل خيار PALYATİF وجميع الحالات[cite: 7] */}
                         <select
                           value={sd.status}
                           disabled={isPast || !canChangeStatus}
@@ -1111,9 +1141,12 @@ export default function AdminDoctorsPage() {
                         >
                           <option value="POLİKLİNİK" className="bg-emerald-600 text-white">POLİKLİNİK</option>
                           <option value="AMELİYATTA" className="bg-purple-600 text-white">AMELİYATTA</option>
+                          <option value="PALYATİF" className="bg-pink-600 text-white">PALYATİF</option>
                           <option value="İŞLEM GÜNÜ" className="bg-teal-600 text-white">İŞLEM GÜNÜ</option>
                           <option value="YARIM GÜN" className="bg-orange-500 text-slate-950">YARIM GÜN</option>
                           <option value="SAATLİK İZİN" className="bg-amber-600 text-white">SAATLİK İZİN</option>
+                          <option value="ŞUA İZNİ" className="bg-cyan-600 text-white">ŞUA İZNİ</option>
+                          <option value="KONGRE/SEMİNER" className="bg-blue-600 text-white">KONGRE / SEMİNER</option>
                           <option value="RESMİ TATİL" className="bg-indigo-700 text-white">RESMİ TATİL</option>
                           <option value="HAFTA SONU" className="bg-rose-600 text-white">HAFTA SONU</option>
                           <option value="YILLIK İZİN" className="bg-amber-500 text-slate-950">YILLIK İZİN</option>

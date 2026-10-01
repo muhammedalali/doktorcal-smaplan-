@@ -1,38 +1,37 @@
 import { NextResponse } from 'next/server';
 
-export default function middleware(request) {
+export function middleware(request) {
+  const token = request.cookies.get('auth_token')?.value;
   const { pathname } = request.nextUrl;
 
-  // جلب الجلسة والدور من الكوكيز
-  const userSessionCookie = request.cookies.get('user_session')?.value;
-  const userRole = request.cookies.get('user_role')?.value?.toUpperCase();
+  // 1️⃣ المسارات المحمية التي تتطلب تسجيل دخول
+  const protectedRoutes = ['/dashboard', '/admin'];
+  const isProtectedRoute = protectedRoutes.some((route) => pathname.startsWith(route));
 
-  const isAuthenticated = !!userSessionCookie;
-
-  // 1. مسارات الوصول العام بدون قيود
-  if (pathname === '/' || pathname === '/login' || pathname === '/schedule') {
-    return NextResponse.next();
+  // 2️⃣ إذا كان المسار محمياً ولا يوجد توكن -> التوجيه إلى صفحة تسجيل الدخول
+  if (isProtectedRoute && !token) {
+    const loginUrl = new URL('/login', request.url);
+    return NextResponse.redirect(loginUrl);
   }
 
-  // 2. إذا لم يكن المستخدم مسجلاً دخوله، يتم تحويله لصفحة التسجيل
-  if (!isAuthenticated) {
-    return NextResponse.redirect(new URL('/login', request.url));
+  // 3️⃣ إذا كان المستخدم مسجلاً بالفعل وحاول الدخول لصفحة التسجيل -> توجيهه إلى الـ Dashboard
+  if (pathname === '/login' && token) {
+    const dashboardUrl = new URL('/dashboard', request.url);
+    return NextResponse.redirect(dashboardUrl);
   }
 
-  // 3. حماية مسارات الإدارة العامة (/admin/users وغيرها)
-  // السماح للمدراء (ADMIN / YÖNETİCİ) واستثناء صفحة الأطباء لتفحص داخلياً
-  if (pathname.startsWith('/admin') && !pathname.startsWith('/admin/doctors')) {
-    const isAllowedAdmin = userRole === 'ADMIN' || userRole === 'YÖNETİCİ';
-    if (!isAllowedAdmin) {
-      return NextResponse.redirect(new URL('/dashboard', request.url));
-    }
+  const response = NextResponse.next();
+
+  // 4️⃣ إضافة تعلييمات منع التخزين المؤقت (Cache-Control) للصفحات المحمية لمنع الرجوع والتقدم من ذاكرة المتصفح
+  if (isProtectedRoute) {
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    response.headers.set('Pragma', 'no-cache');
+    response.headers.set('Expires', '0');
   }
 
-  return NextResponse.next();
+  return response;
 }
 
 export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|api|public|.*\\..*).*)',
-  ],
+  matcher: ['/dashboard/:path*', '/admin/:path*', '/login'],
 };

@@ -9,11 +9,12 @@ export function DataProvider({ children }) {
   const [doctors, setDoctors] = useState([]);
   const [users, setUsers] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [doctorsLoading, setDoctorsLoading] = useState(true);
 
-  // 1. تحميل وتحديث بيانات المستخدم الحالي
-  useEffect(() => {
-    const updateCurrentUser = () => {
+  // 1. تحميل وتحديث بيانات المستخدم الحالي فوراً وبطريقة متزامنة
+  const updateCurrentUser = useCallback(() => {
+    try {
       const sessionUser = sessionStorage.getItem('user');
       const localUser = localStorage.getItem('user');
       if (sessionUser) {
@@ -23,12 +24,26 @@ export function DataProvider({ children }) {
       } else {
         setCurrentUser(null);
       }
-    };
-
-    updateCurrentUser();
-    window.addEventListener('storage', updateCurrentUser);
-    return () => window.removeEventListener('storage', updateCurrentUser);
+    } catch (err) {
+      console.error('Kullanıcı oturum verisi okunurken hata:', err);
+      setCurrentUser(null);
+    } finally {
+      setAuthLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    updateCurrentUser();
+    
+    // الاستماع لتغييرات الـ LocalStorage والـ Event المخصص لتسجيل الدخول الفوري
+    window.addEventListener('storage', updateCurrentUser);
+    window.addEventListener('userSessionUpdated', updateCurrentUser);
+    
+    return () => {
+      window.removeEventListener('storage', updateCurrentUser);
+      window.removeEventListener('userSessionUpdated', updateCurrentUser);
+    };
+  }, [updateCurrentUser]);
 
   // 2. الاشتراك اللحظي في Firestore لبيانات المستخدم الحالي لمنح وتجريد الصلاحيات فوراً
   useEffect(() => {
@@ -70,11 +85,11 @@ export function DataProvider({ children }) {
           ...docSnap.data(),
         }));
         setDoctors(docsData);
-        setLoading(false);
+        setDoctorsLoading(false);
       },
       (err) => {
         console.error('Doktor Verileri Alınırken Hata Oluştu:', err);
-        setLoading(false);
+        setDoctorsLoading(false);
       }
     );
 
@@ -99,7 +114,7 @@ export function DataProvider({ children }) {
     };
   }, []);
 
-  // 🛡️ دالة فحص الصلاحيات الموحدة الدقيقة دون تداخل
+  // 🛡️ دالة فحص الصلاحيات الموحدة الدقيقة
   const checkPermission = useCallback((permKey) => {
     if (!currentUser) return false;
 
@@ -127,6 +142,9 @@ export function DataProvider({ children }) {
     return false;
   }, [currentUser]);
 
+  // 🔑 التجميع الموحد لحالة التحميل: لا ينتهي التحميل إلا بعد تجهيز المستخدم والأطباء معا
+  const isGlobalLoading = authLoading || doctorsLoading;
+
   return (
     <DataContext.Provider
       value={{
@@ -136,8 +154,9 @@ export function DataProvider({ children }) {
         setUsers,
         currentUser,
         setCurrentUser,
-        loading,
+        loading: isGlobalLoading,
         checkPermission,
+        updateCurrentUser
       }}
     >
       {children}

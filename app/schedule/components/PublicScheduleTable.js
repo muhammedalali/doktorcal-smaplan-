@@ -502,6 +502,22 @@ function PublicScheduleTableContent() {
 
   const router = useRouter();   
 
+  // 🔒 معالجة الرجوع النظيف وتجنب التراكم في History Stack
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handlePopState = (e) => {
+      e.preventDefault();
+      router.replace('/');
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [router]);
+
   useEffect(() => {
     const savedZoom = localStorage.getItem('app_table_zoom');
     if (savedZoom) setTableZoom(Number(savedZoom));
@@ -666,7 +682,7 @@ function PublicScheduleTableContent() {
       });
   }, [doctors, filter, searchTerm, sortBy, getCurrentDayStatus]);
 
-  // 🛠️ دالة التعامل مع اختصارات لوحة المفاتيح دون التأثير على أدوات الإدخال
+  // 🛠 دالة التعامل مع اختصارات لوحة المفاتيح
   const handleKeyDown = useCallback((e) => {
     const activeElement = document.activeElement;
     const isInputActive = activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || activeElement.tagName === 'SELECT');
@@ -861,7 +877,7 @@ function PublicScheduleTableContent() {
           
           <div className="flex items-center shrink-0">
             <button
-              onClick={() => router.push('/')}
+              onClick={() => router.replace('/')}
               className={`p-2 rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 transform hover:scale-110 active:scale-95 ${
                 isDarkMode 
                   ? 'text-amber-400 hover:bg-amber-400/10' 
@@ -1458,7 +1474,7 @@ function PublicScheduleTableContent() {
         isDarkMode={isDarkMode}
       />
 
-      {/* ⚠️ MODAL: SORUN BİLDİR (منع انتشار الأحداث لضمان استخدام المسطرة وسائر المفاتيح) */}
+      {/* ⚠️ MODAL: SORUN BİLDİR */}
       {showReportModal && (
         <div 
           onKeyDown={(e) => e.stopPropagation()} 
@@ -1543,7 +1559,7 @@ function PublicScheduleTableContent() {
                   <span>📊</span> EXCEL İNDİR                 
                 </button>                 
                 <button onClick={() => window.print()} className="px-4 py-2 bg-blue-900 hover:bg-blue-950 text-white font-black rounded-xl text-xs flex items-center gap-1.5 cursor-pointer">                   
-                  <span>🖨️️</span> YAZDIR / PDF               
+                  <span>🖨</span> YAZDIR / PDF               
                 </button>                 
                 <button onClick={() => setShowPrintModal(false)} className="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-black rounded-xl text-xs cursor-pointer">                   
                   ✕                

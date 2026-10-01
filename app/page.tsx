@@ -15,14 +15,21 @@ export default function LandingPage() {
   const [card1Style, setCard1Style] = useState({ transform: '', spotX: '50%', spotY: '50%' });
   const [card2Style, setCard2Style] = useState({ transform: '', spotX: '50%', spotY: '50%' });
 
-  // 🔄 فحص تلقائي للتوجيه السريع إذا كان المستخدم مسجلاً
+  // 🔄 فحص آمن للتوجيه السريع بدون تخريب سجل المتصفح (History Stack) عند التراجع
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+
     const sessionUser = sessionStorage.getItem('user');
     const localUser = localStorage.getItem('user');
     const activeUser = sessionUser ? JSON.parse(sessionUser) : (localUser ? JSON.parse(localUser) : null);
 
     if (activeUser && activeUser.username) {
-      router.replace('/dashboard');
+      const isNavigatingBack = window.performance && 
+        window.performance.getEntriesByType('navigation')[0]?.type === 'back_forward';
+
+      if (!isNavigatingBack) {
+        router.replace('/dashboard');
+      }
     }
   }, [router]);
 
@@ -179,7 +186,7 @@ export default function LandingPage() {
 
         <canvas ref={canvasRef} className="absolute inset-0 w-full h-full block z-0 transform-gpu" />
 
-        {/* ضوء Spotlight تفاعلي متحرك مع الماوس (مخفي على الهواتف عبر sm:block) */}
+        {/* ضوء Spotlight تفاعلي (مخفي على الهواتف عبر sm:block) */}
         <div 
           className={`hidden sm:block absolute w-[450px] h-[450px] -translate-x-1/2 -translate-y-1/2 rounded-full blur-[120px] opacity-75 pointer-events-none transform-gpu transition-opacity duration-300 ${
             isDarkMode ? 'bg-cyan-400/15' : 'bg-sky-400/30'
@@ -233,7 +240,7 @@ export default function LandingPage() {
         </button>
       </div>
 
-      {/* 🎯 المحتوى الرئيسي: أزرار الهواتف بدون تأثيرات مربعات أو حركة، مع عملها كاملاً على الكومبيوتر */}
+      {/* 🎯 المحتوى الرئيسي */}
       <main className="max-w-lg sm:max-w-xl md:max-w-2xl mx-auto z-10 w-full flex-1 flex items-center justify-center p-4 sm:p-6 select-none">
         
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-8 md:gap-10 w-full">
@@ -253,7 +260,6 @@ export default function LandingPage() {
                 : 'bg-transparent sm:hover:bg-white/85 sm:hover:border-sky-500 sm:hover:backdrop-blur-2xl sm:hover:shadow-2xl sm:hover:shadow-slate-300/80'
             }`}
           >
-            {/* إضاءة السبوت لايت الكريستالية (مخفية على الهواتف عبر sm:block) */}
             <div 
               className="hidden sm:block pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-[2rem]"
               style={{
@@ -263,7 +269,6 @@ export default function LandingPage() {
               }}
             />
 
-            {/* الرمز */}
             <div className="relative mb-3 sm:mb-4">
               <div className={`hidden sm:block absolute -inset-3 rounded-3xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 ${
                 isDarkMode ? 'bg-cyan-400/50' : 'bg-sky-400/40'
@@ -278,7 +283,6 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* النص */}
             <h2 className={`text-sm sm:text-base md:text-lg font-black tracking-wide whitespace-nowrap transition-all duration-300 ${
               isDarkMode 
                 ? 'text-slate-100 sm:group-hover:text-cyan-300 sm:group-hover:drop-shadow-[0_1px_8px_rgba(34,211,238,0.8)]' 
@@ -303,7 +307,6 @@ export default function LandingPage() {
                 : 'bg-transparent sm:hover:bg-white/85 sm:hover:border-blue-600 sm:hover:backdrop-blur-2xl sm:hover:shadow-2xl sm:hover:shadow-slate-300/80'
             }`}
           >
-            {/* إضاءة السبوت لايت الكريستالية (مخفية على الهواتف عبر sm:block) */}
             <div 
               className="hidden sm:block pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-[2rem]"
               style={{
@@ -313,7 +316,6 @@ export default function LandingPage() {
               }}
             />
 
-            {/* الرمز */}
             <div className="relative mb-3 sm:mb-4">
               <div className={`hidden sm:block absolute -inset-3 rounded-3xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 ${
                 isDarkMode ? 'bg-blue-400/50' : 'bg-blue-500/40'
@@ -328,7 +330,6 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* النص */}
             <h2 className={`text-sm sm:text-base md:text-lg font-black tracking-wide whitespace-nowrap transition-all duration-300 ${
               isDarkMode 
                 ? 'text-slate-100 sm:group-hover:text-blue-300 sm:group-hover:drop-shadow-[0_1px_8px_rgba(96,165,250,0.8)]' 

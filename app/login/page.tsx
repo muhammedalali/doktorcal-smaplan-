@@ -35,7 +35,6 @@ export default function LoginPage() {
   const [loggedInUser, setLoggedInUser] = useState('');
   const [isAdminUser, setIsAdminUser] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
-  const [remainingSeconds, setRemainingSeconds] = useState(60);
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
 
@@ -43,13 +42,28 @@ export default function LoginPage() {
   const router = useRouter();
   const dropdownRef = useRef<HTMLDivElement>(null);
   const gridCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const passwordInputRef = useRef<HTMLInputElement | null>(null); // 🎯 Ref لحقل كلمة المرور
+  const passwordInputRef = useRef<HTMLInputElement | null>(null);
   
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const lockIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 🌐 الكانفاس المائل الممتد 100%
+  // 🛡️ فحص الجلسة السابقة عند التحميل وتجنب حلقة التوجيه المفرغة عند الرجوع للخلف
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const sessionUser = sessionStorage.getItem('user');
+    const localUser = localStorage.getItem('user');
+    const activeUser = sessionUser ? JSON.parse(sessionUser) : (localUser ? JSON.parse(localUser) : null);
+
+    // التحقق مما إذا كان المستخدم يصل للصفحة عبر زر التراجع للخلف
+    const isNavigatingBack = window.performance && 
+      window.performance.getEntriesByType('navigation')[0]?.type === 'back_forward';
+
+    if (activeUser && activeUser.username && !isNavigatingBack) {
+      router.replace('/dashboard');
+    }
+  }, [router]);
+
+  // 🌐 الكانفاس المائل الممتد
   useEffect(() => {
     const canvas = gridCanvasRef.current;
     if (!canvas) return;
@@ -78,11 +92,13 @@ export default function LoginPage() {
     };
 
     const handleMouseMove = (e: MouseEvent) => {
+      if (isMobile) return;
       mouse.targetX = e.clientX;
       mouse.targetY = e.clientY;
     };
 
     const handleTouchMove = (e: TouchEvent) => {
+      if (isMobile) return;
       if (e.touches.length > 0) {
         mouse.targetX = e.touches[0].clientX;
         mouse.targetY = e.touches[0].clientY;
@@ -244,22 +260,19 @@ export default function LoginPage() {
     return () => {
       unsubscribeFirestore();
       document.removeEventListener('mousedown', handleClickOutside);
-      if (timerRef.current) clearTimeout(timerRef.current);
-      if (intervalRef.current) clearInterval(intervalRef.current);
       if (lockIntervalRef.current) clearInterval(lockIntervalRef.current);
     };
   }, []);
 
-  // 🎯 فحص اسم المستخدم وتمرير التركيز تلقائياً لحقل كلمة المرور عند اكتمال المطابقة
+  // 🎯 فحص اسم المستخدم وتمرير التركيز تلقائياً لحقل كلمة المرور
   const handleUsernameChange = (value: string) => {
-    const formattedVal = value.toLocaleUpperCase('tr-TR');
-    setUsername(formattedVal);
+    setUsername(value);
     setShowUserDropdown(true);
 
-    const cleanInput = formattedVal.trim();
+    const cleanInput = value.trim().toLowerCase();
     if (cleanInput.length > 0) {
       const isExactMatch = allUsers.some(
-        (u: any) => u.username?.toLocaleUpperCase('tr-TR') === cleanInput
+        (u: any) => u.username?.toLowerCase() === cleanInput
       );
 
       if (isExactMatch) {
@@ -288,21 +301,17 @@ export default function LoginPage() {
     }, 1000);
   };
 
-  const handleSkipAndRedirect = () => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    setShowSuccessToast(false);
-    router.push('/dashboard');
-  };
-
+  // ⚡ تسجيل الدخول والانتقال الفوري دون تأخير
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isLocked) return;
 
-    const cleanInputUsername = username.trim().toLocaleUpperCase('tr-TR');
+    const cleanInputUsername = username.trim().toLowerCase();
+    const cleanPassword = password.trim();
 
     let foundUser: any = null;
-    if ((cleanInputUsername === 'ADMIN' || cleanInputUsername === 'ADMİN') && password === 'admin1233') {
+
+    if (cleanInputUsername === 'admin' && cleanPassword === 'admin1233') {
       foundUser = { 
         username: 'ADMIN', 
         fullName: 'YÖNETİCİ ADMİN', 
@@ -311,14 +320,14 @@ export default function LoginPage() {
       };
     } else {
       foundUser = allUsers.find(
-        (u: any) => u.username?.toLocaleUpperCase('tr-TR') === cleanInputUsername && u.password === password
+        (u: any) => u.username?.toLowerCase() === cleanInputUsername && u.password === cleanPassword
       );
     }
 
     if (foundUser) {
       setError('');
       setFailedAttempts(0);
-      const isUserAdmin = foundUser.role === 'YÖNETİCİ' || foundUser.username === 'ADMIN' || foundUser.username === 'admin';
+      const isUserAdmin = foundUser.role === 'YÖNETİCİ' || foundUser.username?.toLowerCase() === 'admin';
       
       if (!foundUser.permissions) {
         foundUser.permissions = isUserAdmin ? DEFAULT_PERMISSIONS : {};
@@ -327,51 +336,23 @@ export default function LoginPage() {
       setLoggedInUser(foundUser.fullName || `${foundUser.username} ${foundUser.surname || ''}`);
       setIsAdminUser(isUserAdmin);
       setShowSuccessToast(true);
-      setLoadingProgress(0);
+      setLoadingProgress(100);
 
+      // 💾 حفظ الكوكيز والجلسة للتأكد من موافقة الـ Middleware
       sessionStorage.setItem('user', JSON.stringify(foundUser));
       localStorage.setItem('user', JSON.stringify(foundUser));
 
       const userRole = isUserAdmin ? 'ADMIN' : 'USER';
+      document.cookie = `auth_token=valid_token_${Date.now()}; path=/; max-age=604800; SameSite=Lax`;
       document.cookie = `user_session=${encodeURIComponent(JSON.stringify(foundUser))}; path=/; max-age=604800; SameSite=Lax`;
       document.cookie = `user_role=${userRole}; path=/; max-age=604800; SameSite=Lax`;
 
-      if (isUserAdmin) {
-        const totalDuration = 60000;
-        const updateInterval = 500;
-        let elapsed = 0;
-        setRemainingSeconds(60);
-
-        intervalRef.current = setInterval(() => {
-          elapsed += updateInterval;
-          const currentProgress = Math.min(100, Math.round((elapsed / totalDuration) * 100));
-          const leftSecs = Math.max(0, Math.ceil((totalDuration - elapsed) / 1000));
-          setLoadingProgress(currentProgress);
-          setRemainingSeconds(leftSecs);
-          if (elapsed >= totalDuration) {
-            if (intervalRef.current) clearInterval(intervalRef.current);
-          }
-        }, updateInterval);
-
-        timerRef.current = setTimeout(() => {
-          setShowSuccessToast(false);
-          router.push('/dashboard');
-        }, totalDuration);
-
-      } else {
-        const totalDuration = 1800;
-        let elapsed = 0;
-        intervalRef.current = setInterval(() => {
-          elapsed += 200;
-          setLoadingProgress(Math.min(100, Math.round((elapsed / totalDuration) * 100)));
-        }, 200);
-
-        timerRef.current = setTimeout(() => {
-          if (intervalRef.current) clearInterval(intervalRef.current);
-          setShowSuccessToast(false);
-          router.push('/dashboard');
-        }, totalDuration);
-      }
+      // 🚀 انتقال سريع ومباشر خلال ثانية واحدة فقط
+      setTimeout(() => {
+        setShowSuccessToast(false);
+        router.replace('/dashboard');
+        router.refresh();
+      }, 1000);
 
     } else {
       const newAttempts = failedAttempts + 1;
@@ -399,8 +380,8 @@ export default function LoginPage() {
 
   const filteredUsers = username.trim().length > 0 
     ? allUsers.filter((u: any) =>
-        u.username?.toLocaleUpperCase('tr-TR').includes(username.toLocaleUpperCase('tr-TR')) ||
-        (u.surname && u.surname.toLocaleUpperCase('tr-TR').includes(username.toLocaleUpperCase('tr-TR')))
+        u.username?.toLowerCase().includes(username.toLowerCase()) ||
+        (u.surname && u.surname.toLowerCase().includes(username.toLowerCase()))
       )
     : [];
 
@@ -441,13 +422,13 @@ export default function LoginPage() {
               </h2>
 
               <p className="text-base font-black text-emerald-400 uppercase tracking-wide">
-                {loggedInUser.toLocaleUpperCase('tr-TR')}
+                {loggedInUser.toUpperCase()}
               </p>
             </div>
 
             <div className="w-full space-y-2.5 max-w-xs">
               <div className="flex justify-between items-center text-xs font-mono font-black text-slate-300">
-                <span>{isAdminUser ? `KALAN SÜRE: ${remainingSeconds}s` : 'SİSTEM YÜKLENİYOR...'}</span>
+                <span>YÖNLENDİRİLİYOR...</span>
                 <span className="text-emerald-400 text-sm">{loadingProgress}%</span>
               </div>
               
@@ -458,16 +439,6 @@ export default function LoginPage() {
                 ></div>
               </div>
             </div>
-
-            {isAdminUser && (
-              <button
-                onClick={handleSkipAndRedirect}
-                className="mt-2 px-8 py-3.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-black text-xs uppercase tracking-wider rounded-2xl transition-all duration-150 cursor-pointer flex items-center gap-3 active:scale-95 shadow-lg"
-              >
-                <span>HIZLI GEÇİŞ YAP</span>
-                <span className="text-lg animate-bounce">⚡</span>
-              </button>
-            )}
 
           </div>
         </div>
@@ -552,8 +523,7 @@ export default function LoginPage() {
                   <div
                     key={u.id || `${u.username}-${idx}`}
                     onClick={() => {
-                      const selectedName = u.username.toLocaleUpperCase('tr-TR');
-                      setUsername(selectedName);
+                      setUsername(u.username || '');
                       setShowUserDropdown(false);
                       setTimeout(() => {
                         passwordInputRef.current?.focus();
@@ -569,9 +539,9 @@ export default function LoginPage() {
                       <div className={`w-7 h-7 rounded-full font-black flex items-center justify-center text-xs ${
                         isDarkMode ? 'bg-cyan-500/20 text-cyan-400' : 'bg-blue-100 text-blue-800'
                       }`}>
-                        {u.username ? u.username.charAt(0).toLocaleUpperCase('tr-TR') : 'U'}
+                        {u.username ? u.username.charAt(0).toUpperCase() : 'U'}
                       </div>
-                      <span>{u.username?.toLocaleUpperCase('tr-TR')} {u.surname?.toLocaleUpperCase('tr-TR') || ''}</span>
+                      <span>{u.username?.toUpperCase()} {u.surname?.toUpperCase() || ''}</span>
                     </div>
                     <span className="text-xs text-slate-400 font-mono">@{u.username?.toLowerCase()}</span>
                   </div>

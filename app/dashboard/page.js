@@ -209,13 +209,20 @@ export default function DashboardPage() {
   const profileRef = useRef(null);
   const router = useRouter();   
 
-  // 🛡️ دالة التدمير التام للجلسة مع التوجيه القسري
+  // 🛡️ دالة التدمير التام للجلسة مع التوجيه القسري وحظر التقدم للأمام
   const clearSessionAndLogout = () => {
-    document.cookie = 'user_session=; path=/; max-age=0;';
-    document.cookie = 'user_role=; path=/; max-age=0;';
+    // 1. مسح الكوكيز بالكامل وإبطال مفعولها بتاريخ قديم جداً
+    document.cookie = 'auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax;';
+    document.cookie = 'user_session=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax;';
+    document.cookie = 'user_role=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax;';
+    
+    // 2. تصفير الذاكرة المحلية والبراوزر ستيشن
     sessionStorage.clear();
     localStorage.removeItem('user');
-    router.replace('/login');
+    localStorage.removeItem('login_lock_until');
+
+    // 3. التوجيه القسري لصفحة الرئيسية وإفراغ الـ History Stack
+    window.location.replace('/');
   };
 
   useEffect(() => {
@@ -477,7 +484,7 @@ export default function DashboardPage() {
 
                   {canManageDoctors && (
                     <button
-                      onClick={() => handleOpenModule('/admin/doctors', 'Bölüm و Doktor Yönetimi')}
+                      onClick={() => handleOpenModule('/admin/doctors', 'Bölüm ve Doktor Yönetimi')}
                       className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors ${isDarkMode ? 'hover:bg-slate-800 hover:text-emerald-400' : 'hover:bg-emerald-50 hover:text-emerald-700'}`}
                     >
                       <svg className="w-4 h-4 text-emerald-500 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -558,7 +565,7 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      {/* 📄 المحتوى الرئيسي المتناسب تماماً مع الشاشات بدون أي أشرطة سحب */}
+      {/* 📄 المحتوى الرئيسي */}
       <main className="p-3 sm:p-6 w-full flex-1 flex flex-col justify-start max-w-7xl mx-auto overflow-hidden">
         
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 w-full">
