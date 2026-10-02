@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from '@/context/ThemeContext';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 
 // 🛡️ هيكل الصلاحيات الشامل الموحد
 const DEFAULT_PERMISSIONS = {
@@ -46,7 +46,7 @@ export default function LoginPage() {
   
   const lockIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 🛡️ فحص الجلسة السابقة عند التحميل وتجنب حلقة التوجيه المفرغة عند الرجوع للخلف
+  // 🛡️ فحص الجلسة السابقة عند التحميل
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -54,7 +54,6 @@ export default function LoginPage() {
     const localUser = localStorage.getItem('user');
     const activeUser = sessionUser ? JSON.parse(sessionUser) : (localUser ? JSON.parse(localUser) : null);
 
-    // التحقق مما إذا كان المستخدم يصل للصفحة عبر زر التراجع للخلف
     const isNavigatingBack = window.performance && 
       window.performance.getEntriesByType('navigation')[0]?.type === 'back_forward';
 
@@ -63,7 +62,7 @@ export default function LoginPage() {
     }
   }, [router]);
 
-  // 🌐 الكانفاس المائل الممتد
+  // 🌐 الكانفاس المائل Background
   useEffect(() => {
     const canvas = gridCanvasRef.current;
     if (!canvas) return;
@@ -229,13 +228,17 @@ export default function LoginPage() {
     const unsubscribeFirestore = onSnapshot(collection(db, 'users'), (snapshot) => {
       const firestoreUsers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-      const adminExists = firestoreUsers.some((u: any) => u.username?.toLowerCase() === 'admin');
+      const adminExists = firestoreUsers.some((u: any) => {
+        const uName = (u.username || '').toString().toUpperCase().replace(/İ/g, 'I');
+        return uName === 'ADMIN';
+      });
+
       let combined = firestoreUsers;
       if (!adminExists) {
         combined = [
           { 
             id: 'admin-default', 
-            username: 'ADMIN', 
+            username: 'ADMİN', 
             surname: 'YÖNETİCİ', 
             phone: '05555555555',
             password: 'admin1233', 
@@ -264,16 +267,16 @@ export default function LoginPage() {
     };
   }, []);
 
-  // 🎯 فحص اسم المستخدم وتمرير التركيز تلقائياً لحقل كلمة المرور
   const handleUsernameChange = (value: string) => {
     setUsername(value);
     setShowUserDropdown(true);
 
-    const cleanInput = value.trim().toLowerCase();
+    const cleanInput = value.trim().toUpperCase().replace(/İ/g, 'I');
     if (cleanInput.length > 0) {
-      const isExactMatch = allUsers.some(
-        (u: any) => u.username?.toLowerCase() === cleanInput
-      );
+      const isExactMatch = allUsers.some((u: any) => {
+        const uName = (u.username || '').toString().trim().toUpperCase().replace(/İ/g, 'I');
+        return uName === cleanInput;
+      });
 
       if (isExactMatch) {
         setShowUserDropdown(false);
@@ -301,58 +304,94 @@ export default function LoginPage() {
     }, 1000);
   };
 
-  // ⚡ تسجيل الدخول والانتقال الفوري دون تأخير
+  // ⚡ تسجيل الدخول والتوجيه القسري المستقر
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isLocked) return;
 
-    const cleanInputUsername = username.trim().toLowerCase();
+    const rawInputUsername = username.trim();
+    const cleanInputUsername = rawInputUsername.toUpperCase().replace(/İ/g, 'I');
     const cleanPassword = password.trim();
 
     let foundUser: any = null;
 
-    if (cleanInputUsername === 'admin' && cleanPassword === 'admin1233') {
+    // 1️⃣ البحث في Firestore
+    foundUser = allUsers.find((u: any) => {
+      const uName = (u.username || '').toString().trim().toUpperCase().replace(/İ/g, 'I');
+      return uName === cleanInputUsername && u.password === cleanPassword;
+    });
+
+    // 2️⃣ مطابقة الأدمن الافتراضي
+    if (!foundUser && cleanInputUsername === 'ADMIN' && cleanPassword === 'admin1233') {
       foundUser = { 
-        username: 'ADMIN', 
-        fullName: 'YÖNETİCİ ADMİN', 
+        id: 'admin-default',
+        username: 'ADMİN', 
         role: 'YÖNETİCİ',
         permissions: DEFAULT_PERMISSIONS
       };
-    } else {
-      foundUser = allUsers.find(
-        (u: any) => u.username?.toLowerCase() === cleanInputUsername && u.password === cleanPassword
-      );
     }
 
     if (foundUser) {
       setError('');
       setFailedAttempts(0);
-      const isUserAdmin = foundUser.role === 'YÖNETİCİ' || foundUser.username?.toLowerCase() === 'admin';
+
+      const uNameNormalized = (foundUser.username || '').toString().trim().toUpperCase().replace(/İ/g, 'I');
+      const isUserAdmin = foundUser.role === 'YÖNETİCİ' || foundUser.role === 'ADMIN' || uNameNormalized === 'ADMIN';
       
-      if (!foundUser.permissions) {
-        foundUser.permissions = isUserAdmin ? DEFAULT_PERMISSIONS : {};
+      const userPermissions = isUserAdmin 
+        ? DEFAULT_PERMISSIONS 
+        : (foundUser.permissions || {});
+
+      const nowIso = new Date().toISOString();
+
+      const sessionUserObj = {
+        id: foundUser.id || 'admin-default',
+        username: foundUser.username || rawInputUsername,
+        role: isUserAdmin ? 'YÖNETİCİ' : (foundUser.role || 'PERSONEL'),
+        permissions: userPermissions,
+        lastLogin: nowIso
+      };
+
+      // 🕒 تحديث وقت الدخول في Firestore
+      if (foundUser.id && foundUser.id !== 'admin-default') {
+        try {
+          await updateDoc(doc(db, 'users', foundUser.id), {
+            lastLogin: nowIso
+          });
+        } catch (err) {
+          console.error('Son giriş güncelleme hatası:', err);
+        }
       }
 
-      setLoggedInUser(foundUser.fullName || `${foundUser.username} ${foundUser.surname || ''}`);
+      const exactDisplayUsername = foundUser.username ? foundUser.username.toUpperCase() : rawInputUsername.toUpperCase();
+      setLoggedInUser(exactDisplayUsername);
       setIsAdminUser(isUserAdmin);
       setShowSuccessToast(true);
-      setLoadingProgress(100);
 
-      // 💾 حفظ الكوكيز والجلسة للتأكد من موافقة الـ Middleware
-      sessionStorage.setItem('user', JSON.stringify(foundUser));
-      localStorage.setItem('user', JSON.stringify(foundUser));
+      // 💾 حفظ Storage
+      sessionStorage.setItem('user', JSON.stringify(sessionUserObj));
+      localStorage.setItem('user', JSON.stringify(sessionUserObj));
 
-      const userRole = isUserAdmin ? 'ADMIN' : 'USER';
+      // 🍪 حفظ الكوكيز بوضوح وصراحة مع مسار Root `/`
+      const cookieValue = encodeURIComponent(JSON.stringify(sessionUserObj));
       document.cookie = `auth_token=valid_token_${Date.now()}; path=/; max-age=604800; SameSite=Lax`;
-      document.cookie = `user_session=${encodeURIComponent(JSON.stringify(foundUser))}; path=/; max-age=604800; SameSite=Lax`;
-      document.cookie = `user_role=${userRole}; path=/; max-age=604800; SameSite=Lax`;
+      document.cookie = `user_session=${cookieValue}; path=/; max-age=604800; SameSite=Lax`;
+      document.cookie = `user_role=${isUserAdmin ? 'ADMIN' : 'USER'}; path=/; max-age=604800; SameSite=Lax`;
 
-      // 🚀 انتقال سريع ومباشر خلال ثانية واحدة فقط
-      setTimeout(() => {
-        setShowSuccessToast(false);
-        router.replace('/dashboard');
-        router.refresh();
-      }, 1000);
+      window.dispatchEvent(new Event('userSessionUpdated'));
+
+      // 🚀 الانتقال القسري عبر نافذة المتصفح لتحديث الكوكيز لدى السيرفر
+      let progress = 0;
+      const progressInterval = setInterval(() => {
+        progress += 25;
+        setLoadingProgress(Math.min(100, progress));
+        if (progress >= 100) {
+          clearInterval(progressInterval);
+          setShowSuccessToast(false);
+          // 🛑 استخدام window.location بدلاً من router لمنع الرفض الفوري من الـ Middleware
+          window.location.href = '/dashboard';
+        }
+      }, 120);
 
     } else {
       const newAttempts = failedAttempts + 1;
@@ -379,10 +418,11 @@ export default function LoginPage() {
   };
 
   const filteredUsers = username.trim().length > 0 
-    ? allUsers.filter((u: any) =>
-        u.username?.toLowerCase().includes(username.toLowerCase()) ||
-        (u.surname && u.surname.toLowerCase().includes(username.toLowerCase()))
-      )
+    ? allUsers.filter((u: any) => {
+        const uName = (u.username || '').toString().toUpperCase().replace(/İ/g, 'I');
+        const inputNorm = username.trim().toUpperCase().replace(/İ/g, 'I');
+        return uName.includes(inputNorm);
+      })
     : [];
 
   return (
@@ -390,7 +430,6 @@ export default function LoginPage() {
       isDarkMode ? 'bg-[#020617] text-slate-100' : 'bg-[#f8fafc] text-slate-900'
     }`}>
 
-      {/* 🌐 خلفية الكانفاس المائلة الحديثة والعصرية */}
       <div className="absolute inset-0 z-0 pointer-events-none select-none">
         <div className={`absolute inset-0 transition-opacity duration-500 ${
           isDarkMode 
@@ -422,7 +461,7 @@ export default function LoginPage() {
               </h2>
 
               <p className="text-base font-black text-emerald-400 uppercase tracking-wide">
-                {loggedInUser.toUpperCase()}
+                {loggedInUser}
               </p>
             </div>
 
@@ -444,7 +483,6 @@ export default function LoginPage() {
         </div>
       )}
 
-      {/* 🎯 كرت تسجيل الدخول الشفاف الفاخر */}
       <div className={`max-w-md w-full border border-transparent rounded-3xl p-7 sm:p-8 shadow-xl transition-all duration-300 z-10 relative select-none ${
         isDarkMode 
           ? 'bg-[#020617]/10 backdrop-blur-[2px] hover:border-cyan-400/40 hover:bg-slate-950/20 hover:shadow-cyan-500/10 hover:shadow-2xl' 
@@ -541,7 +579,7 @@ export default function LoginPage() {
                       }`}>
                         {u.username ? u.username.charAt(0).toUpperCase() : 'U'}
                       </div>
-                      <span>{u.username?.toUpperCase()} {u.surname?.toUpperCase() || ''}</span>
+                      <span>{u.username?.toUpperCase()}</span>
                     </div>
                     <span className="text-xs text-slate-400 font-mono">@{u.username?.toLowerCase()}</span>
                   </div>

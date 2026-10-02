@@ -7,7 +7,6 @@ import { useData } from '@/context/DataContext';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 
-// 🎯 الصلاحيات المحددة بدقة متناهية
 const SPECIFIC_PERMISSIONS = [
   { key: 'bölüm ve doktor yönetimi', label: 'Bölüm ve Doktor Yönetimi (Ekleme/Erişim)' },
   { key: 'bölüm ve doktor düzeltme yetkisi', label: 'Bölüm ve Doktor Düzeltme Yetkisi' },
@@ -15,12 +14,13 @@ const SPECIFIC_PERMISSIONS = [
   { key: 'çalışma durumu değiştirme', label: 'Çalışma Durumu Değiştirme (Takvim)' },
   { key: 'kullanıcı ekleme ve yetkilendirme', label: 'Kullanıcı Ekleme ve Yetkilendirme' },
   { key: 'kullanıcı düzenleme yetkisi', label: 'Kullanıcı Düzenleme Yetkisi' },
-  { key: 'kullanıcı silme yetkisi', label: 'Kullanıcı Silme Yetkisi' }
+  { key: 'kullanıcı silme yetkisi', label: 'Kullanıcı Silme Yetkisi' },
+  { key: 'sorun bildirme yönetimi', label: 'Arıza / Sorun Bildirimleri Yönetimi' }
 ];
 
 export default function EditUserPage({ params }) {
   const unwrappedParams = use(params);
-  const userId = unwrappedParams.id;
+  const userId = unwrappedParams?.id;
 
   const { isDarkMode } = useTheme();
   const { checkPermission, users = [], setUsers } = useData();
@@ -34,6 +34,8 @@ export default function EditUserPage({ params }) {
   const [toastMessage, setToastMessage] = useState('');
   const [showToast, setShowToast] = useState(false);
 
+  const [name, setName] = useState('');
+  const [surname, setSurname] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('PERSONEL');
@@ -61,6 +63,12 @@ export default function EditUserPage({ params }) {
       return;
     }
 
+    if (!userId) {
+      alert('Kullanıcı ID tanımlı değil!');
+      router.push('/admin/users');
+      return;
+    }
+
     const fetchUserData = async () => {
       try {
         setLoading(true);
@@ -69,6 +77,8 @@ export default function EditUserPage({ params }) {
 
         if (docSnap.exists()) {
           const data = docSnap.data();
+          setName(data.name || '');
+          setSurname(data.surname || '');
           setUsername(data.username || '');
           setPassword(data.password || '');
           setRole(data.role || 'PERSONEL');
@@ -76,6 +86,8 @@ export default function EditUserPage({ params }) {
         } else {
           const localUser = users.find(u => u.id === userId);
           if (localUser) {
+            setName(localUser.name || '');
+            setSurname(localUser.surname || '');
             setUsername(localUser.username || '');
             setPassword(localUser.password || '');
             setRole(localUser.role || 'PERSONEL');
@@ -92,9 +104,7 @@ export default function EditUserPage({ params }) {
       }
     };
 
-    if (userId) {
-      fetchUserData();
-    }
+    fetchUserData();
   }, [userId, canAccessPage, router, mounted, users]);
 
   const handlePermissionChange = (key, value) => {
@@ -143,6 +153,9 @@ export default function EditUserPage({ params }) {
         : permissions;
 
       const updatedData = {
+        name: name.trim(),
+        surname: surname.trim().toLocaleUpperCase('tr-TR'),
+        fullName: `${name.trim()} ${surname.trim().toLocaleUpperCase('tr-TR')}`,
         username: username.trim().toLocaleUpperCase('tr-TR'),
         password: password.trim(),
         role: formattedRole,
@@ -225,6 +238,7 @@ export default function EditUserPage({ params }) {
       <div className="flex justify-between items-center pb-4 border-b border-slate-700/50">
         <div className="flex items-center gap-3">
           <button
+            type="button"
             onClick={() => router.push('/admin/users')}
             className="p-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-500 hover:bg-amber-500 hover:text-slate-950 transition-all font-black text-xs flex items-center gap-2 cursor-pointer"
           >
@@ -236,6 +250,7 @@ export default function EditUserPage({ params }) {
         </div>
 
         <button
+          type="button"
           onClick={() => setShowDeleteModal(true)}
           className="px-4 py-2 bg-rose-600/10 hover:bg-rose-600 text-rose-500 hover:text-white border border-rose-500/30 rounded-2xl text-xs font-black transition-all cursor-pointer shadow-md"
         >
@@ -253,6 +268,33 @@ export default function EditUserPage({ params }) {
           <h2 className="text-xs font-black text-emerald-500 uppercase tracking-wider pb-2 border-b border-slate-800">
             1. HESAP BİLGİLERİ
           </h2>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 font-black text-xs mb-3">
+            <div>
+              <label className="block text-[11px] mb-1.5 text-slate-400 uppercase">İSİM</label>
+              <input
+                type="text"
+                disabled={!canEditUser}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className={`w-full px-4 py-3 rounded-2xl border-2 text-xs font-black outline-none transition-all ${
+                  isDarkMode ? 'bg-slate-950 border-slate-800 text-slate-100 focus:border-amber-500' : 'bg-slate-50 border-slate-300 focus:border-amber-500'
+                } ${!canEditUser ? 'opacity-60 cursor-not-allowed' : ''}`}
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] mb-1.5 text-slate-400 uppercase">SOYADI</label>
+              <input
+                type="text"
+                disabled={!canEditUser}
+                value={surname}
+                onChange={(e) => setSurname(e.target.value.toLocaleUpperCase('tr-TR'))}
+                className={`w-full px-4 py-3 rounded-2xl border-2 text-xs font-black outline-none transition-all uppercase ${
+                  isDarkMode ? 'bg-slate-950 border-slate-800 text-slate-100 focus:border-amber-500' : 'bg-slate-50 border-slate-300 focus:border-amber-500'
+                } ${!canEditUser ? 'opacity-60 cursor-not-allowed' : ''}`}
+              />
+            </div>
+          </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 font-black">
             <div>
@@ -397,12 +439,14 @@ export default function EditUserPage({ params }) {
             </p>
             <div className="flex gap-3 font-black pt-2">
               <button
+                type="button"
                 onClick={() => setShowDeleteModal(false)}
                 className="flex-1 py-3 bg-slate-800 text-slate-300 rounded-2xl text-xs cursor-pointer hover:bg-slate-700 transition-all"
               >
                 İPTAL
               </button>
               <button
+                type="button"
                 onClick={handleDeleteUser}
                 disabled={isDeleting}
                 className="flex-1 py-3 bg-rose-600 hover:bg-rose-500 text-white rounded-2xl text-xs shadow-lg cursor-pointer transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
