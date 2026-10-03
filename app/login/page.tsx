@@ -6,7 +6,6 @@ import { useTheme } from '@/context/ThemeContext';
 import { db } from '@/lib/firebase';
 import { collection, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 
-// 🛡️ هيكل الصلاحيات الشامل الموحد
 const DEFAULT_PERMISSIONS = {
   'bölüm ve doktor yönetimi': true,
   'bölüm ve doktor düzeltme yetkisi': true,
@@ -32,9 +31,7 @@ export default function LoginPage() {
   const [lockTimer, setLockTimer] = useState(0);
 
   const [showSuccessToast, setShowSuccessToast] = useState(false);
-  const [loggedInUser, setLoggedInUser] = useState('');
-  const [isAdminUser, setIsAdminUser] = useState(false);
-  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [dots, setDots] = useState('');
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
 
@@ -46,20 +43,32 @@ export default function LoginPage() {
   
   const lockIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 🛡️ فحص الجلسة السابقة عند التحميل
+  // أنيميشن النقاط المتحركة (...) لشاشة التحميل
+  useEffect(() => {
+    if (!showSuccessToast) return;
+    const interval = setInterval(() => {
+      setDots((prev) => (prev.length >= 3 ? '' : prev + '.'));
+    }, 300);
+
+    return () => clearInterval(interval);
+  }, [showSuccessToast]);
+
+  // 🛡️ معالجة زر الرجوع بدون تراكم السجلات
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const sessionUser = sessionStorage.getItem('user');
-    const localUser = localStorage.getItem('user');
-    const activeUser = sessionUser ? JSON.parse(sessionUser) : (localUser ? JSON.parse(localUser) : null);
+    sessionStorage.clear();
+    localStorage.removeItem('user');
 
-    const isNavigatingBack = window.performance && 
-      window.performance.getEntriesByType('navigation')[0]?.type === 'back_forward';
+    const handlePopState = () => {
+      router.replace('/');
+    };
 
-    if (activeUser && activeUser.username && !isNavigatingBack) {
-      router.replace('/dashboard');
-    }
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
   }, [router]);
 
   // 🌐 الكانفاس المائل Background
@@ -304,7 +313,6 @@ export default function LoginPage() {
     }, 1000);
   };
 
-  // ⚡ تسجيل الدخول والتوجيه القسري المستقر
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isLocked) return;
@@ -315,13 +323,11 @@ export default function LoginPage() {
 
     let foundUser: any = null;
 
-    // 1️⃣ البحث في Firestore
     foundUser = allUsers.find((u: any) => {
       const uName = (u.username || '').toString().trim().toUpperCase().replace(/İ/g, 'I');
       return uName === cleanInputUsername && u.password === cleanPassword;
     });
 
-    // 2️⃣ مطابقة الأدمن الافتراضي
     if (!foundUser && cleanInputUsername === 'ADMIN' && cleanPassword === 'admin1233') {
       foundUser = { 
         id: 'admin-default',
@@ -352,7 +358,6 @@ export default function LoginPage() {
         lastLogin: nowIso
       };
 
-      // 🕒 تحديث وقت الدخول في Firestore
       if (foundUser.id && foundUser.id !== 'admin-default') {
         try {
           await updateDoc(doc(db, 'users', foundUser.id), {
@@ -363,16 +368,11 @@ export default function LoginPage() {
         }
       }
 
-      const exactDisplayUsername = foundUser.username ? foundUser.username.toUpperCase() : rawInputUsername.toUpperCase();
-      setLoggedInUser(exactDisplayUsername);
-      setIsAdminUser(isUserAdmin);
       setShowSuccessToast(true);
 
-      // 💾 حفظ Storage
       sessionStorage.setItem('user', JSON.stringify(sessionUserObj));
       localStorage.setItem('user', JSON.stringify(sessionUserObj));
 
-      // 🍪 حفظ الكوكيز بوضوح وصراحة مع مسار Root `/`
       const cookieValue = encodeURIComponent(JSON.stringify(sessionUserObj));
       document.cookie = `auth_token=valid_token_${Date.now()}; path=/; max-age=604800; SameSite=Lax`;
       document.cookie = `user_session=${cookieValue}; path=/; max-age=604800; SameSite=Lax`;
@@ -380,18 +380,9 @@ export default function LoginPage() {
 
       window.dispatchEvent(new Event('userSessionUpdated'));
 
-      // 🚀 الانتقال القسري عبر نافذة المتصفح لتحديث الكوكيز لدى السيرفر
-      let progress = 0;
-      const progressInterval = setInterval(() => {
-        progress += 25;
-        setLoadingProgress(Math.min(100, progress));
-        if (progress >= 100) {
-          clearInterval(progressInterval);
-          setShowSuccessToast(false);
-          // 🛑 استخدام window.location بدلاً من router لمنع الرفض الفوري من الـ Middleware
-          window.location.href = '/dashboard';
-        }
-      }, 120);
+      setTimeout(() => {
+        window.location.replace('/dashboard');
+      }, 450);
 
     } else {
       const newAttempts = failedAttempts + 1;
@@ -425,6 +416,9 @@ export default function LoginPage() {
       })
     : [];
 
+  const dotCount = 12;
+  const dotsArray = Array.from({ length: dotCount });
+
   return (
     <div className={`h-screen w-screen overflow-hidden fixed inset-0 flex items-center justify-center transition-colors duration-500 font-sans ${
       isDarkMode ? 'bg-[#020617] text-slate-100' : 'bg-[#f8fafc] text-slate-900'
@@ -444,42 +438,52 @@ export default function LoginPage() {
         }`} />
       </div>
 
+      {/* 🔮 شاشة التحميل الكريستالية بالرمز الكبير عالي الدقة والكتابة المصغرة فقط */}
       {showSuccessToast && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fadeIn">
-          <div className="flex flex-col items-center text-center gap-6 max-w-sm w-full relative z-10">
+        <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-slate-950/80 dark:bg-slate-950/85 backdrop-blur-2xl transition-all duration-300 animate-fadeIn select-none pointer-events-auto">
+          
+          <div className="relative flex flex-col items-center text-center max-w-xs w-full">
+            
+            {/* وهج نيون ناعم خلف الرمز */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-36 h-36 rounded-full bg-cyan-500/15 dark:bg-cyan-500/20 blur-3xl pointer-events-none animate-pulse" />
 
-            <div className="space-y-2 w-full">
-              <div className="flex items-center justify-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
-                <span className="text-xs font-black tracking-widest text-emerald-400 uppercase">
-                  {isAdminUser ? 'ADMİN GİRİŞİ BAŞARILI' : 'GİRİŞ BAŞARILI'}
-                </span>
+            {/* 💫 الرمز الدائري العصري الدقيق والكبير */}
+            <div className="relative w-24 h-24 sm:w-28 sm:h-28 flex items-center justify-center mb-6">
+              
+              <div className="relative w-full h-full animate-[spin_1.1s_steps(12)_infinite] transform-gpu">
+                {dotsArray.map((_, index) => {
+                  const angle = (index * 360) / dotCount;
+                  const opacity = (index + 1) / dotCount;
+
+                  return (
+                    <div
+                      key={index}
+                      className="absolute top-0 left-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 -ml-1.75 sm:-ml-2 origin-[50%_48px] sm:origin-[50%_56px]"
+                      style={{
+                        transform: `rotate(${angle}deg)`,
+                        opacity: opacity,
+                      }}
+                    >
+                      <span className="block w-full h-full rounded-full bg-gradient-to-tr from-cyan-400 via-teal-300 to-sky-400 dark:from-cyan-300 dark:to-emerald-400 shadow-[0_0_12px_rgba(34,211,238,0.95)] subpixel-antialiased" />
+                    </div>
+                  );
+                })}
               </div>
 
-              <h2 className="text-3xl font-black text-white tracking-tight">
-                HOŞ GELDİNİZ
-              </h2>
-
-              <p className="text-base font-black text-emerald-400 uppercase tracking-wide">
-                {loggedInUser}
-              </p>
             </div>
 
-            <div className="w-full space-y-2.5 max-w-xs">
-              <div className="flex justify-between items-center text-xs font-mono font-black text-slate-300">
-                <span>YÖNLENDİRİLİYOR...</span>
-                <span className="text-emerald-400 text-sm">{loadingProgress}%</span>
-              </div>
-              
-              <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden p-0.5 border border-emerald-500/30">
-                <div 
-                  style={{ width: `${loadingProgress}%` }}
-                  className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-300 ease-out"
-                ></div>
-              </div>
+            {/* 📝 كتابة YÜKLENİYOR... بحجم مصغر وأنيق جداً */}
+            <div className="z-10 flex items-center justify-center gap-0.5">
+              <h3 className="text-xs sm:text-sm font-black tracking-[0.25em] text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-white to-teal-300 dark:from-cyan-200 dark:via-white dark:to-emerald-300 uppercase font-sans">
+                YÜKLENİYOR
+              </h3>
+              <span className="w-4 text-left text-cyan-400 font-mono font-black text-xs sm:text-sm">
+                {dots}
+              </span>
             </div>
 
           </div>
+
         </div>
       )}
 

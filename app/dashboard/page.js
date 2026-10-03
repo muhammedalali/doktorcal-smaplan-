@@ -6,104 +6,136 @@ import { db } from '@/lib/firebase';
 import { doc, collection, onSnapshot, updateDoc, setDoc, query, orderBy } from 'firebase/firestore';
 import { useTheme } from '@/context/ThemeContext';
 
-// 🩺 شاشة التحميل بنمط نبض النيون الأخضر Soft Luxe
-function SeamlessECGLoader({ title = "YÜKLENİYOR...", isDarkMode }) {
-  const canvasRef = useRef(null);
+// 💫 شاشة التحميل الكريستالية بالنقاط الدوارة والتأخير لمدة 10 ثوانٍ لفحص الاتصال
+function RadialDotsLoader({ title = "YÜKLENİYOR", isDarkMode }) {
+  const [dots, setDots] = useState('');
+  const [isOnline, setIsOnline] = useState(true);
+  const [showNetworkWarning, setShowNetworkWarning] = useState(false);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    setIsOnline(navigator.onLine);
 
-    let animationFrameId;
-    let x = 0;
-    const speed = 2.8;
+    let offlineTimer = null;
 
-    const resize = () => {
-      canvas.width = canvas.parentElement?.clientWidth || 320;
-      canvas.height = 60;
-    };
-    resize();
-    window.addEventListener('resize', resize);
-
-    const getECGPoint = (xPos, width, height) => {
-      const midY = height / 2;
-      const cycleLength = width * 0.45; 
-      const pos = (xPos % cycleLength) / cycleLength;
-
-      if (pos >= 0.15 && pos < 0.22) return midY - Math.sin((pos - 0.15) / 0.07 * Math.PI) * 3;
-      if (pos >= 0.25 && pos < 0.28) return midY + 4;
-      if (pos >= 0.28 && pos < 0.33) return midY - (Math.sin(((pos - 0.28) / 0.05) * Math.PI) * (height * 0.42));
-      if (pos >= 0.33 && pos < 0.37) return midY + (Math.sin(((pos - 0.33) / 0.04) * Math.PI) * (height * 0.30));
-      if (pos >= 0.37 && pos < 0.40) return midY - 3;
-      if (pos >= 0.45 && pos < 0.58) return midY - Math.sin((pos - 0.45) / 0.13 * Math.PI) * 6;
-      return midY;
+    const handleOnline = () => {
+      setIsOnline(true);
+      setShowNetworkWarning(false);
+      if (offlineTimer) clearTimeout(offlineTimer);
     };
 
-    const render = () => {
-      const { width, height } = canvas;
-      ctx.clearRect(0, 0, width, height);
-
-      ctx.beginPath();
-      ctx.strokeStyle = isDarkMode ? 'rgba(16, 185, 129, 0.25)' : 'rgba(16, 185, 129, 0.3)';
-      ctx.lineWidth = 1.5;
-      for (let i = 0; i < width; i++) {
-        const y = getECGPoint(i, width, height);
-        if (i === 0) ctx.moveTo(i, y);
-        else ctx.lineTo(i, y);
-      }
-      ctx.stroke();
-
-      const tailLength = 90;
-      for (let i = 0; i < tailLength; i++) {
-        const currentX = (x - i + width) % width;
-        const currentY = getECGPoint(currentX, width, height);
-        const alpha = Math.pow(1 - i / tailLength, 1.5);
-
-        ctx.strokeStyle = isDarkMode 
-          ? `rgba(16, 185, 129, ${alpha})` 
-          : `rgba(5, 150, 105, ${alpha})`;
-        ctx.lineWidth = 2.2;
-        ctx.shadowColor = isDarkMode ? '#10b981' : '#059669';
-        ctx.shadowBlur = i < 15 ? 6 : 1;
-
-        ctx.beginPath();
-        const prevX = (currentX - 1 + width) % width;
-        const prevY = getECGPoint(prevX, width, height);
-        ctx.moveTo(prevX, prevY);
-        ctx.lineTo(currentX, currentY);
-        ctx.stroke();
-      }
-      ctx.shadowBlur = 0;
-
-      x = (x + speed) % width;
-      animationFrameId = requestAnimationFrame(render);
+    const handleOffline = () => {
+      setIsOnline(false);
+      // الانتظار لمدة 10 ثوانٍ قبل تفعيل تنبيه الهيدر
+      offlineTimer = setTimeout(() => {
+        setShowNetworkWarning(true);
+      }, 10000);
     };
 
-    render();
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    // إذا بدأ من الأساس بدون إنترنت، نبدأ العداد
+    if (!navigator.onLine) {
+      offlineTimer = setTimeout(() => {
+        setShowNetworkWarning(true);
+      }, 10000);
+    }
 
     return () => {
-      cancelAnimationFrame(animationFrameId);
-      window.removeEventListener('resize', resize);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      if (offlineTimer) clearTimeout(offlineTimer);
     };
-  }, [isDarkMode]);
+  }, []);
+
+  // أنيميشن النقاط المتزايدة (...)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setDots((prev) => (prev.length >= 3 ? '' : prev + '.'));
+    }, 300);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const dotCount = 12;
+  const dotsArray = Array.from({ length: dotCount });
 
   return (
-    <div className="fixed inset-0 z-[500] flex items-center justify-center bg-slate-950/70 backdrop-blur-md p-4 animate-fadeIn select-none pointer-events-none">
-      <div className={`flex flex-col items-center text-center gap-4 max-w-sm w-full p-6 rounded-3xl shadow-2xl border ${isDarkMode ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white/90 border-emerald-100 text-slate-800'}`}>
-        <div className={`w-full h-14 relative overflow-hidden rounded-2xl p-2 border ${isDarkMode ? 'bg-slate-950/70 border-emerald-900/40' : 'bg-emerald-50/80 border-emerald-200'}`}>
-          <canvas ref={canvasRef} className="w-full h-full block bg-transparent" />
+    <>
+      {/* 🚨 تنبيه الهيدر العلوي عند انقطاع الإنترنت لأكثر من 10 ثوانٍ */}
+      {showNetworkWarning && (
+        <div className="fixed top-0 left-0 right-0 z-[100000] bg-rose-600 text-white text-center py-2 px-4 text-xs font-black uppercase tracking-widest shadow-lg animate-pulse flex items-center justify-center gap-2">
+          <span>⚠️️ İNTERNET BAĞLANTISI YOK</span>
         </div>
-        <h2 className={`text-xs font-black tracking-wider uppercase ${isDarkMode ? 'text-emerald-400' : 'text-emerald-700'}`}>
-          {title}
-        </h2>
+      )}
+
+      <div className={`fixed inset-0 z-[99999] flex flex-col items-center justify-center backdrop-blur-md transition-all duration-300 animate-fadeIn select-none pointer-events-auto ${
+        isDarkMode ? 'bg-slate-950/30' : 'bg-slate-900/20'
+      }`}>
+        <div className="relative flex flex-col items-center text-center max-w-xs w-full p-6 rounded-3xl backdrop-blur-xl bg-slate-950/40 border border-slate-800/40 shadow-2xl">
+          
+          {/* وهج خلفي متكيف */}
+          <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-44 h-44 rounded-full blur-3xl pointer-events-none animate-pulse transition-all duration-500 ${
+            isOnline ? 'bg-cyan-500/20' : 'bg-rose-500/30'
+          }`} />
+
+          {/* 🌀 الرمز الدائري */}
+          <div className="relative w-24 h-24 sm:w-28 sm:h-28 flex items-center justify-center mb-6">
+            <div className="relative w-full h-full animate-[spin_1.2s_linear_infinite] transform-gpu">
+              {dotsArray.map((_, index) => {
+                const angle = (index * 360) / dotCount;
+                const opacity = 0.2 + (index / dotCount) * 0.8;
+
+                return (
+                  <div
+                    key={index}
+                    className="absolute top-0 left-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 -ml-1.75 sm:-ml-2 origin-[50%_48px] sm:origin-[50%_56px]"
+                    style={{
+                      transform: `rotate(${angle}deg)`,
+                      opacity: opacity,
+                    }}
+                  >
+                    <span className={`block w-full h-full rounded-full transition-colors duration-300 ${
+                      isOnline 
+                        ? 'bg-gradient-to-tr from-cyan-400 via-sky-300 to-emerald-300 shadow-[0_0_10px_rgba(34,211,238,0.9)]' 
+                        : 'bg-gradient-to-tr from-rose-600 via-red-500 to-rose-400 shadow-[0_0_12px_rgba(244,63,94,0.95)]'
+                    }`} />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* النصوص أسفل الرمز */}
+          <div className="z-10 flex flex-col items-center justify-center gap-1">
+            <div className="flex items-center justify-center gap-0.5">
+              <h3 className={`text-xs sm:text-sm font-black tracking-[0.25em] uppercase font-sans transition-colors duration-300 ${
+                isOnline 
+                  ? 'text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-white to-teal-300' 
+                  : 'text-rose-400 drop-shadow-[0_0_8px_rgba(244,63,94,0.6)]'
+              }`}>
+                {title}
+              </h3>
+              <span className={`w-4 text-left font-mono font-black text-xs sm:text-sm ${
+                isOnline ? 'text-cyan-400' : 'text-rose-400'
+              }`}>
+                {dots}
+              </span>
+            </div>
+
+            {!isOnline && (
+              <span className="text-[10px] sm:text-xs font-black tracking-widest text-rose-500 uppercase animate-pulse font-mono mt-0.5">
+                İNTERNETE BAĞLANIYOR{dots}
+              </span>
+            )}
+          </div>
+
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
-// ✨ مكون الشعار الديناميكي
 function AnimatedTypewriterLogo({ isDarkMode, logoConfig }) {
   const fullText = "DOKTORSYS";
   const [displayedLength, setDisplayedLength] = useState(0);
@@ -208,7 +240,7 @@ export default function DashboardPage() {
   const [notifications, setNotifications] = useState([]);
 
   const [isEcgLoading, setIsEcgLoading] = useState(false);
-  const [loadingTitle, setLoadingTitle] = useState('YÜKLENİYOR...');
+  const [loadingTitle, setLoadingTitle] = useState('YÜKLENİYOR');
 
   const notificationsRef = useRef(null);
   const otherOperationsRef = useRef(null);
@@ -260,14 +292,12 @@ export default function DashboardPage() {
 
     setCurrentUser(activeUser);   
 
-    window.history.pushState(null, '', window.location.href);
     const handlePopState = () => {
       clearSessionAndLogout();
     };
     window.addEventListener('popstate', handlePopState);
 
     let unsubscribeUser = () => {};
-    // 🎯 حماية الأدمن المباشر والحسابات الافتراضية من الطرد من الفايربيس
     if (activeUser.id && activeUser.id !== 'admin-default') {
       unsubscribeUser = onSnapshot(doc(db, 'users', activeUser.id), (docSnap) => {
         if (docSnap.exists()) {
@@ -327,7 +357,6 @@ export default function DashboardPage() {
     };
   }, [router]);   
 
-  // 🔐 فحص الصلاحيات الديناميكية للمستخدم الحالي
   const rawUName = currentUser?.username ? currentUser.username.trim() : '';   
   const normalizedUName = rawUName.toUpperCase().replace(/İ/g, 'I');
   const isGlobalAdmin = normalizedUName === 'ADMIN' || currentUser?.role === 'YÖNETİCİ' || currentUser?.role === 'ADMIN';   
@@ -352,7 +381,6 @@ export default function DashboardPage() {
 
   const hasAuthorizedModules = isGlobalAdmin || canManageDoctors || canManageReports;
 
-  // 🔔 فلترة الإشعارات
   const visibleNotifications = notifications.filter(n => {
     if (canManageReports) return true;
     return n.createdBy === currentUser?.username;
@@ -373,7 +401,7 @@ export default function DashboardPage() {
     }
 
     const targetPath = canManageReports ? `/admin/reports?id=${notificationItem.id}` : `/report?id=${notificationItem.id}`;
-    handleOpenModule(targetPath, 'ARİZA / SORUN BİLDİRİMLERİ');
+    handleOpenModule(targetPath, 'YÜKLENİYOR');
   };
 
   const handleSaveLogoConfig = async (e) => {
@@ -388,7 +416,7 @@ export default function DashboardPage() {
 
   const handleConfirmExit = () => {
     setShowExitModal(false);
-    setLoadingTitle('SİSTEMDEN ÇIKIŞ YAPILIYOR...');
+    setLoadingTitle('YÜKLENİYOR');
     setIsEcgLoading(true);
 
     setTimeout(() => {
@@ -396,12 +424,12 @@ export default function DashboardPage() {
     }, 400);
   };
 
-  const handleOpenModule = (path, title) => {
+  const handleOpenModule = (path, title = 'YÜKLENİYOR') => {
     setIsOtherOperationsOpen(false);
     setIsModulesOpen(false);
     setIsProfileOpen(false);
     setIsNotificationsOpen(false);
-    setLoadingTitle(title.toUpperCase());
+    setLoadingTitle('YÜKLENİYOR');
     setIsEcgLoading(true);
 
     setTimeout(() => {
@@ -420,7 +448,7 @@ export default function DashboardPage() {
   };
 
   const otherOperationsList = [
-    { id: 'schedule', title: 'DOKTOR ÇALIŞMA PLANLARI', path: '/schedule', show: true },
+    { id: 'schedule', title: 'DOKTOR ÇALIŞMA LİSTESİ', path: '/schedule', show: true },
     { id: 'phonebook', title: 'TELEFON REHBERİ', path: '/phonebook', show: true },
   ];
 
@@ -432,27 +460,27 @@ export default function DashboardPage() {
     { name: 'Rose Red', dark: 'from-rose-400 via-red-300 to-pink-400', light: 'from-rose-700 via-red-600 to-pink-700' }
   ];
 
-  const softLuxeBtnStyle = `h-9 sm:h-10 px-2.5 sm:px-4 rounded-xl flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs font-black transition-all duration-200 cursor-pointer border shadow-xs active:scale-95 backdrop-blur-md ${
-    isDarkMode 
-      ? 'bg-slate-900/60 border-slate-800 text-slate-200 hover:border-emerald-500/50 hover:bg-slate-800/80 hover:text-emerald-400 shadow-black/40' 
-      : 'bg-white/70 border-slate-200 text-slate-800 hover:border-emerald-400 hover:bg-emerald-50/60 hover:text-emerald-700 shadow-slate-200/50'
-  }`;
-
   const displayUsername = rawUName ? rawUName.toUpperCase() : 'KULLANICI';
 
   return (     
     <div className={`h-[100dvh] w-[100vw] fixed inset-0 overflow-hidden flex flex-col font-sans antialiased transition-colors duration-200 select-none ${isDarkMode ? 'bg-[#030712] text-slate-100' : 'bg-slate-50 text-slate-900'}`}>              
       
-      {/* 🩺 شاشة التحميل */}
-      {isEcgLoading && <SeamlessECGLoader title={loadingTitle} isDarkMode={isDarkMode} />}
+      {/* 💫 شاشة التحميل */}
+      {isEcgLoading && <RadialDotsLoader title={loadingTitle} isDarkMode={isDarkMode} />}
 
-      {/* 🔵 الشريط العلوي */}
-      <header className={`w-full border-b shrink-0 px-2 sm:px-6 py-2.5 flex items-center justify-between flex-wrap lg:flex-nowrap gap-2 transition-colors duration-200 z-30 ${isDarkMode ? 'bg-[#030712]/90 border-slate-800/80 backdrop-blur-md' : 'bg-white/90 border-slate-200/80 backdrop-blur-md'}`}>
+      {/* 🌌 خلفية نيون خفيفة في الوضع الداكن */}
+      {isDarkMode && (
+        <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+          <div className="absolute top-[-10%] left-[-10%] w-[45vw] h-[45vw] rounded-full bg-emerald-600/10 blur-[130px] animate-pulse" />
+          <div className="absolute bottom-[-10%] right-[-10%] w-[45vw] h-[45vw] rounded-full bg-cyan-600/10 blur-[130px] animate-pulse" />
+        </div>
+      )}
+
+      <header className={`w-full border-b shrink-0 px-2 sm:px-6 py-2.5 flex items-center justify-between flex-wrap lg:flex-nowrap gap-2 transition-colors duration-200 z-30 relative ${isDarkMode ? 'bg-[#030712]/80 border-slate-800/80 backdrop-blur-xl' : 'bg-white/80 border-slate-200/80 backdrop-blur-xl'}`}>
         
-        {/* ✨ الشعار وزر التعديل الفائق للأدمن */}
-        <div className="flex items-center gap-2 h-full my-auto shrink-0">
+        <div className="flex items-center gap-3 h-full my-auto shrink-0">
           <AnimatedTypewriterLogo isDarkMode={isDarkMode} logoConfig={logoConfig} />
-          
+
           {isGlobalAdmin && (
             <button
               onClick={() => setShowLogoConfigModal(true)}
@@ -464,17 +492,15 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* أزرار الهيدر */}
         <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap justify-end">
           
-          {/* 🔔 الإشعارات المفلترة حسب الصلاحية */}
           <div className="relative shrink-0" ref={notificationsRef}>
             <button 
               onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
               className={`relative h-9 w-9 sm:h-10 sm:w-10 rounded-xl border flex items-center justify-center transition-all duration-200 active:scale-95 cursor-pointer backdrop-blur-md shrink-0 ${
                 isDarkMode 
-                  ? 'bg-slate-900/60 border-slate-800 text-emerald-400 hover:bg-slate-800' 
-                  : 'bg-white/70 border-slate-200 text-emerald-600 hover:bg-emerald-50'
+                  ? 'bg-slate-900/80 border-slate-700 text-emerald-400 hover:bg-slate-800 hover:border-emerald-500/50' 
+                  : 'bg-white border-slate-300 text-emerald-600 hover:bg-emerald-50 hover:border-emerald-400 shadow-xs'
               }`}
               title="Bildirimler"
             >
@@ -488,9 +514,8 @@ export default function DashboardPage() {
               </svg>
             </button>
 
-            {/* 📋 نافذة الإشعارات */}
             {isNotificationsOpen && (
-              <div className={`absolute right-0 top-full mt-2 w-80 sm:w-88 border rounded-2xl shadow-2xl overflow-hidden z-[150] font-sans backdrop-blur-xl animate-fadeIn ${
+              <div className={`absolute right-0 top-full mt-2 w-80 sm:w-88 border rounded-2xl shadow-2xl overflow-hidden z-[150] font-sans backdrop-blur-2xl animate-fadeIn ${
                 isDarkMode ? 'bg-slate-900/95 border-slate-800 text-slate-100' : 'bg-white/95 border-slate-200 text-slate-800'
               }`}>
                 <div className={`px-4 py-3 border-b flex justify-between items-center ${
@@ -561,8 +586,8 @@ export default function DashboardPage() {
             onClick={toggleFullScreen}
             className={`hidden sm:flex h-10 w-10 rounded-xl border items-center justify-center transition-all duration-200 active:scale-95 cursor-pointer backdrop-blur-md shrink-0 ${
               isDarkMode 
-                ? 'bg-slate-900/60 border-slate-800 text-slate-300 hover:bg-slate-800' 
-                : 'bg-white/70 border-slate-200 text-slate-600 hover:bg-slate-100'
+                ? 'bg-slate-900/80 border-slate-700 text-slate-300 hover:bg-slate-800' 
+                : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100 shadow-xs'
             }`}
             title="Tam Ekran"
           >
@@ -576,8 +601,8 @@ export default function DashboardPage() {
             onClick={toggleTheme}
             className={`h-9 w-9 sm:h-10 sm:w-10 rounded-xl border flex items-center justify-center transition-all duration-200 active:scale-95 cursor-pointer backdrop-blur-md shrink-0 ${
               isDarkMode 
-                ? 'bg-slate-900/60 border-slate-800 text-amber-400 hover:bg-slate-800' 
-                : 'bg-white/70 border-slate-200 text-amber-600 hover:bg-amber-50'
+                ? 'bg-slate-900/80 border-slate-700 text-amber-400 hover:bg-slate-800' 
+                : 'bg-white border-slate-300 text-amber-600 hover:bg-amber-50 shadow-xs'
             }`}
             title={isDarkMode ? 'Gündüz Modu' : 'Gece Modu'}
           >
@@ -586,30 +611,37 @@ export default function DashboardPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
               </svg>
             ) : (
-              <svg className="w-4 h-4 text-slate-700 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 text-slate-800 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
               </svg>
             )}
           </button>
 
-          {/* Diğer İşlemler */}
+          {/* 🔘 زر Diğer İşlemler */}
           <div className="relative shrink-0" ref={otherOperationsRef}>
-            <button onClick={() => setIsOtherOperationsOpen(!isOtherOperationsOpen)} className={softLuxeBtnStyle}>
-              <svg className="w-4 h-4 text-sky-500 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <button 
+              onClick={() => setIsOtherOperationsOpen(!isOtherOperationsOpen)} 
+              className={`h-9 sm:h-10 px-3.5 sm:px-4.5 rounded-xl flex items-center gap-2 text-[11px] sm:text-xs font-black transition-all duration-200 cursor-pointer border active:scale-95 shadow-md backdrop-blur-xl ${
+                isDarkMode 
+                  ? 'bg-sky-950/90 border-sky-400/80 text-sky-300 hover:bg-sky-900 hover:border-sky-300 shadow-[0_0_15px_rgba(56,189,248,0.2)]' 
+                  : 'bg-sky-100 border-sky-400 text-sky-950 hover:bg-sky-200 hover:border-sky-600 font-black'
+              }`}
+            >
+              <svg className="w-4 h-4 text-sky-400 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
-              <span className="hidden md:inline tracking-tight">Diğer İşlemler</span>
-              <svg className={`w-3.5 h-3.5 stroke-[2] opacity-70 transition-transform duration-200 ${isOtherOperationsOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <span className="hidden md:inline tracking-wide font-black">Diğer İşlemler</span>
+              <svg className={`w-3.5 h-3.5 stroke-[3] opacity-90 transition-transform duration-200 ${isOtherOperationsOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
               </svg>
             </button>
 
             {isOtherOperationsOpen && (
-              <div className={`absolute right-0 top-full mt-2 w-56 border rounded-2xl shadow-xl py-2 z-[120] text-xs font-bold backdrop-blur-md ${isDarkMode ? 'bg-slate-900/95 border-slate-800 text-slate-200' : 'bg-white/95 border-slate-200 text-slate-700'}`}>
+              <div className={`absolute right-0 top-full mt-2 w-56 border rounded-2xl shadow-xl py-2 z-[120] text-xs font-bold backdrop-blur-md ${isDarkMode ? 'bg-slate-900/95 border-slate-800 text-slate-200' : 'bg-white/95 border-slate-200 text-slate-800'}`}>
                 {otherOperationsList.filter(m => m.show).map((mod) => (
                   <button
                     key={mod.id}
-                    onClick={() => handleOpenModule(mod.path, mod.title)}
+                    onClick={() => handleOpenModule(mod.path)}
                     className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors ${isDarkMode ? 'hover:bg-slate-800 hover:text-emerald-400' : 'hover:bg-emerald-50 hover:text-emerald-700'}`}
                   >
                     <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
@@ -620,24 +652,31 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Yetkili İşlemler */}
+          {/* 🔘 زر Yetkili İşlemler */}
           {hasAuthorizedModules && (
             <div className="relative shrink-0" ref={modulesRef}>
-              <button onClick={() => setIsModulesOpen(!isModulesOpen)} className={softLuxeBtnStyle}>
-                <svg className="w-4 h-4 text-sky-500 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <button 
+                onClick={() => setIsModulesOpen(!isModulesOpen)} 
+                className={`h-9 sm:h-10 px-3.5 sm:px-4.5 rounded-xl flex items-center gap-2 text-[11px] sm:text-xs font-black transition-all duration-200 cursor-pointer border active:scale-95 shadow-md backdrop-blur-xl ${
+                  isDarkMode 
+                    ? 'bg-teal-950/90 border-teal-400/80 text-teal-300 hover:bg-teal-900 hover:border-teal-300 shadow-[0_0_15px_rgba(45,212,191,0.2)]' 
+                    : 'bg-teal-100 border-teal-400 text-teal-950 hover:bg-teal-200 hover:border-teal-600 font-black'
+                }`}
+              >
+                <svg className="w-4 h-4 text-teal-300 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                 </svg>
-                <span className="hidden md:inline tracking-tight">Yetkili İşlemler</span>
-                <svg className={`w-3.5 h-3.5 stroke-[2] opacity-70 transition-transform duration-200 ${isModulesOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <span className="hidden md:inline tracking-wide font-black">Yetkili İşlemler</span>
+                <svg className={`w-3.5 h-3.5 stroke-[3] opacity-90 transition-transform duration-200 ${isModulesOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
 
               {isModulesOpen && (
-                <div className={`absolute right-0 top-full mt-2 w-64 border rounded-2xl shadow-xl py-2 z-[120] text-xs font-bold backdrop-blur-md ${isDarkMode ? 'bg-slate-900/95 border-slate-800 text-slate-200' : 'bg-white/95 border-slate-200 text-slate-700'}`}>
+                <div className={`absolute right-0 top-full mt-2 w-64 border rounded-2xl shadow-xl py-2 z-[120] text-xs font-bold backdrop-blur-md ${isDarkMode ? 'bg-slate-900/95 border-slate-800 text-slate-200' : 'bg-white/95 border-slate-200 text-slate-800'}`}>
                   {isGlobalAdmin && (
                     <button
-                      onClick={() => handleOpenModule('/admin/users', 'Kullanıcı Yönetimi')}
+                      onClick={() => handleOpenModule('/admin/users')}
                       className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors ${isDarkMode ? 'hover:bg-slate-800 hover:text-emerald-400' : 'hover:bg-emerald-50 hover:text-emerald-700'}`}
                     >
                       <svg className="w-4 h-4 text-emerald-500 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -649,7 +688,7 @@ export default function DashboardPage() {
 
                   {canManageDoctors && (
                     <button
-                      onClick={() => handleOpenModule('/admin/doctors', 'Bölüm ve Doktor Yönetimi')}
+                      onClick={() => handleOpenModule('/admin/doctors')}
                       className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors ${isDarkMode ? 'hover:bg-slate-800 hover:text-emerald-400' : 'hover:bg-emerald-50 hover:text-emerald-700'}`}
                     >
                       <svg className="w-4 h-4 text-emerald-500 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -661,7 +700,7 @@ export default function DashboardPage() {
 
                   {canManageReports && (
                     <button
-                      onClick={() => handleOpenModule('/admin/reports', 'Arıza / Sorun Bildirimleri')}
+                      onClick={() => handleOpenModule('/admin/reports')}
                       className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors ${isDarkMode ? 'hover:bg-slate-800 hover:text-amber-400' : 'hover:bg-amber-50 hover:text-amber-700'}`}
                     >
                       <svg className="w-4 h-4 text-amber-500 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -675,41 +714,48 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* Profil */}
+          {/* 🔘 زر Profile */}
           <div className="relative shrink-0" ref={profileRef}>
-            <button onClick={() => setIsProfileOpen(!isProfileOpen)} className={softLuxeBtnStyle}>
-              <svg className="w-4 h-4 text-emerald-500 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <button 
+              onClick={() => setIsProfileOpen(!isProfileOpen)} 
+              className={`h-9 sm:h-10 px-3.5 sm:px-4.5 rounded-xl flex items-center gap-2 text-[11px] sm:text-xs font-black transition-all duration-200 cursor-pointer border active:scale-95 shadow-md backdrop-blur-xl ${
+                isDarkMode 
+                  ? 'bg-emerald-950/90 border-emerald-400/80 text-emerald-300 hover:bg-emerald-900 hover:border-emerald-300 shadow-[0_0_15px_rgba(52,211,153,0.2)]' 
+                  : 'bg-emerald-100 border-emerald-400 text-emerald-950 hover:bg-emerald-200 hover:border-emerald-600 font-black'
+              }`}
+            >
+              <svg className="w-4 h-4 text-emerald-300 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
-              <span className="tracking-tight max-w-[80px] sm:max-w-none truncate">{displayUsername}</span>
-              <svg className={`w-3.5 h-3.5 stroke-[2] opacity-70 transition-transform duration-200 ${isProfileOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <span className="tracking-wide font-black max-w-[80px] sm:max-w-none truncate">{displayUsername}</span>
+              <svg className={`w-3.5 h-3.5 stroke-[3] opacity-90 transition-transform duration-200 ${isProfileOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
               </svg>
             </button>
 
             {isProfileOpen && (
-              <div className={`absolute right-0 top-full mt-2 w-60 border rounded-2xl shadow-xl py-2 z-[120] text-xs font-bold backdrop-blur-md ${isDarkMode ? 'bg-slate-900/95 border-slate-800 text-slate-200' : 'bg-white/95 border-slate-200 text-slate-700'}`}>
+              <div className={`absolute right-0 top-full mt-2 w-60 border rounded-2xl shadow-xl py-2 z-[120] text-xs font-bold backdrop-blur-md ${isDarkMode ? 'bg-slate-900/95 border-slate-800 text-slate-200' : 'bg-white/95 border-slate-200 text-slate-800'}`}>
                 <div className={`px-4 py-3 border-b ${isDarkMode ? 'border-slate-800 bg-slate-950/40' : 'border-slate-100 bg-slate-50/70'}`}>
                   <p className="font-black text-sm text-emerald-500">{displayUsername}</p>
                   <p className="text-[11px] opacity-70 font-bold">{currentUser?.role || 'Kullanıcı'}</p>
                 </div>
 
                 <div className="py-1">
-                  <button onClick={() => handleOpenModule('/profile', 'Profil Bilgileri')} className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors ${isDarkMode ? 'hover:bg-slate-800 hover:text-emerald-400' : 'hover:bg-emerald-50 hover:text-emerald-700'}`}>
+                  <button onClick={() => handleOpenModule('/profile')} className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors ${isDarkMode ? 'hover:bg-slate-800 hover:text-emerald-400' : 'hover:bg-emerald-50 hover:text-emerald-700'}`}>
                     <svg className="w-4 h-4 text-emerald-500 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
                     <span>Profil Bilgileri</span>
                   </button>
 
-                  <button onClick={() => handleOpenModule('/profile', 'Şifre Değiştir')} className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors ${isDarkMode ? 'hover:bg-slate-800 hover:text-emerald-400' : 'hover:bg-emerald-50 hover:text-emerald-700'}`}>
+                  <button onClick={() => handleOpenModule('/profile')} className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors ${isDarkMode ? 'hover:bg-slate-800 hover:text-emerald-400' : 'hover:bg-emerald-50 hover:text-emerald-700'}`}>
                     <svg className="w-4 h-4 text-emerald-500 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                     </svg>
                     <span>Şifre Değiştir</span>
                   </button>
 
-                  <button onClick={() => handleOpenModule('/report', 'Arıza Bildir')} className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors ${isDarkMode ? 'hover:bg-amber-950/40 text-amber-400' : 'hover:bg-amber-50 text-amber-700'}`}>
+                  <button onClick={() => handleOpenModule('/report')} className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors ${isDarkMode ? 'hover:bg-amber-950/40 text-amber-400' : 'hover:bg-amber-50 text-amber-700'}`}>
                     <svg className="w-4 h-4 text-amber-500 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                     </svg>
@@ -730,77 +776,83 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      {/* 📄 المحتوى الرئيسي */}
-      <main className="p-3 sm:p-6 w-full flex-1 flex flex-col justify-start max-w-7xl mx-auto overflow-hidden">
+      {/* 🔮 منطقة البطاقات الرئيسية */}
+      <main className="p-4 sm:p-8 w-full flex-1 flex flex-col items-start justify-start max-w-7xl mx-auto overflow-hidden relative z-10 pt-6 sm:pt-10">
         
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 w-full">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 w-full max-w-2xl">
           
-          {/* Card 1: DOKTOR ÇALIŞMA PLANLARI */}
+          {/* 💎 بطاقة DOKTOR ÇALIŞMA LİSTESİ */}
           <div 
-            onClick={() => handleOpenModule('/schedule', 'DOKTOR ÇALIŞMA PLANLARI')}
-            className={`group rounded-2xl p-4 sm:p-5 border cursor-pointer transition-all duration-200 flex items-center justify-between shadow-sm hover:shadow-xl active:scale-[0.98] backdrop-blur-md ${
+            onClick={() => handleOpenModule('/schedule')}
+            className={`group relative rounded-2xl p-4 sm:p-5 border cursor-pointer transition-all duration-300 flex items-center justify-between active:scale-[0.98] backdrop-blur-xl overflow-hidden shadow-lg ${
               isDarkMode 
-                ? 'bg-slate-900/50 border-slate-800 hover:border-emerald-500/60 hover:bg-slate-800/80 shadow-black/40' 
-                : 'bg-white/80 border-slate-200/80 hover:border-emerald-400 hover:bg-emerald-50/40 shadow-slate-200/60'
+                ? 'bg-slate-900/90 border-cyan-400/80 hover:border-cyan-300 hover:bg-slate-800/90 shadow-[0_0_20px_rgba(34,211,238,0.2)]' 
+                : 'bg-emerald-50/80 border-emerald-300/80 hover:border-emerald-500 hover:bg-emerald-100/80 shadow-emerald-100'
             }`}
           >
-            <div className="flex items-center gap-3.5">
-              <div className={`p-3 rounded-xl border transition-all duration-200 shrink-0 ${
+            <div className="flex items-center gap-3.5 z-10">
+              <div className={`p-3 rounded-xl border transition-all duration-300 shrink-0 ${
                 isDarkMode 
-                  ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 group-hover:bg-emerald-500 group-hover:text-slate-950' 
-                  : 'bg-emerald-50 border-emerald-100 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white'
+                  ? 'bg-cyan-500/20 border-cyan-400/50 text-cyan-300 group-hover:bg-cyan-400 group-hover:text-slate-950' 
+                  : 'bg-emerald-600 border-emerald-700 text-white group-hover:bg-emerald-700'
               }`}>
-                <svg className="w-5 h-5 stroke-[2.2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 stroke-[2.8]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
                 </svg>
               </div>
-              <span className={`text-xs sm:text-sm font-black tracking-tight transition-colors ${
-                isDarkMode ? 'text-slate-200 group-hover:text-emerald-400' : 'text-slate-800 group-hover:text-emerald-700'
+
+              <span className={`text-xs sm:text-sm font-black tracking-wide transition-colors ${
+                isDarkMode ? 'text-cyan-300 drop-shadow-[0_0_12px_rgba(34,211,238,0.6)] group-hover:text-cyan-200' : 'text-emerald-950 group-hover:text-emerald-900'
               }`}>
-                DOKTOR ÇALIŞMA PLANLARI
+                DOKTOR ÇALIŞMA LİSTESİ
               </span>
             </div>
 
-            <div className={`p-1.5 rounded-lg transition-all duration-200 group-hover:translate-x-1 ${
-              isDarkMode ? 'text-emerald-400 group-hover:bg-emerald-500/10' : 'text-emerald-600 group-hover:bg-emerald-50'
+            <div className={`z-10 p-2 rounded-full border transition-all duration-300 group-hover:translate-x-1 ${
+              isDarkMode 
+                ? 'border-cyan-400/60 bg-slate-950/80 text-cyan-300 group-hover:border-cyan-300 group-hover:bg-cyan-500/20' 
+                : 'border-emerald-300 bg-white text-emerald-800 group-hover:border-emerald-500 group-hover:bg-emerald-200'
             }`}>
-              <svg className="w-4 h-4 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 19.5l15-15m0 0H8.25m11.25 0v11.25" />
+              <svg className="w-4 h-4 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
               </svg>
             </div>
           </div>
 
-          {/* Card 2: TELEFON REHBERİ */}
+          {/* 💎 بطاقة TELEFON REHBERİ */}
           <div 
-            onClick={() => handleOpenModule('/phonebook', 'TELEFON REHBERİ')}
-            className={`group rounded-2xl p-4 sm:p-5 border cursor-pointer transition-all duration-200 flex items-center justify-between shadow-sm hover:shadow-xl active:scale-[0.98] backdrop-blur-md ${
+            onClick={() => handleOpenModule('/phonebook')}
+            className={`group relative rounded-2xl p-4 sm:p-5 border cursor-pointer transition-all duration-300 flex items-center justify-between active:scale-[0.98] backdrop-blur-xl overflow-hidden shadow-lg ${
               isDarkMode 
-                ? 'bg-slate-900/50 border-slate-800 hover:border-cyan-500/60 hover:bg-slate-800/80 shadow-black/40' 
-                : 'bg-white/80 border-slate-200/80 hover:border-cyan-400 hover:bg-cyan-50/40 shadow-slate-200/60'
+                ? 'bg-slate-900/90 border-cyan-400/80 hover:border-cyan-300 hover:bg-slate-800/90 shadow-[0_0_20px_rgba(34,211,238,0.2)]' 
+                : 'bg-cyan-50/80 border-cyan-300/80 hover:border-cyan-500 hover:bg-cyan-100/80 shadow-cyan-100'
             }`}
           >
-            <div className="flex items-center gap-3.5">
-              <div className={`p-3 rounded-xl border transition-all duration-200 shrink-0 ${
+            <div className="flex items-center gap-3.5 z-10">
+              <div className={`p-3 rounded-xl border transition-all duration-300 shrink-0 ${
                 isDarkMode 
-                  ? 'bg-cyan-500/10 border-cyan-500/20 text-cyan-400 group-hover:bg-cyan-500 group-hover:text-slate-950' 
-                  : 'bg-cyan-50 border-cyan-100 text-cyan-600 group-hover:bg-cyan-600 group-hover:text-white'
+                  ? 'bg-cyan-500/20 border-cyan-400/50 text-cyan-300 group-hover:bg-cyan-400 group-hover:text-slate-950' 
+                  : 'bg-cyan-600 border-cyan-700 text-white group-hover:bg-cyan-700'
               }`}>
-                <svg className="w-5 h-5 stroke-[2.2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 stroke-[2.8]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-2.826-1.47-5.11-3.754-6.58-6.58l1.293-.97c.362-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
                 </svg>
               </div>
-              <span className={`text-xs sm:text-sm font-black tracking-tight transition-colors ${
-                isDarkMode ? 'text-slate-200 group-hover:text-cyan-400' : 'text-slate-800 group-hover:text-cyan-700'
+
+              <span className={`text-xs sm:text-sm font-black tracking-wide transition-colors ${
+                isDarkMode ? 'text-cyan-300 drop-shadow-[0_0_12px_rgba(34,211,238,0.6)] group-hover:text-cyan-200' : 'text-cyan-950 group-hover:text-cyan-900'
               }`}>
                 TELEFON REHBERİ
               </span>
             </div>
 
-            <div className={`p-1.5 rounded-lg transition-all duration-200 group-hover:translate-x-1 ${
-              isDarkMode ? 'text-cyan-400 group-hover:bg-cyan-500/10' : 'text-cyan-600 group-hover:bg-cyan-50'
+            <div className={`z-10 p-2 rounded-full border transition-all duration-300 group-hover:translate-x-1 ${
+              isDarkMode 
+                ? 'border-cyan-400/60 bg-slate-950/80 text-cyan-300 group-hover:border-cyan-300 group-hover:bg-cyan-500/20' 
+                : 'border-cyan-300 bg-white text-cyan-800 group-hover:border-cyan-500 group-hover:bg-cyan-200'
             }`}>
-              <svg className="w-4 h-4 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 19.5l15-15m0 0H8.25m11.25 0v11.25" />
+              <svg className="w-4 h-4 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
               </svg>
             </div>
           </div>
@@ -809,7 +861,6 @@ export default function DashboardPage() {
 
       </main>
 
-      {/* ⚙️ نافذة إعدادات الشعار المتقدمة */}
       {showLogoConfigModal && isGlobalAdmin && (
         <div className="fixed inset-0 z-[400] flex items-center justify-center bg-slate-950/70 backdrop-blur-md p-4 animate-fadeIn">
           <div className={`w-full max-w-md rounded-3xl p-6 shadow-2xl border space-y-4 backdrop-blur-xl max-h-[90vh] overflow-y-auto ${
@@ -954,7 +1005,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ⚠️ نافذة تأكيد الخروج */}
       {showExitModal && (
         <div className="fixed inset-0 z-[400] flex items-center justify-center bg-slate-950/70 backdrop-blur-md p-4 animate-fadeIn">
           <div className={`w-full max-w-sm rounded-3xl p-6 shadow-2xl border space-y-4 text-center backdrop-blur-xl ${isDarkMode ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white/90 border-slate-100 text-slate-800'}`}>

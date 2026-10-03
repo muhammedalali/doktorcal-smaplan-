@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useTableSettings } from '@/context/TableSettingsContext';
 
-// Temel Renkler
 const BASIC_PRIMARY_COLORS = [
   { name: 'Kömür / Siyah', key: 'text-black dark:text-white', bg: 'bg-black dark:bg-white' },
   { name: 'Saf Kırmızı', key: 'text-red-600 dark:text-red-400', bg: 'bg-red-600' },
@@ -15,41 +14,45 @@ const BASIC_PRIMARY_COLORS = [
   { name: 'Turkuaz', key: 'text-cyan-600 dark:text-cyan-400', bg: 'bg-cyan-500' }
 ];
 
-// Genişletilmiş Renk Paleti
 const EXTENDED_PALETTES = [
-  { name: 'Slate / Kömür', key: 'text-slate-900 dark:text-slate-100', bg: 'bg-slate-900' },
-  { name: 'Zinc / Çinko', key: 'text-zinc-800 dark:text-zinc-200', bg: 'bg-zinc-800' },
-  { name: 'Neutral / Nötr', key: 'text-neutral-700 dark:text-neutral-300', bg: 'bg-neutral-700' },
-  { name: 'Zümrüt Yeşili', key: 'text-emerald-800 dark:text-emerald-300', bg: 'bg-emerald-800' },
-  { name: 'Teal / Deniz Yeşili', key: 'text-teal-600 dark:text-teal-300', bg: 'bg-teal-600' },
-  { name: 'Limon Yeşili', key: 'text-lime-700 dark:text-lime-400', bg: 'bg-lime-600' },
-  { name: 'İndigo / Çivit', key: 'text-indigo-900 dark:text-indigo-200', bg: 'bg-indigo-900' },
-  { name: 'Okyanus Mavisi', key: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-600' },
-  { name: 'Gök Mavisi', key: 'text-sky-600 dark:text-sky-300', bg: 'bg-sky-500' },
-  { name: 'Gül Kırmızı', key: 'text-rose-700 dark:text-rose-300', bg: 'bg-rose-700' },
-  { name: 'Pembe', key: 'text-pink-600 dark:text-pink-300', bg: 'bg-pink-600' },
-  { name: 'Fuşya', key: 'text-fuchsia-700 dark:text-fuchsia-300', bg: 'bg-fuchsia-700' },
-  { name: 'Kehribar / Altın', key: 'text-amber-800 dark:text-amber-300', bg: 'bg-amber-600' },
-  { name: 'Kahverengi', key: 'text-amber-950 dark:text-amber-200', bg: 'bg-amber-900' },
-  { name: 'Taş Grisi', key: 'text-stone-800 dark:text-stone-200', bg: 'bg-stone-700' }
+  { name: 'Slate / Kömür', key: 'text-slate-950 dark:text-white', bg: 'bg-slate-950' },
+  { name: 'Zinc / Çinko', key: 'text-zinc-900 dark:text-zinc-100', bg: 'bg-zinc-900' },
+  { name: 'Neutral / Nötr', key: 'text-neutral-900 dark:text-neutral-100', bg: 'bg-neutral-900' },
+  { name: 'Zümrüt Yeşili', key: 'text-emerald-900 dark:text-emerald-300', bg: 'bg-emerald-900' },
+  { name: 'Teal / Deniz Yeşili', key: 'text-teal-700 dark:text-teal-300', bg: 'bg-teal-700' },
+  { name: 'Limon Yeşili', key: 'text-lime-800 dark:text-lime-300', bg: 'bg-lime-700' },
+  { name: 'İndigo / Çivit', key: 'text-indigo-950 dark:text-indigo-200', bg: 'bg-indigo-950' },
+  { name: 'Okyanus Mavisi', key: 'text-blue-700 dark:text-blue-300', bg: 'bg-blue-700' },
+  { name: 'Gök Mavisi', key: 'text-sky-700 dark:text-sky-300', bg: 'bg-sky-600' },
+  { name: 'Gül Kırmızı', key: 'text-rose-800 dark:text-rose-300', bg: 'bg-rose-800' },
+  { name: 'Pembe', key: 'text-pink-700 dark:text-pink-300', bg: 'bg-pink-700' },
+  { name: 'Fuşya', key: 'text-fuchsia-800 dark:text-fuchsia-300', bg: 'bg-fuchsia-800' },
+  { name: 'Kehribar / Altın', key: 'text-amber-900 dark:text-amber-300', bg: 'bg-amber-700' },
+  { name: 'Kahverengi', key: 'text-amber-950 dark:text-amber-200', bg: 'bg-amber-950' },
+  { name: 'Taş Grisi', key: 'text-stone-900 dark:text-stone-100', bg: 'bg-stone-800' }
 ];
 
-// Yazı Tipleri
 const FONT_OPTIONS = [
-  { name: 'Modern Sans (Standart)', key: 'font-sans' },
-  { name: 'Klasik Serif (Geleneksel)', key: 'font-serif' },
-  { name: 'Kod / Mono (Tek Düze)', key: 'font-mono' },
-  { name: 'Yuvarlatılmış (Rounded)', key: 'font-sans tracking-wide' },
-  { name: 'Sıkıştırılmış (Condensed)', key: 'font-sans tracking-tighter' },
-  { name: 'Geometrik (Geometric)', key: 'font-mono tracking-widest' }
+  { name: 'Inter (Modern Kurumsal)', key: 'font-inter', fontFamily: "'Inter', sans-serif" },
+  { name: 'Roboto (Google UI)', key: 'font-roboto', fontFamily: "'Roboto', sans-serif" },
+  { name: 'Poppins (Geometrik Net)', key: 'font-poppins', fontFamily: "'Poppins', sans-serif" },
+  { name: 'Montserrat (Geniş İletişim)', key: 'font-montserrat', fontFamily: "'Montserrat', sans-serif" },
+  { name: 'Open Sans (Yüksek Okunabilirlik)', key: 'font-opensans', fontFamily: "'Open Sans', sans-serif" },
+  { name: 'Lato (Dengeli Minimal)', key: 'font-lato', fontFamily: "'Lato', sans-serif" },
+  { name: 'Raleway (Zarif Vurgulu)', key: 'font-raleway', fontFamily: "'Raleway', sans-serif" },
+  { name: 'Rubik (Yumuşak Köşeli)', key: 'font-rubik', fontFamily: "'Rubik', sans-serif" },
+  { name: 'Oswald (Başlık Sıkı)', key: 'font-oswald', fontFamily: "'Oswald', sans-serif" },
+  { name: 'Nunito (Yuvarlatılmış Soft)', key: 'font-rounded', fontFamily: "'Nunito', sans-serif" },
+  { name: 'Roboto Condensed (Dar Tablo)', key: 'font-condensed', fontFamily: "'Roboto Condensed', sans-serif" },
+  { name: 'Playfair Display (Klasik Serif)', key: 'font-serif', fontFamily: "'Playfair Display', serif" },
+  { name: 'Fira Code (Yazılım / Mono)', key: 'font-mono', fontFamily: "'Fira Code', monospace" }
 ];
 
-// Yazı Kalınlıkları
 const FONT_WEIGHTS = [
-  { name: 'Normal', key: 'font-normal' },
-  { name: 'Orta (Medium)', key: 'font-medium' },
-  { name: 'Kalın (Bold)', key: 'font-bold' },
-  { name: 'Ekstra Kalın (Heavy / Black)', key: 'font-black' }
+  { name: 'Normal / Dengeli', key: 'font-normal', fontWeight: '500' },
+  { name: 'Orta (Medium)', key: 'font-medium', fontWeight: '700' },
+  { name: 'Kalın (Bold)', key: 'font-bold', fontWeight: '800' },
+  { name: 'Ekstra Kalın (Black)', key: 'font-black', fontWeight: '900' }
 ];
 
 export default function TableSettingsModal({ isOpen, onClose, onBack, isDarkMode }) {
@@ -60,78 +63,86 @@ export default function TableSettingsModal({ isOpen, onClose, onBack, isDarkMode
     setSelectedFont,
     activeColor,
     setActiveColor,
-    customHexColor
+    customHexColor,
+    getFontStyles,
+    getFontWeightStyle
   } = useTableSettings();
 
-  const [activeTab, setActiveTab] = useState('COLORS'); // 'COLORS' | 'FONTS' | 'GRID' | 'COLUMNS'
-  const [pickerHex, setPickerHex] = useState(customHexColor || '#0f172a');
+  const [activeTab, setActiveTab] = useState('COLORS');
+  const [pickerHex, setPickerHex] = useState(customHexColor || '#000000');
 
   if (!isOpen) return null;
 
   const handleCustomColorApply = (hex) => {
     setPickerHex(hex);
-    setActiveColor('CUSTOM_HEX', hex);
+    if (setActiveColor) {
+      setActiveColor('CUSTOM_HEX', hex);
+    }
   };
 
+  const currentFontStyle = getFontStyles(selectedFont);
+  const currentFontWeight = getFontWeightStyle(tableSettings?.fontWeight);
+
   return (
-    <div className="fixed inset-0 z-[190] flex items-center justify-center bg-black/80 p-3 sm:p-5 cursor-default">
+    <div className="fixed inset-0 z-[190] flex items-center justify-center bg-black/80 p-3 sm:p-5 cursor-default backdrop-blur-none">
       <div
-        className={`w-full max-w-2xl rounded-3xl shadow-2xl border flex flex-col max-h-[92vh] overflow-hidden ${
-          isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
+        className={`w-full max-w-2xl rounded-3xl shadow-2xl border-4 flex flex-col max-h-[92vh] overflow-hidden ${
+          isDarkMode 
+            ? 'bg-slate-950 border-slate-700 text-white' 
+            : 'bg-white border-slate-900 text-slate-950'
         }`}
+        style={{ fontFamily: currentFontStyle.fontFamily }}
       >
         {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center shrink-0">
+        <div className={`p-4 sm:p-5 border-b-2 flex justify-between items-center shrink-0 z-30 ${isDarkMode ? 'border-slate-800 bg-slate-950' : 'border-slate-200 bg-slate-100'}`}>
           <div className="flex items-center gap-3">
             {onBack && (
               <button
                 type="button"
                 onClick={onBack}
-                className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 cursor-pointer transition-colors"
+                className={`p-2 rounded-xl transition-colors ${isDarkMode ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-200 text-slate-900'}`}
                 title="Geri Dön"
               >
-                <svg className="w-5 h-5 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
                 </svg>
               </button>
             )}
             <div>
-              <h3 className="text-base sm:text-lg font-black text-teal-600 dark:text-teal-400 uppercase tracking-tight flex items-center gap-2">
-                <span>🎨 TABLO GÖRÜNÜM VE STİL AYARLARI</span>
+              <h3 className="text-base sm:text-lg text-teal-600 dark:text-teal-400 uppercase tracking-tight flex items-center gap-2 font-black">
+                <span>🎨 TABLO VE GÖRÜNÜM AYARLARI</span>
               </h3>
-              <p className="text-[11px] font-extrabold text-slate-400">
-                Gelişmiş renk paletleri, çizgi düzeni ve yazı tipleri
-              </p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 font-black cursor-pointer transition-colors"
+            className="w-9 h-9 rounded-full flex items-center justify-center bg-rose-500 text-white hover:bg-rose-600 transition-colors font-black text-lg shadow-md"
           >
             ✕
           </button>
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950 p-1.5 gap-1 shrink-0 font-black text-xs">
+        <div className={`flex border-b-2 p-1.5 gap-1 shrink-0 text-xs font-black z-20 ${isDarkMode ? 'border-slate-800 bg-slate-900' : 'border-slate-200 bg-slate-100'}`}>
           {[
-            { id: 'COLORS', label: '🎨 RENKLER', desc: 'Renk Seçenekleri' },
-            { id: 'FONTS', label: '🔤 YAZI TİPİ', desc: 'Stil ve Kalınlık' },
-            { id: 'GRID', label: '📐 ÇİZGİ VE DÜZEN', desc: 'Izgara ve Çerçeve' },
-            { id: 'COLUMNS', label: '👁️ SÜTUNLAR', desc: 'Görünürlük' }
+            { id: 'COLORS', label: '🎨 RENKLER' },
+            { id: 'FONTS', label: '🔤 YAZI TİPİ VE KOYULUK' },
+            { id: 'GRID', label: '📐 ÇİZGİ VE DÜZEN' },
+            { id: 'COLUMNS', label: '👁️ SÜTUNLAR' }
           ].map((tab) => (
             <button
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 py-2.5 px-2 rounded-2xl text-center cursor-pointer transition-all ${
+              className={`flex-1 py-3 px-2 rounded-2xl text-center cursor-pointer transition-all ${
                 activeTab === tab.id
-                  ? 'bg-teal-600 text-white shadow-lg font-black'
+                  ? 'bg-blue-700 text-white shadow-lg font-black scale-[1.02]'
                   : isDarkMode
-                  ? 'text-slate-400 hover:bg-slate-800'
-                  : 'text-slate-600 hover:bg-slate-200'
+                  ? 'text-slate-300 hover:bg-slate-800'
+                  : 'text-slate-900 hover:bg-slate-200'
               }`}
+              style={{ fontWeight: currentFontWeight }}
             >
               <div>{tab.label}</div>
             </button>
@@ -139,15 +150,13 @@ export default function TableSettingsModal({ isOpen, onClose, onBack, isDarkMode
         </div>
 
         {/* Content Body */}
-        <div className="p-5 overflow-y-auto space-y-6 flex-1 font-black">
+        <div className="p-5 overflow-y-auto space-y-6 flex-1 font-black relative z-10">
           
           {/* TAB 1: RENKLER */}
           {activeTab === 'COLORS' && (
             <div className="space-y-6">
-              
-              {/* ÖZEL RENK SEÇİCİ */}
-              <div className={`p-4 rounded-3xl border ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-                <label className="text-xs text-amber-500 uppercase tracking-wider block mb-3">
+              <div className={`p-4 rounded-3xl border-2 ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-300'}`}>
+                <label className="text-xs text-amber-500 uppercase tracking-wider block mb-3 font-black">
                   🎯 ÖZEL RENK SEÇİCİ (SERBEST RENK KODU)
                 </label>
                 <div className="flex items-center gap-4">
@@ -158,115 +167,118 @@ export default function TableSettingsModal({ isOpen, onClose, onBack, isDarkMode
                     className="w-14 h-12 rounded-2xl cursor-pointer border-0 bg-transparent"
                   />
                   <div className="flex-1">
-                    <span className="text-xs font-mono uppercase text-slate-400">SEÇİLEN HEX KODU:</span>
-                    <div className="text-sm font-black font-mono tracking-wider">{pickerHex}</div>
+                    <span className={`text-xs font-mono uppercase block ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>SEÇİLEN HEX KODU:</span>
+                    <div className="text-sm font-mono tracking-wider font-black">{pickerHex}</div>
                   </div>
                   <button
                     type="button"
                     onClick={() => handleCustomColorApply(pickerHex)}
-                    className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-black shadow-md cursor-pointer"
+                    className="px-5 py-3 bg-blue-700 hover:bg-blue-800 text-white rounded-xl text-xs shadow-md cursor-pointer font-black"
                   >
                     Rengi Uygula
                   </button>
                 </div>
               </div>
 
-              {/* TEMEL RENKLER */}
               <div className="space-y-2.5">
-                <label className="text-xs text-amber-500 uppercase tracking-wider block">⭐ TEMEL VE ANA RENKLER</label>
+                <label className="text-xs text-amber-500 uppercase tracking-wider block font-black">⭐ TEMEL VE ANA RENKLER</label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {BASIC_PRIMARY_COLORS.map((c) => (
                     <button
                       key={c.key}
                       type="button"
-                      onClick={() => setActiveColor(c.key)}
-                      className={`p-2.5 rounded-2xl border flex items-center gap-2.5 cursor-pointer transition-all ${
+                      onClick={() => setActiveColor && setActiveColor(c.key)}
+                      className={`p-3 rounded-2xl border-2 flex items-center gap-2.5 cursor-pointer transition-all ${
                         activeColor === c.key && !customHexColor
-                          ? 'border-amber-400 bg-amber-400/10 shadow-md font-black'
-                          : isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'
+                          ? 'border-amber-400 bg-amber-400/20 text-slate-950 dark:text-white font-black'
+                          : isDarkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-100 border-slate-300 text-slate-950'
                       }`}
                     >
                       <span className={`w-4 h-4 rounded-full ${c.bg} shrink-0 shadow-xs`}></span>
-                      <span className="text-xs truncate">{c.name}</span>
+                      <span className="text-xs truncate font-black">{c.name}</span>
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* GENİŞLETİLMİŞ PALET */}
               <div className="space-y-2.5">
-                <label className="text-xs text-amber-500 uppercase tracking-wider block">🌈 GENİŞLETİLMİŞ RENK PALETİ</label>
+                <label className="text-xs text-amber-500 uppercase tracking-wider block font-black">🌈 GENİŞLETİLMİŞ RENK PALETİ</label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-56 overflow-y-auto pr-1">
                   {EXTENDED_PALETTES.map((c) => (
                     <button
                       key={c.key}
                       type="button"
-                      onClick={() => setActiveColor(c.key)}
-                      className={`p-2.5 rounded-2xl border flex items-center gap-2.5 cursor-pointer transition-all ${
+                      onClick={() => setActiveColor && setActiveColor(c.key)}
+                      className={`p-3 rounded-2xl border-2 flex items-center gap-2.5 cursor-pointer transition-all ${
                         activeColor === c.key && !customHexColor
-                          ? 'border-amber-400 bg-amber-400/10 shadow-md font-black'
-                          : isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'
+                          ? 'border-amber-400 bg-amber-400/20 text-slate-950 dark:text-white font-black'
+                          : isDarkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-100 border-slate-300 text-slate-950'
                       }`}
                     >
                       <span className={`w-4 h-4 rounded-full ${c.bg} shrink-0 shadow-xs`}></span>
-                      <span className="text-xs truncate">{c.name}</span>
+                      <span className="text-xs truncate font-black">{c.name}</span>
                     </button>
                   ))}
                 </div>
               </div>
-
             </div>
           )}
 
-          {/* TAB 2: YAZI TİPİ */}
+          {/* TAB 2: YAZI TİPİ VE KOYULUK */}
           {activeTab === 'FONTS' && (
             <div className="space-y-6">
-              
-              {/* Yazı Tipi Ailesi */}
-              <div className="space-y-2.5">
-                <label className="text-xs text-amber-500 uppercase tracking-wider block">🔤 YAZI TİPİ STİLİ</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+              <div className={`p-4 rounded-3xl border-2 space-y-2 ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-300'}`}>
+                <label className="text-xs text-blue-600 dark:text-blue-400 uppercase tracking-wider block font-black">
+                  🔤 MODERN FONT KATALOĞU (AŞAĞI AÇILIR MENÜ)
+                </label>
+                <select
+                  value={selectedFont}
+                  onChange={(e) => setSelectedFont(e.target.value)}
+                  className={`w-full p-4 rounded-2xl border-2 text-sm font-black transition-all cursor-pointer outline-none ${
+                    isDarkMode 
+                      ? 'bg-slate-950 border-slate-700 text-white focus:border-blue-500' 
+                      : 'bg-white border-slate-400 text-slate-950 focus:border-blue-700'
+                  }`}
+                  style={{ fontFamily: currentFontStyle.fontFamily }}
+                >
                   {FONT_OPTIONS.map((f) => (
-                    <button
-                      key={f.key}
-                      type="button"
-                      onClick={() => setSelectedFont(f.key)}
-                      className={`p-3 rounded-2xl border text-left cursor-pointer transition-all ${
-                        selectedFont === f.key
-                          ? 'bg-teal-600 text-white border-teal-600 font-black shadow-md'
-                          : isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'
-                      }`}
+                    <option 
+                      key={f.key} 
+                      value={f.key}
+                      className={isDarkMode ? 'bg-slate-950 text-white' : 'bg-white text-slate-950'}
+                      style={{ fontFamily: f.fontFamily, fontWeight: '700' }}
                     >
-                      <span className={f.key}>{f.name}</span>
-                    </button>
+                      {f.name}
+                    </option>
                   ))}
-                </div>
+                </select>
               </div>
 
-              {/* Yazı Kalınlığı */}
               <div className="space-y-2.5">
-                <label className="text-xs text-amber-500 uppercase tracking-wider block">💪 YAZI KALINLIĞI VE SIKLIĞI</label>
+                <label className="text-xs text-amber-500 uppercase tracking-wider block font-black">💪 YAZI KOYULUĞU SEVİYESİ</label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                  {FONT_WEIGHTS.map((w) => (
-                    <button
-                      key={w.key}
-                      type="button"
-                      onClick={() => setTableSettings({ fontWeight: w.key })}
-                      className={`p-3 rounded-2xl border text-center cursor-pointer transition-all ${
-                        tableSettings.fontWeight === w.key
-                          ? 'bg-amber-500 text-slate-950 border-amber-500 font-black shadow-md'
-                          : isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'
-                      }`}
-                    >
-                      <span className={w.key}>{w.name}</span>
-                    </button>
-                  ))}
+                  {FONT_WEIGHTS.map((w) => {
+                    const isSelected = tableSettings?.fontWeight === w.key;
+                    return (
+                      <button
+                        key={w.key}
+                        type="button"
+                        onClick={() => setTableSettings({ fontWeight: w.key })}
+                        className={`p-3.5 rounded-2xl border-2 text-center cursor-pointer transition-all ${
+                          isSelected
+                            ? 'bg-amber-500 text-slate-950 border-amber-600 font-black shadow-md scale-[1.02]'
+                            : isDarkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-100 border-slate-300 text-slate-950'
+                        }`}
+                      >
+                        <span style={{ fontWeight: w.fontWeight }}>{w.name}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Satır Yüksekliği */}
               <div className="space-y-2.5">
-                <label className="text-xs text-amber-500 uppercase tracking-wider block">↕️ SATIR YÜKSEKLİĞİ VE BOŞLUĞU</label>
+                <label className="text-xs text-amber-500 uppercase tracking-wider block font-black">↕ SATIR YÜKSEKLİĞİ VE BOŞLUĞU</label>
                 <div className="grid grid-cols-3 gap-2 text-xs">
                   {[
                     { key: 'compact', name: 'Sıkışık' },
@@ -277,28 +289,26 @@ export default function TableSettingsModal({ isOpen, onClose, onBack, isDarkMode
                       key={mode.key}
                       type="button"
                       onClick={() => setTableSettings({ rowPadding: mode.key })}
-                      className={`p-3 rounded-2xl border text-center uppercase cursor-pointer ${
-                        tableSettings.rowPadding === mode.key
-                          ? 'bg-teal-600 text-white border-teal-600 font-black'
-                          : isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'
+                      className={`p-3 rounded-2xl border-2 text-center uppercase cursor-pointer ${
+                        tableSettings?.rowPadding === mode.key
+                          ? 'bg-blue-700 text-white border-blue-800 font-black'
+                          : isDarkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-100 border-slate-300 text-slate-950'
                       }`}
+                      style={{ fontWeight: currentFontWeight }}
                     >
                       {mode.name}
                     </button>
                   ))}
                 </div>
               </div>
-
             </div>
           )}
 
           {/* TAB 3: ÇİZGİ VE DÜZEN */}
           {activeTab === 'GRID' && (
             <div className="space-y-6">
-              
-              {/* Izgara Düzeni */}
               <div className="space-y-2.5">
-                <label className="text-xs text-amber-500 uppercase tracking-wider block">📐 TABLO IZGARA VE ÇİZGİ DÜZENİ</label>
+                <label className="text-xs text-amber-500 uppercase tracking-wider block font-black">📐 TABLO IZGARA DÜZENİ</label>
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   {[
                     { key: 'full', name: '▦ Tam Çerçeve (Dikey + Yatay)' },
@@ -310,11 +320,12 @@ export default function TableSettingsModal({ isOpen, onClose, onBack, isDarkMode
                       key={g.key}
                       type="button"
                       onClick={() => setTableSettings({ gridStyle: g.key })}
-                      className={`p-3.5 rounded-2xl border text-left cursor-pointer transition-all ${
-                        tableSettings.gridStyle === g.key
-                          ? 'bg-teal-600 text-white border-teal-600 font-black shadow-md'
-                          : isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'
+                      className={`p-3.5 rounded-2xl border-2 text-left cursor-pointer transition-all ${
+                        tableSettings?.gridStyle === g.key
+                          ? 'bg-blue-700 text-white border-blue-800 font-black shadow-md'
+                          : isDarkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-100 border-slate-300 text-slate-950'
                       }`}
+                      style={{ fontWeight: currentFontWeight }}
                     >
                       {g.name}
                     </button>
@@ -322,9 +333,8 @@ export default function TableSettingsModal({ isOpen, onClose, onBack, isDarkMode
                 </div>
               </div>
 
-              {/* Çizgi Belirginliği */}
               <div className="space-y-2.5">
-                <label className="text-xs text-amber-500 uppercase tracking-wider block">✏️ ÇİZGİ KOYULUĞU VE BELİRGİNLİĞİ</label>
+                <label className="text-xs text-amber-500 uppercase tracking-wider block font-black">✏️ ÇİZGİ BELİRGİNLİĞİ</label>
                 <div className="grid grid-cols-3 gap-2 text-xs">
                   {[
                     { key: 'light', name: 'Hafif / İnce' },
@@ -335,45 +345,52 @@ export default function TableSettingsModal({ isOpen, onClose, onBack, isDarkMode
                       key={b.key}
                       type="button"
                       onClick={() => setTableSettings({ borderOpacity: b.key })}
-                      className={`p-3 rounded-2xl border text-center cursor-pointer transition-all ${
-                        tableSettings.borderOpacity === b.key
-                          ? 'bg-amber-500 text-slate-950 border-amber-500 font-black shadow-md'
-                          : isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'
+                      className={`p-3 rounded-2xl border-2 text-center cursor-pointer transition-all ${
+                        tableSettings?.borderOpacity === b.key
+                          ? 'bg-amber-500 text-slate-950 border-amber-600 font-black shadow-md'
+                          : isDarkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-100 border-slate-300 text-slate-950'
                       }`}
+                      style={{ fontWeight: currentFontWeight }}
                     >
                       {b.name}
                     </button>
                   ))}
                 </div>
               </div>
-
             </div>
           )}
 
           {/* TAB 4: SÜTUNLAR */}
           {activeTab === 'COLUMNS' && (
             <div className="space-y-6">
-              <label className="text-xs text-amber-500 uppercase tracking-wider block">👁️ SÜTUN GÖRÜNÜRLÜĞÜ</label>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <label className="text-xs text-amber-500 uppercase tracking-wider block font-black">👁️ SÜTUN GÖRÜNÜRLÜĞÜ</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {[
+                  { key: 'showRowNumbers', label: 'Sıra No (#)' },
                   { key: 'showClinic', label: 'Birim / Poliklinik' },
                   { key: 'showDoctorName', label: 'Doktor Adı Soyadı' },
+                  { key: 'showPhone', label: 'Telefon No' },
+                  { key: 'showRoomNo', label: 'Oda No' },
                   { key: 'showStatus', label: 'Durum Bilgisi' }
-                ].map((col) => (
-                  <button
-                    key={col.key}
-                    type="button"
-                    onClick={() => setTableSettings({ [col.key]: !tableSettings[col.key] })}
-                    className={`p-4 rounded-2xl border text-xs flex items-center justify-between cursor-pointer transition-all ${
-                      tableSettings[col.key]
-                        ? 'bg-teal-600 text-white border-teal-600 font-black shadow-md'
-                        : isDarkMode ? 'bg-slate-950 border-slate-800 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-500'
-                    }`}
-                  >
-                    <span>{col.label}</span>
-                    <span>{tableSettings[col.key] ? '✓ Açık' : '✕ Kapalı'}</span>
-                  </button>
-                ))}
+                ].map((col) => {
+                  const isVisible = tableSettings?.[col.key] !== false;
+                  return (
+                    <button
+                      key={col.key}
+                      type="button"
+                      onClick={() => setTableSettings({ [col.key]: !isVisible })}
+                      className={`p-4 rounded-2xl border-2 text-xs flex items-center justify-between cursor-pointer transition-all ${
+                        isVisible
+                          ? 'bg-blue-700 text-white border-blue-800 font-black shadow-md'
+                          : isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-400' : 'bg-slate-100 border-slate-300 text-slate-600'
+                      }`}
+                      style={{ fontWeight: currentFontWeight }}
+                    >
+                      <span>{col.label}</span>
+                      <span>{isVisible ? '✓ Açık' : '✕ Kapalı'}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -381,11 +398,11 @@ export default function TableSettingsModal({ isOpen, onClose, onBack, isDarkMode
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-slate-200 dark:border-slate-800 shrink-0">
+        <div className={`p-4 border-t-2 shrink-0 z-30 ${isDarkMode ? 'border-slate-800 bg-slate-950' : 'border-slate-200 bg-slate-100'}`}>
           <button
             type="button"
             onClick={onClose}
-            className="w-full py-3.5 bg-teal-600 hover:bg-teal-700 active:scale-[0.98] text-white rounded-2xl text-xs font-black shadow-xl cursor-pointer uppercase tracking-wide transition-all"
+            className="w-full py-3.5 bg-blue-700 hover:bg-blue-800 text-white rounded-2xl text-xs shadow-xl cursor-pointer uppercase tracking-wide transition-all font-black"
           >
             TÜM AYARLARI UYGULA VE KAPAT 🚀
           </button>

@@ -156,3 +156,20 @@ html, body {
     @apply bg-background text-foreground;
   }
 }
+/* 🚀 تطبيق خط الجداول والغماقة عالمياً على جميع الجداول (Admin, Users, Visitors) */
+table, 
+table th, 
+table td, 
+table tr, 
+table span {
+  font-family: var(--global-table-font, 'Inter', sans-serif) !important;
+  font-weight: var(--global-table-weight, 900) !important;
+}
+
+/* 🎯 عند اختيار Ekstra Kalın (Weight 900) لجعل السطور والكتابة أسود فاحم وواضح جداً */
+[style*="--global-table-weight: 900"] table,
+[style*="--global-table-weight: 900"] table td,
+[style*="--global-table-weight: 900"] table th {
+  font-weight: 900 !important;
+  -webkit-font-smoothing: antialiased;
+}
