@@ -6,49 +6,83 @@ import { db } from '@/lib/firebase';
 import { doc, collection, onSnapshot, updateDoc, setDoc, query, orderBy } from 'firebase/firestore';
 import { useTheme } from '@/context/ThemeContext';
 
-// 💫 شاشة التحميل الكريستالية بالنقاط الدوارة والتأخير لمدة 10 ثوانٍ لفحص الاتصال
+// 💫 شاشة تحميل عصرية وفاخرة بلمسة نيون مزدوجة ووضوح 8K UHD في الوضعين الليلي والنهاري
 function RadialDotsLoader({ title = "YÜKLENİYOR", isDarkMode }) {
   const [dots, setDots] = useState('');
   const [isOnline, setIsOnline] = useState(true);
   const [showNetworkWarning, setShowNetworkWarning] = useState(false);
+  const [isRedAlert, setIsRedAlert] = useState(false);
+  const [animSpeed, setAnimSpeed] = useState(1.0);
 
   useEffect(() => {
-    setIsOnline(navigator.onLine);
-
     let offlineTimer = null;
 
-    const handleOnline = () => {
+    const updateNetworkSpeed = () => {
+      if (!navigator.onLine) {
+        setAnimSpeed(2.5);
+        return;
+      }
+
+      const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+      if (connection) {
+        const type = connection.effectiveType;
+        if (type === '4g') setAnimSpeed(0.6);
+        else if (type === '3g') setAnimSpeed(1.2);
+        else if (type === '2g' || type === 'slow-2g') setAnimSpeed(2.0);
+        else setAnimSpeed(1.0);
+      } else {
+        setAnimSpeed(1.0);
+      }
+    };
+
+    const handleOfflineProcess = () => {
+      setIsOnline(false);
+      setShowNetworkWarning(true);
+      setIsRedAlert(false);
+      updateNetworkSpeed();
+
+      if (offlineTimer) clearTimeout(offlineTimer);
+      
+      offlineTimer = setTimeout(() => {
+        setIsRedAlert(true);
+      }, 10000);
+    };
+
+    const handleOnlineProcess = () => {
       setIsOnline(true);
       setShowNetworkWarning(false);
+      setIsRedAlert(false);
+      updateNetworkSpeed();
       if (offlineTimer) clearTimeout(offlineTimer);
     };
 
-    const handleOffline = () => {
-      setIsOnline(false);
-      // الانتظار لمدة 10 ثوانٍ قبل تفعيل تنبيه الهيدر
-      offlineTimer = setTimeout(() => {
-        setShowNetworkWarning(true);
-      }, 10000);
-    };
+    if (!navigator.onLine) {
+      handleOfflineProcess();
+    } else {
+      setIsOnline(true);
+      updateNetworkSpeed();
+    }
+
+    const handleOnline = () => handleOnlineProcess();
+    const handleOffline = () => handleOfflineProcess();
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    // إذا بدأ من الأساس بدون إنترنت، نبدأ العداد
-    if (!navigator.onLine) {
-      offlineTimer = setTimeout(() => {
-        setShowNetworkWarning(true);
-      }, 10000);
+    if (navigator.connection) {
+      navigator.connection.addEventListener('change', updateNetworkSpeed);
     }
 
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      if (navigator.connection) {
+        navigator.connection.removeEventListener('change', updateNetworkSpeed);
+      }
       if (offlineTimer) clearTimeout(offlineTimer);
     };
   }, []);
 
-  // أنيميشن النقاط المتزايدة (...)
   useEffect(() => {
     const interval = setInterval(() => {
       setDots((prev) => (prev.length >= 3 ? '' : prev + '.'));
@@ -57,75 +91,76 @@ function RadialDotsLoader({ title = "YÜKLENİYOR", isDarkMode }) {
     return () => clearInterval(interval);
   }, []);
 
-  const dotCount = 12;
-  const dotsArray = Array.from({ length: dotCount });
-
   return (
     <>
-      {/* 🚨 تنبيه الهيدر العلوي عند انقطاع الإنترنت لأكثر من 10 ثوانٍ */}
+      {/* 🚨 تنبيه انقطاع الإنترنت */}
       {showNetworkWarning && (
-        <div className="fixed top-0 left-0 right-0 z-[100000] bg-rose-600 text-white text-center py-2 px-4 text-xs font-black uppercase tracking-widest shadow-lg animate-pulse flex items-center justify-center gap-2">
-          <span>⚠️️ İNTERNET BAĞLANTISI YOK</span>
+        <div className="fixed top-0 left-0 right-0 z-[100000] bg-rose-600/90 backdrop-blur-md text-white text-center py-2 px-4 text-xs font-black uppercase tracking-widest shadow-xl animate-pulse flex items-center justify-center gap-2 antialiased">
+          <span>⚠ İNTERNET BAĞLANTISI KESİLDİ - YENİDEN BAĞLANILIYOR{dots}</span>
         </div>
       )}
 
-      <div className={`fixed inset-0 z-[99999] flex flex-col items-center justify-center backdrop-blur-md transition-all duration-300 animate-fadeIn select-none pointer-events-auto ${
-        isDarkMode ? 'bg-slate-950/30' : 'bg-slate-900/20'
+      {/* 🌫️ خلفية ضبابية خفيفة عالية النقاء */}
+      <div className={`fixed inset-0 z-[99999] flex flex-col items-center justify-center transition-all duration-300 animate-fadeIn select-none pointer-events-auto backdrop-blur-md sm:backdrop-blur-lg antialiased ${
+        isDarkMode ? 'bg-slate-950/65 text-slate-100' : 'bg-slate-900/35 text-slate-900'
       }`}>
-        <div className="relative flex flex-col items-center text-center max-w-xs w-full p-6 rounded-3xl backdrop-blur-xl bg-slate-950/40 border border-slate-800/40 shadow-2xl">
+        
+        {/* 🚀 رمز التحميل العصري */}
+        <div className="relative flex flex-col items-center justify-center transform-gpu">
           
-          {/* وهج خلفي متكيف */}
-          <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-44 h-44 rounded-full blur-3xl pointer-events-none animate-pulse transition-all duration-500 ${
-            isOnline ? 'bg-cyan-500/20' : 'bg-rose-500/30'
+          <div className={`absolute w-36 h-36 rounded-full blur-2xl pointer-events-none transition-all duration-700 ease-in-out ${
+            !isRedAlert 
+              ? (isDarkMode 
+                  ? 'bg-gradient-to-r from-cyan-500/25 to-emerald-500/25 shadow-[0_0_60px_rgba(34,211,238,0.25)]' 
+                  : 'bg-gradient-to-r from-teal-600/30 to-cyan-600/30 shadow-[0_0_60px_rgba(13,148,136,0.3)]') 
+              : 'bg-rose-500/35 shadow-[0_0_60px_rgba(244,63,94,0.35)]'
           }`} />
 
-          {/* 🌀 الرمز الدائري */}
           <div className="relative w-24 h-24 sm:w-28 sm:h-28 flex items-center justify-center mb-6">
-            <div className="relative w-full h-full animate-[spin_1.2s_linear_infinite] transform-gpu">
-              {dotsArray.map((_, index) => {
-                const angle = (index * 360) / dotCount;
-                const opacity = 0.2 + (index / dotCount) * 0.8;
+            
+            <div 
+              className="absolute inset-0 rounded-full border-2 border-transparent border-t-cyan-400 border-r-emerald-400 dark:border-t-cyan-300 dark:border-r-emerald-300 animate-[spin_1.2s_linear_infinite] transform-gpu shadow-[0_0_15px_rgba(34,211,238,0.5)]"
+              style={{ animationDuration: `${animSpeed}s` }}
+            />
 
-                return (
-                  <div
-                    key={index}
-                    className="absolute top-0 left-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 -ml-1.75 sm:-ml-2 origin-[50%_48px] sm:origin-[50%_56px]"
-                    style={{
-                      transform: `rotate(${angle}deg)`,
-                      opacity: opacity,
-                    }}
-                  >
-                    <span className={`block w-full h-full rounded-full transition-colors duration-300 ${
-                      isOnline 
-                        ? 'bg-gradient-to-tr from-cyan-400 via-sky-300 to-emerald-300 shadow-[0_0_10px_rgba(34,211,238,0.9)]' 
-                        : 'bg-gradient-to-tr from-rose-600 via-red-500 to-rose-400 shadow-[0_0_12px_rgba(244,63,94,0.95)]'
-                    }`} />
-                  </div>
-                );
-              })}
+            <div 
+              className="absolute inset-2 sm:inset-2.5 rounded-full border-2 border-transparent border-b-sky-400 border-l-teal-300 dark:border-b-sky-300 dark:border-l-teal-200 animate-[spin_1.8s_linear_infinite_reverse] transform-gpu opacity-90 shadow-[0_0_12px_rgba(20,184,166,0.4)]"
+              style={{ animationDuration: `${animSpeed * 1.5}s` }}
+            />
+
+            <div className="relative w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center bg-white/10 dark:bg-slate-900/40 backdrop-blur-md border border-white/20 dark:border-cyan-500/30 shadow-inner">
+              <div className={`w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full animate-ping duration-1000 ${
+                !isRedAlert 
+                  ? (isDarkMode ? 'bg-cyan-400 shadow-[0_0_12px_rgba(34,211,238,1)]' : 'bg-teal-600 shadow-[0_0_12px_rgba(13,148,136,0.8)]')
+                  : 'bg-rose-500 shadow-[0_0_14px_rgba(244,63,94,1)]'
+              }`} />
             </div>
+
           </div>
 
-          {/* النصوص أسفل الرمز */}
-          <div className="z-10 flex flex-col items-center justify-center gap-1">
+          <div className="z-10 flex flex-col items-center justify-center gap-1.5 subpixel-antialiased">
             <div className="flex items-center justify-center gap-0.5">
-              <h3 className={`text-xs sm:text-sm font-black tracking-[0.25em] uppercase font-sans transition-colors duration-300 ${
-                isOnline 
-                  ? 'text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-white to-teal-300' 
-                  : 'text-rose-400 drop-shadow-[0_0_8px_rgba(244,63,94,0.6)]'
+              <h3 className={`text-xs sm:text-sm font-black tracking-[0.3em] uppercase font-sans transition-colors duration-300 ${
+                !isRedAlert 
+                  ? (isDarkMode 
+                      ? 'text-transparent bg-clip-text bg-gradient-to-r from-cyan-200 via-white to-teal-200 drop-shadow-[0_0_10px_rgba(34,211,238,0.4)]' 
+                      : 'text-slate-900 font-extrabold drop-shadow-[0_1px_3px_rgba(255,255,255,0.9)]') 
+                  : 'text-rose-500 dark:text-rose-400 drop-shadow-[0_0_12px_rgba(244,63,94,0.7)]'
               }`}>
                 {title}
               </h3>
               <span className={`w-4 text-left font-mono font-black text-xs sm:text-sm ${
-                isOnline ? 'text-cyan-400' : 'text-rose-400'
+                !isRedAlert 
+                  ? (isDarkMode ? 'text-cyan-300 drop-shadow-[0_0_8px_rgba(34,211,238,0.6)]' : 'text-teal-800') 
+                  : 'text-rose-500 dark:text-rose-400'
               }`}>
                 {dots}
               </span>
             </div>
 
             {!isOnline && (
-              <span className="text-[10px] sm:text-xs font-black tracking-widest text-rose-500 uppercase animate-pulse font-mono mt-0.5">
-                İNTERNETE BAĞLANIYOR{dots}
+              <span className="text-[10px] sm:text-xs font-black tracking-widest text-rose-500 dark:text-rose-400 uppercase animate-pulse font-mono mt-0.5 drop-shadow-[0_0_6px_rgba(244,63,94,0.5)]">
+                {isRedAlert ? 'BAĞLANTI BAŞARISIZ' : `İNTERNETE BAĞLANIYOR${dots}`}
               </span>
             )}
           </div>
@@ -155,7 +190,7 @@ function AnimatedTypewriterLogo({ isDarkMode, logoConfig }) {
 
   useEffect(() => {
     if (!isEnabled) {
-      setDisplayedLength(fullText.length);
+      setDisplayedLength(0);
       return;
     }
 
@@ -190,17 +225,21 @@ function AnimatedTypewriterLogo({ isDarkMode, logoConfig }) {
     return () => clearTimeout(timer);
   }, [displayedLength, phase, isEnabled, visibleTime, hiddenTime]);
 
+  if (!isEnabled) {
+    return null;
+  }
+
   const visibleLetters = fullText.slice(0, displayedLength);
 
   const darkStyle = logoConfig?.darkColor || 'from-emerald-400 via-teal-300 to-cyan-400';
-  const lightStyle = logoConfig?.lightColor || 'from-emerald-700 via-teal-600 to-cyan-700';
+  const lightStyle = logoConfig?.lightColor || 'from-emerald-800 via-teal-700 to-cyan-800';
 
   const activeColorClasses = isDarkMode ? darkStyle : lightStyle;
 
   return (
     <div className="flex items-center h-full my-auto select-none pointer-events-none">
       <div className={`font-black text-xs sm:text-base tracking-[0.18em] bg-clip-text text-transparent uppercase flex items-center transition-all duration-300 bg-gradient-to-r ${activeColorClasses} ${
-        isDarkMode ? 'drop-shadow-[0_0_12px_rgba(16,185,129,0.3)]' : 'drop-shadow-[0_2px_8px_rgba(5,150,105,0.15)] font-extrabold'
+        isDarkMode ? 'drop-shadow-[0_0_12px_rgba(16,185,129,0.3)]' : 'drop-shadow-[0_1px_3px_rgba(0,0,0,0.15)] font-black'
       }`}>
         {visibleLetters.split('').map((char, index) => (
           <span 
@@ -234,7 +273,7 @@ export default function DashboardPage() {
     hiddenValue: 5,
     hiddenUnit: 'SECONDS',
     darkColor: 'from-emerald-400 via-teal-300 to-cyan-400',
-    lightColor: 'from-emerald-700 via-teal-600 to-cyan-700'
+    lightColor: 'from-emerald-800 via-teal-700 to-cyan-800'
   });
 
   const [notifications, setNotifications] = useState([]);
@@ -453,11 +492,11 @@ export default function DashboardPage() {
   ];
 
   const presetGradients = [
-    { name: 'Emerald Luxe', dark: 'from-emerald-400 via-teal-300 to-cyan-400', light: 'from-emerald-700 via-teal-600 to-cyan-700' },
-    { name: 'Cyber Blue', dark: 'from-blue-400 via-indigo-300 to-cyan-400', light: 'from-blue-700 via-indigo-600 to-cyan-700' },
-    { name: 'Neon Purple', dark: 'from-purple-400 via-pink-300 to-rose-400', light: 'from-purple-700 via-pink-600 to-rose-700' },
-    { name: 'Sunset Gold', dark: 'from-amber-400 via-orange-300 to-yellow-400', light: 'from-amber-700 via-orange-600 to-yellow-700' },
-    { name: 'Rose Red', dark: 'from-rose-400 via-red-300 to-pink-400', light: 'from-rose-700 via-red-600 to-pink-700' }
+    { name: 'Emerald Luxe', dark: 'from-emerald-400 via-teal-300 to-cyan-400', light: 'from-emerald-800 via-teal-700 to-cyan-800' },
+    { name: 'Cyber Blue', dark: 'from-blue-400 via-indigo-300 to-cyan-400', light: 'from-blue-800 via-indigo-700 to-cyan-800' },
+    { name: 'Neon Purple', dark: 'from-purple-400 via-pink-300 to-rose-400', light: 'from-purple-800 via-pink-700 to-rose-800' },
+    { name: 'Sunset Gold', dark: 'from-amber-400 via-orange-300 to-yellow-400', light: 'from-amber-800 via-orange-700 to-yellow-800' },
+    { name: 'Rose Red', dark: 'from-rose-400 via-red-300 to-pink-400', light: 'from-rose-800 via-red-700 to-pink-800' }
   ];
 
   const displayUsername = rawUName ? rawUName.toUpperCase() : 'KULLANICI';
@@ -500,7 +539,7 @@ export default function DashboardPage() {
               className={`relative h-9 w-9 sm:h-10 sm:w-10 rounded-xl border flex items-center justify-center transition-all duration-200 active:scale-95 cursor-pointer backdrop-blur-md shrink-0 ${
                 isDarkMode 
                   ? 'bg-slate-900/80 border-slate-700 text-emerald-400 hover:bg-slate-800 hover:border-emerald-500/50' 
-                  : 'bg-white border-slate-300 text-emerald-600 hover:bg-emerald-50 hover:border-emerald-400 shadow-xs'
+                  : 'bg-white border-slate-300 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-500 shadow-xs'
               }`}
               title="Bildirimler"
             >
@@ -522,10 +561,10 @@ export default function DashboardPage() {
                   isDarkMode ? 'border-slate-800 bg-slate-950/60' : 'border-slate-100 bg-slate-50/80'
                 }`}>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-black uppercase tracking-wider text-emerald-500">BİLDİRİMLER</span>
+                    <span className="text-xs font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-500">BİLDİRİMLER</span>
                   </div>
                   {unreadNotifications.length > 0 && (
-                    <span className="bg-emerald-500/10 text-emerald-500 border border-emerald-500/30 px-2.5 py-0.5 rounded-full text-[10px] font-black">
+                    <span className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-500 border border-emerald-500/30 px-2.5 py-0.5 rounded-full text-[10px] font-black">
                       {unreadNotifications.length}
                     </span>
                   )}
@@ -544,7 +583,7 @@ export default function DashboardPage() {
                         }`}
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <span className="font-black text-xs text-amber-500 truncate uppercase">
+                          <span className="font-black text-xs text-amber-600 dark:text-amber-500 truncate uppercase">
                             👤 {item.senderName || item.createdBy || 'Kullanıcı'}
                           </span>
                           <span className="text-[10px] font-mono opacity-60 shrink-0">
@@ -552,15 +591,15 @@ export default function DashboardPage() {
                           </span>
                         </div>
 
-                        <p className="font-bold text-[11px] text-slate-300 dark:text-slate-200 line-clamp-2 leading-relaxed">
+                        <p className="font-bold text-[11px] text-slate-700 dark:text-slate-200 line-clamp-2 leading-relaxed">
                           {item.title || item.message || item.description || 'Yeni bir sorun/arıza bildirimi gönderildi.'}
                         </p>
 
                         <div className="flex items-center justify-between pt-1">
-                          <span className="text-[9px] bg-rose-500/10 text-rose-500 border border-rose-500/20 px-2 py-0.5 rounded-md font-mono font-black uppercase">
+                          <span className="text-[9px] bg-rose-500/10 text-rose-600 dark:text-rose-500 border border-rose-500/20 px-2 py-0.5 rounded-md font-mono font-black uppercase">
                             {item.category || item.type || 'ARIZA'}
                           </span>
-                          <span className="text-[10px] text-emerald-500 font-black">
+                          <span className="text-[10px] text-emerald-600 dark:text-emerald-500 font-black">
                             Detay ➔
                           </span>
                         </div>
@@ -568,10 +607,10 @@ export default function DashboardPage() {
                     ))
                   ) : (
                     <div className="py-8 px-4 text-center space-y-2">
-                      <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 flex items-center justify-center mx-auto text-lg shadow-inner">
+                      <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-500 border border-emerald-500/20 flex items-center justify-center mx-auto text-lg shadow-inner">
                         🔔
                       </div>
-                      <p className="text-xs font-black text-slate-400 dark:text-slate-400 tracking-wide">
+                      <p className="text-xs font-black text-slate-500 dark:text-slate-400 tracking-wide">
                         okunmamış yeni bildirim yok
                       </p>
                     </div>
@@ -627,7 +666,7 @@ export default function DashboardPage() {
                   : 'bg-sky-100 border-sky-400 text-sky-950 hover:bg-sky-200 hover:border-sky-600 font-black'
               }`}
             >
-              <svg className="w-4 h-4 text-sky-400 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 text-sky-600 dark:text-sky-400 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
               <span className="hidden md:inline tracking-wide font-black">Diğer İşlemler</span>
@@ -663,7 +702,7 @@ export default function DashboardPage() {
                     : 'bg-teal-100 border-teal-400 text-teal-950 hover:bg-teal-200 hover:border-teal-600 font-black'
                 }`}
               >
-                <svg className="w-4 h-4 text-teal-300 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-teal-700 dark:text-teal-300 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                 </svg>
                 <span className="hidden md:inline tracking-wide font-black">Yetkili İşlemler</span>
@@ -724,7 +763,7 @@ export default function DashboardPage() {
                   : 'bg-emerald-100 border-emerald-400 text-emerald-950 hover:bg-emerald-200 hover:border-emerald-600 font-black'
               }`}
             >
-              <svg className="w-4 h-4 text-emerald-300 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 text-emerald-700 dark:text-emerald-300 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
               <span className="tracking-wide font-black max-w-[80px] sm:max-w-none truncate">{displayUsername}</span>
@@ -736,7 +775,7 @@ export default function DashboardPage() {
             {isProfileOpen && (
               <div className={`absolute right-0 top-full mt-2 w-60 border rounded-2xl shadow-xl py-2 z-[120] text-xs font-bold backdrop-blur-md ${isDarkMode ? 'bg-slate-900/95 border-slate-800 text-slate-200' : 'bg-white/95 border-slate-200 text-slate-800'}`}>
                 <div className={`px-4 py-3 border-b ${isDarkMode ? 'border-slate-800 bg-slate-950/40' : 'border-slate-100 bg-slate-50/70'}`}>
-                  <p className="font-black text-sm text-emerald-500">{displayUsername}</p>
+                  <p className="font-black text-sm text-emerald-600 dark:text-emerald-500">{displayUsername}</p>
                   <p className="text-[11px] opacity-70 font-bold">{currentUser?.role || 'Kullanıcı'}</p>
                 </div>
 
@@ -746,13 +785,6 @@ export default function DashboardPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
                     <span>Profil Bilgileri</span>
-                  </button>
-
-                  <button onClick={() => handleOpenModule('/profile')} className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors ${isDarkMode ? 'hover:bg-slate-800 hover:text-emerald-400' : 'hover:bg-emerald-50 hover:text-emerald-700'}`}>
-                    <svg className="w-4 h-4 text-emerald-500 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-                    </svg>
-                    <span>Şifre Değiştir</span>
                   </button>
 
                   <button onClick={() => handleOpenModule('/report')} className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors ${isDarkMode ? 'hover:bg-amber-950/40 text-amber-400' : 'hover:bg-amber-50 text-amber-700'}`}>
@@ -867,7 +899,7 @@ export default function DashboardPage() {
             isDarkMode ? 'bg-slate-900/95 border-slate-800 text-white' : 'bg-white/95 border-slate-100 text-slate-800'
           }`}>
             <div className="flex justify-between items-center pb-2 border-b border-slate-800">
-              <h3 className="text-xs font-black text-emerald-500 uppercase tracking-wider">⚙️ LOGO ANIMASYON VE RENK AYARLARI</h3>
+              <h3 className="text-xs font-black text-emerald-500 uppercase tracking-wider">⚙ LOGO ANIMASYON VE RENK AYARLARI</h3>
               <button onClick={() => setShowLogoConfigModal(false)} className="text-slate-400 hover:text-white font-black text-sm cursor-pointer">✕</button>
             </div>
 
@@ -920,7 +952,7 @@ export default function DashboardPage() {
                   type="text"
                   value={logoConfig.lightColor ?? ''}
                   onChange={(e) => setLogoConfig(prev => ({ ...prev, lightColor: e.target.value }))}
-                  placeholder="from-emerald-700 via-teal-600 to-cyan-700"
+                  placeholder="from-emerald-800 via-teal-700 to-cyan-800"
                   className={`w-full px-3 py-2 rounded-xl border font-mono outline-none text-[11px] ${
                     isDarkMode ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
                   }`}
