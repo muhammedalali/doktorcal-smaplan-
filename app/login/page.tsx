@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from '@/context/ThemeContext';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 
 const DEFAULT_PERMISSIONS = {
   'bölüm ve doktor yönetimi': true,
@@ -387,6 +387,19 @@ export default function LoginPage() {
     } else {
       const newAttempts = failedAttempts + 1;
       setFailedAttempts(newAttempts);
+
+      // 🚨 كتابة تسجيل المحاولة الخاطئة في Firestore لصفحة الإحصائيات
+      try {
+        await addDoc(collection(db, 'failed_logins'), {
+          username: rawInputUsername || 'Bilinmeyen Kullanıcı',
+          attemptedUser: cleanInputUsername,
+          timestamp: serverTimestamp(),
+          date: new Date().toLocaleString('tr-TR'),
+          status: 'HATALI_PAROLA'
+        });
+      } catch (logErr) {
+        console.error("Hatalı giriş kaydı Firestore hatası:", logErr);
+      }
 
       if (newAttempts >= 3) {
         setIsLocked(true);

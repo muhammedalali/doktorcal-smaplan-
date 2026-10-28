@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from '@/context/ThemeContext';
 import { useData } from '@/context/DataContext';
@@ -48,6 +48,19 @@ export default function AdminUsersPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
 
+  // 🎯 حالة أبعاد الأعمدة الديناميكية (Excel Column Resizing)
+  const [columnWidths, setColumnWidths] = useState({
+    userNumber: 170,
+    username: 230,
+    role: 130,
+    phone: 160,
+    lastLogin: 190,
+    lastLogout: 190,
+    status: 120,
+  });
+
+  const resizingRef = useRef(null);
+
   // Form State
   const [name, setName] = useState('');
   const [surname, setSurname] = useState('');
@@ -60,6 +73,13 @@ export default function AdminUsersPage() {
   const router = useRouter();
 
   useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
+  }, []);
+
+  useEffect(() => {
     setMounted(true);
   }, []);
 
@@ -69,17 +89,6 @@ export default function AdminUsersPage() {
   const hasUserPermission = checkPermission ? checkPermission('kullanıcı ekleme ve yetkilendirme') : false;
 
   const canAccessUsersPage = isGlobalAdmin || hasUserPermission;
-
-  useEffect(() => {
-    if (isAddModalOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [isAddModalOpen]);
 
   useEffect(() => {
     if (!mounted) return;
@@ -113,7 +122,6 @@ export default function AdminUsersPage() {
     );
   }, [users, searchTerm]);
 
-  // 🕒 تنسيق التواريخ بشكل دقيق وآمن
   const formatDate = (dateVal) => {
     if (!dateVal) return 'Kayıt yok';
     const d = new Date(dateVal);
@@ -122,6 +130,65 @@ export default function AdminUsersPage() {
       day: '2-digit', month: '2-digit', year: 'numeric',
       hour: '2-digit', minute: '2-digit', second: '2-digit'
     });
+  };
+
+  // 📐 إدارة سحب العمود لليمين واليسار (Excel Drag Resize)
+  const handleMouseDownResize = (e, colKey) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    resizingRef.current = {
+      colKey,
+      startX: e.clientX,
+      startWidth: columnWidths[colKey]
+    };
+
+    const handleMouseMove = (moveEvent) => {
+      if (!resizingRef.current) return;
+      const deltaX = moveEvent.clientX - resizingRef.current.startX;
+      const newWidth = Math.max(90, resizingRef.current.startWidth + deltaX);
+
+      setColumnWidths(prev => ({
+        ...prev,
+        [resizingRef.current.colKey]: newWidth
+      }));
+    };
+
+    const handleMouseUp = () => {
+      resizingRef.current = null;
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
+
+  // ⚡ الضغط المزدوج للتوسيع التلقائي بحسب المحتوى (Double Click to Auto Fit)
+  const handleDoubleClickAutoFit = (e, colKey) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    let maxLen = 10;
+
+    filteredUsers.forEach(u => {
+      let val = '';
+      if (colKey === 'userNumber') val = String(u.userNumber || '1000');
+      else if (colKey === 'username') val = u.username || '';
+      else if (colKey === 'role') val = u.role || 'KULLANICI';
+      else if (colKey === 'phone') val = u.phone || '—';
+      else if (colKey === 'lastLogin') val = formatDate(u.lastLogin);
+      else if (colKey === 'lastLogout') val = formatDate(u.lastLogout);
+
+      if (val.length > maxLen) maxLen = val.length;
+    });
+
+    const fittedWidth = Math.min(450, Math.max(120, maxLen * 11 + 35));
+
+    setColumnWidths(prev => ({
+      ...prev,
+      [colKey]: fittedWidth
+    }));
   };
 
   const handleAddUser = async (e) => {
@@ -138,7 +205,6 @@ export default function AdminUsersPage() {
 
     const cleanName = name.trim();
     const cleanSurname = surname.trim().toLocaleUpperCase('tr-TR');
-    // 🎯 استخدام اسم المستخدم بالضبط بحروف كبيرة طبقاً لمعيار التركي لضمان المطابقة في تسجيل الدخول
     const cleanUsername = username.trim().toLocaleUpperCase('tr-TR');
     const customUserNumber = Math.floor(1000 + Math.random() * 9000);
 
@@ -197,7 +263,7 @@ export default function AdminUsersPage() {
 
   if (!mounted) {
     return (
-      <div className="min-h-screen bg-[#0b0f19] text-slate-100 flex items-center justify-center font-black">
+      <div className="fixed inset-0 bg-[#020617] text-slate-100 flex items-center justify-center font-black cursor-default">
         <div className="flex items-center gap-2 text-amber-500">
           <span className="w-5 h-5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin"></span>
           <span>Yükleniyor...</span>
@@ -211,10 +277,45 @@ export default function AdminUsersPage() {
   }
 
   return (
-    <div className={`min-h-screen select-none transition-colors duration-300 font-sans ${
-      isDarkMode ? 'bg-[#0b0f19] text-slate-100' : 'bg-[#f1f5f9] text-slate-900'
+    <div className={`fixed inset-0 h-dvh w-dvw max-h-dvh max-w-dvw overflow-hidden select-none transition-colors duration-300 font-sans cursor-default flex flex-col ${
+      isDarkMode ? 'bg-[#020617] text-slate-100' : 'bg-[#edf4ff] text-slate-900'
     }`}>
       
+      {/* 🏙️ خلفية هندسية ثلاثية الأبعاد */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+        <div className={`absolute -top-40 left-1/2 -translate-x-1/2 w-[120vw] h-[60vh] rounded-full blur-[140px] pointer-events-none transition-all duration-700 ${
+          isDarkMode 
+            ? 'bg-gradient-to-b from-slate-800/20 via-slate-900/10 to-transparent' 
+            : 'bg-gradient-to-b from-blue-200/20 via-slate-200/10 to-transparent'
+        }`} />
+
+        <div 
+          className={`absolute inset-0 transition-all duration-300 ${
+            isDarkMode ? 'opacity-25' : 'opacity-35'
+          }`}
+          style={{
+            backgroundImage: isDarkMode
+              ? `
+                linear-gradient(to right, rgba(148, 163, 184, 0.2) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(148, 163, 184, 0.2) 1px, transparent 1px)
+              `
+              : `
+                linear-gradient(to right, rgba(71, 85, 105, 0.25) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(71, 85, 105, 0.25) 1px, transparent 1px)
+              `,
+            backgroundSize: '20px 20px',
+            transform: 'perspective(500px) rotateX(20deg) scale(1.2)',
+            transformOrigin: 'top center'
+          }}
+        />
+        
+        <div className={`absolute inset-0 ${
+          isDarkMode 
+            ? 'bg-gradient-to-b from-transparent via-[#020617]/50 to-[#020617]' 
+            : 'bg-gradient-to-b from-transparent via-[#edf4ff]/50 to-[#edf4ff]'
+        }`} />
+      </div>
+
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 animate-bounce transition-all duration-500">
@@ -225,15 +326,15 @@ export default function AdminUsersPage() {
         </div>
       )}
 
-      {/* Header */}
-      <div className={`sticky top-0 z-40 w-full px-4 py-1.5 border-b flex flex-col sm:flex-row justify-between items-center gap-2 shadow-sm transition-colors ${
-        isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
+      {/* 🚀 Header Controls (الشريط العلوي الملتصق) */}
+      <div className={`relative z-20 w-full px-4 py-2 border-b flex flex-col sm:flex-row justify-between items-center gap-2 shrink-0 transition-colors ${
+        isDarkMode ? 'bg-slate-900/90 border-slate-800 text-slate-100 backdrop-blur-md' : 'bg-white/90 border-slate-200 text-slate-900 backdrop-blur-md'
       }`}>
         
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <button
             onClick={() => setIsAddModalOpen(true)}
-            className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl text-xs uppercase transition-all shadow-sm cursor-pointer flex items-center gap-1.5"
+            className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl text-xs uppercase transition-all shadow-sm cursor-default flex items-center gap-1.5"
           >
             <ModernIcons.UserPlus />
             <span>Yeni Kullanıcı Ekle</span>
@@ -253,40 +354,102 @@ export default function AdminUsersPage() {
             className={`w-full pl-10 pr-3 py-1.5 rounded-xl border text-xs font-bold outline-none transition-colors focus:bg-[#ffff00] focus:text-slate-950 focus:border-[#ffff00] ${
               isDarkMode 
                 ? 'bg-slate-950 border-slate-800 text-slate-100 placeholder-slate-400' 
-                : 'bg-slate-100 border-slate-300 text-slate-900 placeholder-slate-500'
+                : 'bg-white border-slate-300 text-slate-900 placeholder-slate-500'
             }`}
           />
         </div>
       </div>
 
-      {/* Table */}
-      <div className="w-full space-y-0 mt-0">
-        <div className={`w-full border-b overflow-hidden shadow-none ${
-          isDarkMode ? 'bg-slate-900/95 border-slate-800' : 'bg-white border-slate-300'
-        }`}>
-          <div className="overflow-x-auto w-full">
-            <table className={`w-full text-left border-collapse table-fixed ${
+      {/* 📊 Excel Grid Table Container */}
+      <div className="relative z-10 flex-1 min-h-0 w-full overflow-hidden p-0 m-0 pb-11 cursor-default">
+        <div className="w-full h-full border-0 overflow-hidden flex flex-col cursor-default">
+          
+          <div className="overflow-x-auto overflow-y-auto flex-1 scrollbar-thin overscroll-contain w-full select-none cursor-default">
+            <table className={`w-full text-left border-collapse border table-fixed cursor-default ${
               isDarkMode ? 'border-slate-800' : 'border-slate-300'
             }`}>
               <thead>
-                <tr className={`border-b text-xs uppercase tracking-wider font-black ${
-                  isDarkMode ? 'border-slate-800 bg-slate-950 text-slate-100' : 'border-slate-300 bg-slate-100 text-slate-900'
+                <tr className={`border-b text-xs uppercase tracking-wider font-black sticky top-0 z-20 cursor-default ${
+                  isDarkMode ? 'border-slate-800 bg-slate-950 text-slate-100' : 'border-slate-300 bg-slate-200 text-slate-900'
                 }`}>
-                  <th className={`py-2.5 px-3 pl-4 w-[12%] border-r ${isDarkMode ? 'border-slate-800' : 'border-slate-200'}`}>Kullanıcı Numarası</th>
-                  <th className={`py-2.5 px-3 w-[24%] border-r ${isDarkMode ? 'border-slate-800' : 'border-slate-200'}`}>Kullanıcı Adı</th>
-                  <th className={`py-2.5 px-3 w-[10%] border-r ${isDarkMode ? 'border-slate-800' : 'border-slate-200'}`}>Rol</th>
-                  <th className={`py-2.5 px-3 w-[14%] border-r ${isDarkMode ? 'border-slate-800' : 'border-slate-200'}`}>Telefon</th>
-                  <th className={`py-2.5 px-3 w-[15%] border-r ${isDarkMode ? 'border-slate-800' : 'border-slate-200'}`}>Son Giriş</th>
-                  <th className={`py-2.5 px-3 w-[15%] border-r ${isDarkMode ? 'border-slate-800' : 'border-slate-200'}`}>Son Çıkış</th>
-                  <th className="py-2.5 px-3 w-[10%] text-center">Durum</th>
+                  
+                  {/* Kullanıcı Numarası */}
+                  <th style={{ width: `${columnWidths.userNumber}px` }} className={`relative py-3 px-4 border-r border-b cursor-default ${isDarkMode ? 'border-slate-800' : 'border-slate-300'}`}>
+                    <span>Kullanıcı Numarası</span>
+                    <div
+                      onMouseDown={(e) => handleMouseDownResize(e, 'userNumber')}
+                      onDoubleClick={(e) => handleDoubleClickAutoFit(e, 'userNumber')}
+                      title="Sürükle veya çift tıkla (Otomatik Sığdır)"
+                      className="absolute right-0 top-0 bottom-0 w-2 hover:bg-cyan-500/80 cursor-col-resize z-30 transition-colors"
+                    />
+                  </th>
+
+                  {/* Kullanıcı Adı */}
+                  <th style={{ width: `${columnWidths.username}px` }} className={`relative py-3 px-4 border-r border-b cursor-default ${isDarkMode ? 'border-slate-800' : 'border-slate-300'}`}>
+                    <span>Kullanıcı Adı</span>
+                    <div
+                      onMouseDown={(e) => handleMouseDownResize(e, 'username')}
+                      onDoubleClick={(e) => handleDoubleClickAutoFit(e, 'username')}
+                      title="Sürükle veya çift tıkla (Otomatik Sığdır)"
+                      className="absolute right-0 top-0 bottom-0 w-2 hover:bg-cyan-500/80 cursor-col-resize z-30 transition-colors"
+                    />
+                  </th>
+
+                  {/* Rol */}
+                  <th style={{ width: `${columnWidths.role}px` }} className={`relative py-3 px-4 border-r border-b cursor-default ${isDarkMode ? 'border-slate-800' : 'border-slate-300'}`}>
+                    <span>Rol</span>
+                    <div
+                      onMouseDown={(e) => handleMouseDownResize(e, 'role')}
+                      onDoubleClick={(e) => handleDoubleClickAutoFit(e, 'role')}
+                      title="Sürükle veya çift tıkla (Otomatik Sığdır)"
+                      className="absolute right-0 top-0 bottom-0 w-2 hover:bg-cyan-500/80 cursor-col-resize z-30 transition-colors"
+                    />
+                  </th>
+
+                  {/* Telefon */}
+                  <th style={{ width: `${columnWidths.phone}px` }} className={`relative py-3 px-4 border-r border-b cursor-default ${isDarkMode ? 'border-slate-800' : 'border-slate-300'}`}>
+                    <span>Telefon</span>
+                    <div
+                      onMouseDown={(e) => handleMouseDownResize(e, 'phone')}
+                      onDoubleClick={(e) => handleDoubleClickAutoFit(e, 'phone')}
+                      title="Sürükle veya çift tıkla (Otomatik Sığdır)"
+                      className="absolute right-0 top-0 bottom-0 w-2 hover:bg-cyan-500/80 cursor-col-resize z-30 transition-colors"
+                    />
+                  </th>
+
+                  {/* Son Giriş */}
+                  <th style={{ width: `${columnWidths.lastLogin}px` }} className={`relative py-3 px-4 border-r border-b cursor-default ${isDarkMode ? 'border-slate-800' : 'border-slate-300'}`}>
+                    <span>Son Giriş</span>
+                    <div
+                      onMouseDown={(e) => handleMouseDownResize(e, 'lastLogin')}
+                      onDoubleClick={(e) => handleDoubleClickAutoFit(e, 'lastLogin')}
+                      title="Sürükle veya çift tıkla (Otomatik Sığdır)"
+                      className="absolute right-0 top-0 bottom-0 w-2 hover:bg-cyan-500/80 cursor-col-resize z-30 transition-colors"
+                    />
+                  </th>
+
+                  {/* Son Çıkış */}
+                  <th style={{ width: `${columnWidths.lastLogout}px` }} className={`relative py-3 px-4 border-r border-b cursor-default ${isDarkMode ? 'border-slate-800' : 'border-slate-300'}`}>
+                    <span>Son Çıkış</span>
+                    <div
+                      onMouseDown={(e) => handleMouseDownResize(e, 'lastLogout')}
+                      onDoubleClick={(e) => handleDoubleClickAutoFit(e, 'lastLogout')}
+                      title="Sürükle veya çift tıkla (Otomatik Sığdır)"
+                      className="absolute right-0 top-0 bottom-0 w-2 hover:bg-cyan-500/80 cursor-col-resize z-30 transition-colors"
+                    />
+                  </th>
+
+                  {/* Durum */}
+                  <th style={{ width: `${columnWidths.status}px` }} className={`relative py-3 px-4 text-center border-b cursor-default ${isDarkMode ? 'border-slate-800' : 'border-slate-300'}`}>
+                    <span>Durum</span>
+                  </th>
                 </tr>
               </thead>
-              <tbody className="divide-y text-xs font-bold">
+              <tbody className="text-xs font-bold cursor-default">
                 {filteredUsers.length > 0 ? (
                   filteredUsers.map((u, idx) => {
                     const loginTime = u.lastLogin ? new Date(u.lastLogin).getTime() : 0;
                     const logoutTime = u.lastLogout ? new Date(u.lastLogout).getTime() : 0;
-                    // 🎯 حساب حالة الاتصال بشكل دقيق ومباشر بناء على مقارنة الوقت اللحظي
                     const isOnline = Boolean(loginTime && loginTime > logoutTime);
 
                     return (
@@ -294,23 +457,24 @@ export default function AdminUsersPage() {
                         key={u.id || idx} 
                         onDoubleClick={() => handleRowClick(u.id)}
                         title="Detaylar ve işlemler için çift tıklayın"
-                        className={`cursor-pointer transition-colors ${
-                          isDarkMode ? 'hover:bg-slate-800/50 border-slate-800' : 'hover:bg-slate-50 border-slate-200'
+                        className={`transition-all duration-150 border-b cursor-default ${
+                          isDarkMode 
+                            ? 'bg-[#090d16] border-slate-800/90 text-slate-100 hover:bg-slate-800 hover:text-cyan-300' 
+                            : 'bg-white border-slate-300 text-slate-900 hover:bg-blue-100 hover:text-blue-950'
                         }`}
                       >
-                        <td className={`py-2 px-3 pl-4 font-mono text-xs font-black truncate border-r ${isDarkMode ? 'border-slate-800 text-amber-400' : 'border-slate-200 text-amber-600'}`}>
+                        <td className={`py-2.5 px-4 font-mono text-xs font-black truncate border-r cursor-default ${isDarkMode ? 'border-slate-800 text-amber-400' : 'border-slate-300 text-amber-600'}`}>
                           {u.userNumber || '1000'}
                         </td>
 
-                        {/* 🎯 إظهار اسم المستخدم الصريح فقط */}
-                        <td className={`py-2 px-3 truncate border-r ${isDarkMode ? 'border-slate-800' : 'border-slate-200'}`}>
-                          <span className={`font-black text-xs block truncate ${isDarkMode ? 'text-slate-100' : 'text-slate-900'}`}>
+                        <td className={`py-2.5 px-4 truncate border-r cursor-default ${isDarkMode ? 'border-slate-800' : 'border-slate-300'}`}>
+                          <span className="font-black text-xs block truncate cursor-default">
                             {u.username}
                           </span>
                         </td>
 
-                        <td className={`py-2 px-3 truncate border-r ${isDarkMode ? 'border-slate-800' : 'border-slate-200'}`}>
-                          <span className={`text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider border inline-block ${
+                        <td className={`py-2.5 px-4 truncate border-r cursor-default ${isDarkMode ? 'border-slate-800' : 'border-slate-300'}`}>
+                          <span className={`text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider border inline-block cursor-default ${
                             u.role === 'YÖNETİCİ' || u.username === 'ADMIN'
                               ? isDarkMode ? 'bg-rose-500/20 text-rose-300 border-rose-500/40' : 'bg-rose-100 text-rose-800 border-rose-300'
                               : isDarkMode ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' : 'bg-emerald-100 text-emerald-800 border-emerald-300'
@@ -319,22 +483,22 @@ export default function AdminUsersPage() {
                           </span>
                         </td>
 
-                        <td className={`py-2 px-3 font-mono text-xs font-black truncate border-r ${isDarkMode ? 'border-slate-800 text-slate-100' : 'border-slate-200 text-slate-900'}`}>
+                        <td className={`py-2.5 px-4 font-mono text-xs font-black truncate border-r cursor-default ${isDarkMode ? 'border-slate-800' : 'border-slate-300'}`}>
                           {u.phone || '—'}
                         </td>
 
-                        <td className={`py-2 px-3 font-mono text-xs font-black truncate border-r ${isDarkMode ? 'border-slate-800 text-slate-100' : 'border-slate-200 text-slate-900'}`}>
+                        <td className={`py-2.5 px-4 font-mono text-xs font-black truncate border-r cursor-default ${isDarkMode ? 'border-slate-800' : 'border-slate-300'}`}>
                           {formatDate(u.lastLogin)}
                         </td>
 
-                        <td className={`py-2 px-3 font-mono text-xs font-black truncate border-r ${isDarkMode ? 'border-slate-800 text-slate-100' : 'border-slate-200 text-slate-900'}`}>
+                        <td className={`py-2.5 px-4 font-mono text-xs font-black truncate border-r cursor-default ${isDarkMode ? 'border-slate-800' : 'border-slate-300'}`}>
                           {formatDate(u.lastLogout)}
                         </td>
 
-                        <td className="py-2 px-3 text-center">
-                          <div className="flex items-center justify-center gap-1.5">
+                        <td className="py-2.5 px-4 text-center cursor-default">
+                          <div className="flex items-center justify-center gap-1.5 cursor-default">
                             <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
-                            <span className={`text-[10px] font-black px-2 py-0.5 rounded border ${
+                            <span className={`text-[10px] font-black px-2 py-0.5 rounded border cursor-default ${
                               isOnline
                                 ? isDarkMode ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' : 'bg-emerald-100 text-emerald-800 border-emerald-300'
                                 : isDarkMode ? 'bg-rose-500/20 text-rose-300 border-rose-500/40' : 'bg-rose-100 text-rose-800 border-rose-300'
@@ -348,7 +512,9 @@ export default function AdminUsersPage() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan="7" className={`py-8 text-center font-black uppercase text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                    <td colSpan="7" className={`py-12 text-center font-black uppercase text-xs border-b cursor-default ${
+                      isDarkMode ? 'bg-[#090d16] text-slate-400 border-slate-800' : 'bg-white text-slate-600 border-slate-300'
+                    }`}>
                       Kullanıcı bulunamadı.
                     </td>
                   </tr>
@@ -356,18 +522,19 @@ export default function AdminUsersPage() {
               </tbody>
             </table>
           </div>
+
         </div>
       </div>
 
       {/* Modal */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
           <div className={`max-w-xl w-full rounded-2xl border p-6 space-y-4 shadow-2xl ${
             isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-300 text-slate-900'
           }`}>
             <div className={`flex justify-between items-center pb-3 border-b ${isDarkMode ? 'border-slate-800' : 'border-slate-200'}`}>
               <h3 className="text-base font-black text-amber-500 uppercase tracking-wide">Yeni Kullanıcı Ekle</h3>
-              <button onClick={() => setIsAddModalOpen(false)} className={`p-1.5 rounded-lg cursor-pointer ${isDarkMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-black'}`}>
+              <button onClick={() => setIsAddModalOpen(false)} className={`p-1.5 rounded-lg cursor-default ${isDarkMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-black'}`}>
                 <ModernIcons.Close />
               </button>
             </div>
@@ -477,7 +644,7 @@ export default function AdminUsersPage() {
                 <button
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}
-                  className={`flex-1 py-3 font-black rounded-xl uppercase text-xs cursor-pointer ${
+                  className={`flex-1 py-3 font-black rounded-xl uppercase text-xs cursor-default ${
                     isDarkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-200 text-slate-800 hover:bg-slate-300'
                   }`}
                 >
@@ -485,7 +652,7 @@ export default function AdminUsersPage() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl uppercase text-xs shadow-md cursor-pointer"
+                  className="flex-1 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl uppercase text-xs shadow-md cursor-default"
                 >
                   Kaydet
                 </button>

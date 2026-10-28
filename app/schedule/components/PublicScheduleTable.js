@@ -502,6 +502,60 @@ function PublicScheduleTableContent() {
 
   const router = useRouter();   
 
+  // 📊 👁️ 1. تسجيل زيارة صفحة الجدول العامة في Firestore
+  useEffect(() => {
+    const logVisit = async () => {
+      try {
+        const sessionUser = sessionStorage.getItem('user');
+        const localUser = localStorage.getItem('user');
+        const activeUser = sessionUser ? JSON.parse(sessionUser) : (localUser ? JSON.parse(localUser) : null);
+        
+        await addDoc(collection(db, 'visitor_logs'), {
+          username: activeUser?.username || 'Ziyaretçi',
+          ip: '192.168.1.1',
+          page: '/public-schedule',
+          path: '/public-schedule',
+          action: 'Nöbet Listesi Görüntülendi',
+          details: 'Doktor Nöbet Çizelgesi Tablosu Açıldı',
+          timestamp: serverTimestamp(),
+          date: new Date().toLocaleString('tr-TR')
+        });
+      } catch (err) {
+        console.error('Ziyaret kaydı oluşturma hatası:', err);
+      }
+    };
+
+    logVisit();
+  }, []);
+
+  // 📊 👁️ 2. تسجيل فتح جدول تواريخ الطبيب/القسم المحدد في Firestore لظهر في الإحصائيات
+  useEffect(() => {
+    if (!selectedDoctorDetail) return;
+
+    const logDoctorDetailVisit = async () => {
+      try {
+        const sessionUser = sessionStorage.getItem('user');
+        const localUser = localStorage.getItem('user');
+        const activeUser = sessionUser ? JSON.parse(sessionUser) : (localUser ? JSON.parse(localUser) : null);
+
+        await addDoc(collection(db, 'visitor_logs'), {
+          username: activeUser?.username || 'Ziyaretçi',
+          ip: '192.168.1.1',
+          page: '/public-schedule',
+          path: '/public-schedule/detail',
+          action: 'Doktor Detay Takvimi Görüntülendi',
+          details: `${selectedDoctorDetail.name} - ${selectedDoctorDetail.clinic} Takvimi Açıldı`,
+          timestamp: serverTimestamp(),
+          date: new Date().toLocaleString('tr-TR')
+        });
+      } catch (err) {
+        console.error('Detay takvim ziyaret kaydı hatası:', err);
+      }
+    };
+
+    logDoctorDetailVisit();
+  }, [selectedDoctorDetail]);
+
   // 🔒 معالجة الرجوع النظيف وتجنب التراكم في History Stack
   useEffect(() => {
     if (typeof window === 'undefined') return;

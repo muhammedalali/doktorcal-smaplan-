@@ -25,6 +25,7 @@ export default function Navbar() {
   ];
 
   if (user?.role === 'admin') {
+    navLinks.push({ name: 'الإحصائيات', href: '/admin/stats', icon: '📈' });
     navLinks.push({ name: 'الأطباء', href: '/admin/doctors', icon: '👨‍⚕️' });
     navLinks.push({ name: 'المستخدمين', href: '/admin/users', icon: '👥' });
   }

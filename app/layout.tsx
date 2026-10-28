@@ -1,7 +1,7 @@
 'use client';
 
 import './globals.css';
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
 import { DataProvider } from '@/context/DataContext';
 import { useRouter, usePathname } from 'next/navigation';
@@ -22,11 +22,9 @@ function AutoLogoutHandler() {
   const pathname = usePathname();
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // تحديد مدة الخمول: 15 دقيقة (15 * 60 * 1000 مللي ثانية)
-  const INACTIVITY_TIME = 15 * 60 * 1000;
+  const INACTIVITY_TIME = 15 * 60 * 1000; // 15 دقيقة
 
   useEffect(() => {
-    // 🛑 عدم تفعيل مؤقت الخمول في صفحة تسجيل الدخول، الصفحة الرئيسية، وصفحة جدول الزوار العامة
     if (
       pathname === '/' || 
       pathname === '/login' || 
@@ -48,18 +46,14 @@ function AutoLogoutHandler() {
       timerRef.current = setTimeout(performLogout, INACTIVITY_TIME);
     };
 
-    // قائمة الأحداث التي تعتبر تفاعلاً من المستخدم
     const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
 
-    // بدء المؤقت لأول مرة
     resetTimer();
 
-    // الاستماع لحركات التفاعل لإعادة ضبط المؤقت
     events.forEach((event) => {
       window.addEventListener(event, resetTimer);
     });
 
-    // التنظيف عند تغيير الصفحة أو الخروج
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
       events.forEach((event) => {
@@ -71,62 +65,74 @@ function AutoLogoutHandler() {
   return null;
 }
 
-function GlobalBottomTabBar() {
+// 🌟 شريط التبويبات التفاعلي السفلي الملتصق بالأسفل (Bottom Multi-Tab Bar)
+function BottomMultiTabBar() {
   const router = useRouter();
   const pathname = usePathname();
   const { isDarkMode } = useTheme();
 
+  // قائمة الصفحات المفتوحة - البداية بالصفحة الرئيسية
   const [openTabs, setOpenTabs] = useState<TabItem[]>([
-    { id: 'home', title: 'anasayfa', path: '/dashboard' }
+    { id: '/dashboard', title: 'ANASAYFA', path: '/dashboard' }
   ]);
 
+  // حفظ الصفحات المفتوحة تلقائياً دون حذف الصفحات السابقة
   useEffect(() => {
-    if (pathname === '/' || pathname === '/login' || pathname === '/schedule' || pathname === '/public-schedule') return;
+    if (
+      pathname === '/' || 
+      pathname === '/login' || 
+      pathname === '/schedule' || 
+      pathname === '/public-schedule'
+    ) return;
 
     let tabTitle = '';
+    if (pathname === '/dashboard') tabTitle = 'ANASAYFA';
+    else if (pathname === '/admin/stats') tabTitle = 'Sistem İstatistikleri';
+    else if (pathname === '/admin/doctors') tabTitle = 'Bölüm ve Doktor Yönetimi';
+    else if (pathname === '/admin/users') tabTitle = 'Kullanıcı Yönetimi';
+    else if (pathname === '/phonebook') tabTitle = 'Telefon Rehberi';
+    else if (pathname === '/admin/reports') tabTitle = 'Arıza Bildirimleri';
+    else if (pathname === '/report' || pathname === '/reports') tabTitle = 'Arıza Bildir';
+    else if (pathname === '/profile') tabTitle = 'Profil Bilgileri';
+    else return;
 
-    if (pathname === '/dashboard') {
-      tabTitle = 'anasayfa';
-    } else if (pathname === '/admin/doctors') {
-      tabTitle = 'Bölüm ve Doktor yönetimi';
-    } else if (pathname === '/admin/users') {
-      tabTitle = 'Kullanıcı Yönetimi';
-    } else if (pathname === '/phonebook') {
-      tabTitle = 'Telefon Rehberi';
-    } else if (pathname === '/admin/reports') {
-      tabTitle = 'Arıza / Sorun Bildirimleri';
-    } else if (pathname === '/report' || pathname === '/reports') {
-      tabTitle = 'Arıza Bildir';
-    } else {
-      return;
-    }
-
-    setOpenTabs((prevTabs) => {
-      const exists = prevTabs.some((tab) => tab.path === pathname);
+    setOpenTabs((prev) => {
+      const exists = prev.some((tab) => tab.path === pathname);
       if (!exists && tabTitle) {
-        return [...prevTabs, { id: pathname, title: tabTitle, path: pathname }];
+        return [...prev, { id: pathname, title: tabTitle, path: pathname }];
       }
-      return prevTabs;
+      return prev;
     });
   }, [pathname]);
 
-  if (pathname === '/' || pathname === '/login' || pathname === '/schedule' || pathname === '/public-schedule') return null;
+  if (
+    pathname === '/' || 
+    pathname === '/login' || 
+    pathname === '/schedule' || 
+    pathname === '/public-schedule'
+  ) {
+    return null;
+  }
 
+  // إغلاق التبويب وإدارته
   const handleCloseTab = (e: React.MouseEvent, tabPath: string) => {
     e.stopPropagation();
 
-    const filteredTabs = openTabs.filter((tab) => tab.path !== tabPath);
-    setOpenTabs(filteredTabs);
+    const filtered = openTabs.filter((tab) => tab.path !== tabPath);
+    setOpenTabs(filtered);
 
+    // الانتقال للتبويب الأخير إذا كانت الصفحة المغلقة هي الحالية
     if (pathname === tabPath) {
-      const nextTab = filteredTabs[filteredTabs.length - 1] || { path: '/dashboard' };
-      router.push(nextTab.path, { scroll: false });
+      const lastTab = filtered[filtered.length - 1] || { path: '/dashboard' };
+      router.push(lastTab.path);
     }
   };
 
   return (
-    <div className={`fixed bottom-0 left-0 right-0 h-10 border-t flex items-center px-2 gap-1.5 z-[9999] select-none cursor-default shadow-lg ${
-      isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-300 border-slate-400'
+    <div className={`fixed bottom-0 left-0 right-0 h-10 sm:h-11 border-t px-2 sm:px-4 flex items-end justify-start gap-1.5 overflow-x-auto scrollbar-none z-50 select-none cursor-default ${
+      isDarkMode 
+        ? 'bg-slate-950 border-slate-800' 
+        : 'bg-slate-100 border-slate-300'
     }`}>
       {openTabs.map((tab) => {
         const isActive = pathname === tab.path;
@@ -134,29 +140,28 @@ function GlobalBottomTabBar() {
         return (
           <div
             key={tab.id}
-            onClick={() => router.push(tab.path, { scroll: false })}
-            className={`h-8 px-4 rounded-t-lg border-t border-x flex items-center gap-2 cursor-default transition-none antialiased shadow-sm ${
-              isActive 
+            onClick={() => router.push(tab.path)}
+            className={`flex items-center gap-2 px-3 py-1.5 sm:py-2 rounded-t-lg border-t border-x text-xs font-black uppercase tracking-wider transition-all duration-150 shrink-0 cursor-default ${
+              isActive
                 ? (isDarkMode 
-                    ? 'bg-sky-600 border-sky-400 text-white font-black text-xs border-t-2 shadow-md' 
-                    : 'bg-sky-600 border-sky-800 text-white font-black text-xs border-t-2 shadow-md'
-                  )
+                    ? 'bg-blue-600 border-blue-500 text-white font-black' 
+                    : 'bg-blue-600 border-blue-700 text-white font-black')
                 : (isDarkMode 
-                    ? 'bg-slate-900 border-slate-800 text-slate-200 hover:text-white hover:bg-slate-800 font-bold text-xs' 
-                    : 'bg-slate-200 border-slate-300 text-slate-800 hover:bg-slate-100 hover:text-black font-bold text-xs')
+                    ? 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800 hover:text-slate-200' 
+                    : 'bg-slate-200/90 border-slate-300 text-slate-700 hover:bg-white hover:text-slate-900')
             }`}
           >
-            <span className="tracking-wide uppercase font-extrabold text-[12px]">{tab.title}</span>
+            {/* اسم التبويب بخط واضح ومميز */}
+            <span className="truncate max-w-[150px] sm:max-w-[220px] text-[11px] sm:text-xs font-black">
+              {tab.title}
+            </span>
 
-            {tab.path !== '/dashboard' && (
+            {/* زر الإغلاق ✕ */}
+            {isActive && tab.path !== '/dashboard' && (
               <button
                 type="button"
                 onClick={(e) => handleCloseTab(e, tab.path)}
-                className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold cursor-default ml-1 transition-colors ${
-                  isActive
-                    ? 'text-white hover:bg-rose-600'
-                    : (isDarkMode ? 'text-slate-300 hover:bg-rose-600 hover:text-white' : 'text-slate-700 hover:bg-rose-600 hover:text-white')
-                }`}
+                className="ml-1 w-4 h-4 rounded flex items-center justify-center text-[10px] font-black hover:bg-rose-600 hover:text-white transition-colors cursor-default bg-black/20 text-white shrink-0"
                 title="Kapat"
               >
                 ✕
@@ -176,12 +181,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
   return (
     <html lang="tr" className={cn("font-sans", geist.variable)}>
-      <body className="cursor-default pb-10">
+      <body className="cursor-default min-h-screen overflow-x-hidden antialiased pb-11">
         <ThemeProvider>
           <DataProvider>
             <AutoLogoutHandler />
             {children}
-            <GlobalBottomTabBar />
+            <BottomMultiTabBar />
           </DataProvider>
         </ThemeProvider>
       </body>

@@ -7,7 +7,7 @@ import { db } from '@/lib/firebase';
 import { useTheme } from '@/context/ThemeContext';
 import { 
   Search, Filter, ShieldAlert, Clock, CheckCircle2, 
-  XCircle, Globe, MapPin, User, Mail, Laptop, Calendar,
+  XCircle, Globe, MapPin, User, Laptop, Calendar,
   FileText, AlertTriangle, RefreshCw, Trash2, X,
   Maximize2, Printer, Smartphone
 } from 'lucide-react';
@@ -58,13 +58,22 @@ export default function AdminReportsPage() {
     return () => unsub && unsub();
   }, [fetchReports]);
 
-  // تحديث حالة البلاغ
+  // تحديث حالة البلاغ وتسجيلها لصفحة الإحصائيات
   const handleStatusChange = async (reportId, newStatus) => {
     try {
       const reportRef = doc(db, 'reports', reportId);
-      await updateDoc(reportRef, { status: newStatus });
+      const updatePayload = { 
+        status: newStatus,
+        updatedAt: new Date().toISOString()
+      };
+
+      if (newStatus === 'RESOLVED' || newStatus === 'ÇÖZÜLDÜ' || newStatus === 'TAMAMLANDI') {
+        updatePayload.solvedAt = new Date().toISOString();
+      }
+
+      await updateDoc(reportRef, updatePayload);
       if (selectedReport && selectedReport.id === reportId) {
-        setSelectedReport(prev => ({ ...prev, status: newStatus }));
+        setSelectedReport(prev => ({ ...prev, ...updatePayload }));
       }
     } catch (error) {
       console.error('Durum güncellenirken hata oluştu:', error);
@@ -119,10 +128,14 @@ export default function AdminReportsPage() {
       report.ipAddress?.includes(searchLower) ||
       report.id?.toLowerCase().includes(searchLower);
     
+    const isPending = !report.status || report.status === 'PENDING' || report.status === 'BEKLEYEN';
+    const isResolved = report.status === 'RESOLVED' || report.status === 'TAMAMLANDI' || report.status === 'ÇÖZÜLDÜ';
+
     const matchesStatus = 
       statusFilter === 'ALL' || 
       report.status === statusFilter || 
-      (statusFilter === 'BEKLEYEN' && (!report.status || report.status === 'PENDING' || report.status === 'BEKLEYEN'));
+      (statusFilter === 'BEKLEYEN' && isPending) ||
+      (statusFilter === 'RESOLVED' && isResolved);
 
     return matchesSearch && matchesStatus;
   });
@@ -144,6 +157,7 @@ export default function AdminReportsPage() {
     switch (status) {
       case 'RESOLVED':
       case 'TAMAMLANDI':
+      case 'ÇÖZÜLDÜ':
         return <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-black rounded-xl bg-emerald-500/15 text-emerald-500 border border-emerald-500/30"><CheckCircle2 size={13}/> Tamamlandı</span>;
       case 'IN_PROGRESS':
       case 'İŞLEMDE':
@@ -223,7 +237,7 @@ export default function AdminReportsPage() {
           <p className="text-xs font-black text-emerald-500 uppercase tracking-wider">Çözülenler</p>
           <div className="flex items-center justify-between mt-2">
             <p className="text-2xl sm:text-3xl font-black text-emerald-500">
-              {reports.filter(r => r.status === 'RESOLVED' || r.status === 'TAMAMLANDI').length}
+              {reports.filter(r => r.status === 'RESOLVED' || r.status === 'TAMAMLANDI' || r.status === 'ÇÖZÜLDÜ').length}
             </p>
             <CheckCircle2 className="text-emerald-500 opacity-40" size={24} />
           </div>
@@ -271,7 +285,7 @@ export default function AdminReportsPage() {
             <option value="ALL">TÜM DURUMLAR</option>
             <option value="BEKLEYEN">YENİ / BEKLEYEN</option>
             <option value="IN_PROGRESS">İŞLEMDE</option>
-            <option value="RESOLVED">TAMAMLANDI</option>
+            <option value="RESOLVED">TAMAMLANDI / ÇÖZÜLDÜ</option>
             <option value="REJECTED">REDDEDİLDİ</option>
           </select>
         </div>
@@ -518,7 +532,7 @@ export default function AdminReportsPage() {
                 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <button 
-                    onClick={() => handleStatusChange(selectedReport.id, 'RESOLVED')}
+                    onClick={() => handleStatusChange(selectedReport.id, 'ÇÖZÜLDÜ')}
                     className="py-3 px-4 rounded-xl font-black text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg cursor-pointer transition-transform active:scale-95 uppercase"
                   >
                     ✓ Tamamlandı Yap
