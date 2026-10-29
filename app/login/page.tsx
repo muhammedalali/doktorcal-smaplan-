@@ -20,18 +20,41 @@ const DEFAULT_PERMISSIONS = {
   canManageIssues: true
 };
 
+const LOCK_DURATIONS = [300, 1200, 1800, 3600, 43200, 86400];
+
+const getUserLockInfo = (uName: string) => {
+  if (!uName) return { lockUntil: 0, lockLevel: 0, failedAttempts: 0 };
+  try {
+    const raw = localStorage.getItem(`user_lock_${uName.toUpperCase()}`);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return { lockUntil: 0, lockLevel: 0, failedAttempts: 0 };
+};
+
+const setUserLockInfo = (uName: string, info: { lockUntil: number; lockLevel: number; failedAttempts: number }) => {
+  if (!uName) return;
+  try {
+    localStorage.setItem(`user_lock_${uName.toUpperCase()}`, JSON.stringify(info));
+  } catch (e) {}
+};
+
+const clearUserLockInfo = (uName: string) => {
+  if (!uName) return;
+  try {
+    localStorage.removeItem(`user_lock_${uName.toUpperCase()}`);
+  } catch (e) {}
+};
+
 export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   
+  const [loginStatus, setLoginStatus] = useState<'IDLE' | 'SUCCESS' | 'ERROR'>('IDLE');
   const [error, setError] = useState('');
-  const [failedAttempts, setFailedAttempts] = useState(0);
   const [isLocked, setIsLocked] = useState(false);
   const [lockTimer, setLockTimer] = useState(0);
 
-  const [showSuccessToast, setShowSuccessToast] = useState(false);
-  const [dots, setDots] = useState('');
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
 
@@ -41,22 +64,15 @@ export default function LoginPage() {
   const gridCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const passwordInputRef = useRef<HTMLInputElement | null>(null);
   
+  const statusRef = useRef<'IDLE' | 'SUCCESS' | 'ERROR'>('IDLE');
   const lockIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // أنيميشن النقاط المتحركة (...) لشاشة التحميل
   useEffect(() => {
-    if (!showSuccessToast) return;
-    const interval = setInterval(() => {
-      setDots((prev) => (prev.length >= 3 ? '' : prev + '.'));
-    }, 300);
+    statusRef.current = loginStatus;
+  }, [loginStatus]);
 
-    return () => clearInterval(interval);
-  }, [showSuccessToast]);
-
-  // 🛡️ معالجة زر الرجوع بدون تراكم السجلات
   useEffect(() => {
     if (typeof window === 'undefined') return;
-
     sessionStorage.clear();
     localStorage.removeItem('user');
 
@@ -65,13 +81,10 @@ export default function LoginPage() {
     };
 
     window.addEventListener('popstate', handlePopState);
-
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
+    return () => window.removeEventListener('popstate', handlePopState);
   }, [router]);
 
-  // 🌐 الكانفاس المائل Background
+  // 🌐 الكانفاس التفاعلي
   useEffect(() => {
     const canvas = gridCanvasRef.current;
     if (!canvas) return;
@@ -85,12 +98,7 @@ export default function LoginPage() {
     let isMobile = width < 640;
     const step = isMobile ? 42 : 54;
 
-    let mouse = {
-      x: -1000,
-      y: -1000,
-      targetX: -1000,
-      targetY: -1000
-    };
+    let mouse = { x: -1000, y: -1000, targetX: -1000, targetY: -1000 };
 
     const handleResize = () => {
       if (!canvas) return;
@@ -123,15 +131,22 @@ export default function LoginPage() {
 
       ctx.clearRect(0, 0, width, height);
 
-      const strokeColor = isDarkMode ? 'rgba(56, 189, 248, ' : 'rgba(14, 165, 233, ';
-      const dotColor = isDarkMode ? 'rgba(125, 211, 252, ' : 'rgba(56, 189, 248, ';
+      let strokeColor = isDarkMode ? 'rgba(56, 189, 248, ' : 'rgba(14, 165, 233, ';
+      let dotColor = isDarkMode ? 'rgba(125, 211, 252, ' : 'rgba(56, 189, 248, ';
+
+      if (statusRef.current === 'SUCCESS') {
+        strokeColor = isDarkMode ? 'rgba(34, 197, 94, ' : 'rgba(5, 150, 105, '; 
+        dotColor = isDarkMode ? 'rgba(74, 222, 128, ' : 'rgba(16, 185, 129, ';
+      } else if (statusRef.current === 'ERROR') {
+        strokeColor = 'rgba(239, 68, 68, '; 
+        dotColor = 'rgba(248, 113, 113, ';
+      }
 
       const cols = Math.ceil(width / step) + 6;
       const rows = Math.ceil(height / step) + 6;
       const craterRadius = isMobile ? 85 : 120;
 
       const points: { x: number; y: number }[][] = [];
-
       const tiltAngle = Math.PI / 12;
       const cosA = Math.cos(tiltAngle);
       const sinA = Math.sin(tiltAngle);
@@ -165,19 +180,18 @@ export default function LoginPage() {
             shiftY = Math.sin(angle) * push;
           }
 
-          points[rIndex][c + 3] = {
-            x: rotatedX + shiftX,
-            y: rotatedY + shiftY
-          };
+          points[rIndex][c + 3] = { x: rotatedX + shiftX, y: rotatedY + shiftY };
         }
       }
 
-      ctx.lineWidth = 0.85;
+      ctx.lineWidth = statusRef.current === 'SUCCESS' ? 1.2 : 0.85;
 
       for (let r = 0; r < points.length; r++) {
         for (let c = 0; c < points[r].length; c++) {
           const pt = points[r][c];
-          const baseAlpha = isDarkMode ? 0.22 : 0.18;
+          const baseAlpha = statusRef.current === 'SUCCESS' 
+            ? (isDarkMode ? 0.35 : 0.45) 
+            : (isDarkMode ? 0.25 : 0.20);
 
           if (c < points[r].length - 1) {
             const ptNext = points[r][c + 1];
@@ -199,8 +213,8 @@ export default function LoginPage() {
 
           if (r % 2 === 0 && c % 2 === 0) {
             ctx.beginPath();
-            ctx.arc(pt.x, pt.y, isDarkMode ? 1.2 : 1.4, 0, Math.PI * 2);
-            ctx.fillStyle = `${dotColor}${baseAlpha * 1.4})`;
+            ctx.arc(pt.x, pt.y, isDarkMode ? 1.2 : 1.5, 0, Math.PI * 2);
+            ctx.fillStyle = `${dotColor}${baseAlpha * 1.5})`;
             ctx.fill();
           }
         }
@@ -220,20 +234,6 @@ export default function LoginPage() {
   }, [isDarkMode]);
 
   useEffect(() => {
-    const storedLockTime = localStorage.getItem('login_lock_until');
-    if (storedLockTime) {
-      const lockUntil = parseInt(storedLockTime, 10);
-      const now = Date.now();
-      if (lockUntil > now) {
-        const remaining = Math.ceil((lockUntil - now) / 1000);
-        setIsLocked(true);
-        setLockTimer(remaining);
-        startLockCountdown(remaining);
-      } else {
-        localStorage.removeItem('login_lock_until');
-      }
-    }
-
     const unsubscribeFirestore = onSnapshot(collection(db, 'users'), (snapshot) => {
       const firestoreUsers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
@@ -276,11 +276,51 @@ export default function LoginPage() {
     };
   }, []);
 
+  const checkAndApplyUserLock = (cleanUName: string) => {
+    if (lockIntervalRef.current) clearInterval(lockIntervalRef.current);
+
+    if (!cleanUName) {
+      setIsLocked(false);
+      setLockTimer(0);
+      if (loginStatus === 'ERROR') {
+        setLoginStatus('IDLE');
+        setError('');
+      }
+      return;
+    }
+
+    const info = getUserLockInfo(cleanUName);
+    const now = Date.now();
+
+    if (info.lockUntil > now) {
+      const remaining = Math.ceil((info.lockUntil - now) / 1000);
+      setIsLocked(true);
+      setLockTimer(remaining);
+      setLoginStatus('ERROR');
+      
+      const timeText = remaining >= 3600 
+        ? `${Math.floor(remaining / 3600)} saat`
+        : `${Math.ceil(remaining / 60)} dakika`;
+
+      setError(`3 hatalı deneme! '${cleanUName}' hesabı ${timeText} süreyle kilitlenmiştir.`);
+      startLockCountdown(cleanUName, remaining);
+    } else {
+      setIsLocked(false);
+      setLockTimer(0);
+      if (loginStatus === 'ERROR') {
+        setLoginStatus('IDLE');
+        setError('');
+      }
+    }
+  };
+
   const handleUsernameChange = (value: string) => {
     setUsername(value);
     setShowUserDropdown(true);
 
     const cleanInput = value.trim().toUpperCase().replace(/İ/g, 'I');
+    checkAndApplyUserLock(cleanInput);
+
     if (cleanInput.length > 0) {
       const isExactMatch = allUsers.some((u: any) => {
         const uName = (u.username || '').toString().trim().toUpperCase().replace(/İ/g, 'I');
@@ -296,7 +336,7 @@ export default function LoginPage() {
     }
   };
 
-  const startLockCountdown = (seconds: number) => {
+  const startLockCountdown = (cleanUName: string, seconds: number) => {
     if (lockIntervalRef.current) clearInterval(lockIntervalRef.current);
     let current = seconds;
 
@@ -306,118 +346,169 @@ export default function LoginPage() {
       if (current <= 0) {
         if (lockIntervalRef.current) clearInterval(lockIntervalRef.current);
         setIsLocked(false);
-        setFailedAttempts(0);
+        setLoginStatus('IDLE');
         setError('');
-        localStorage.removeItem('login_lock_until');
+        clearUserLockInfo(cleanUName);
       }
     }, 1000);
   };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isLocked) return;
 
     const rawInputUsername = username.trim();
     const cleanInputUsername = rawInputUsername.toUpperCase().replace(/İ/g, 'I');
     const cleanPassword = password.trim();
 
-    let foundUser: any = null;
-
-    foundUser = allUsers.find((u: any) => {
-      const uName = (u.username || '').toString().trim().toUpperCase().replace(/İ/g, 'I');
-      return uName === cleanInputUsername && u.password === cleanPassword;
-    });
-
-    if (!foundUser && cleanInputUsername === 'ADMIN' && cleanPassword === 'admin1233') {
-      foundUser = { 
-        id: 'admin-default',
-        username: 'ADMİN', 
-        role: 'YÖNETİCİ',
-        permissions: DEFAULT_PERMISSIONS
-      };
+    const userLock = getUserLockInfo(cleanInputUsername);
+    if (userLock.lockUntil > Date.now()) {
+      checkAndApplyUserLock(cleanInputUsername);
+      return;
     }
 
-    if (foundUser) {
-      setError('');
-      setFailedAttempts(0);
+    if (typeof window !== 'undefined' && !navigator.onLine) {
+      setLoginStatus('ERROR');
+      setError('İnternet bağlantısı yok! Lütfen bağlantınızı kontrol ediniz.');
+      return;
+    }
 
-      const uNameNormalized = (foundUser.username || '').toString().trim().toUpperCase().replace(/İ/g, 'I');
-      const isUserAdmin = foundUser.role === 'YÖNETİCİ' || foundUser.role === 'ADMIN' || uNameNormalized === 'ADMIN';
-      
-      const userPermissions = isUserAdmin 
-        ? DEFAULT_PERMISSIONS 
-        : (foundUser.permissions || {});
+    try {
+      const userExists = allUsers.some((u: any) => {
+        const uName = (u.username || '').toString().trim().toUpperCase().replace(/İ/g, 'I');
+        return uName === cleanInputUsername;
+      });
 
-      const nowIso = new Date().toISOString();
+      let foundUser: any = allUsers.find((u: any) => {
+        const uName = (u.username || '').toString().trim().toUpperCase().replace(/İ/g, 'I');
+        return uName === cleanInputUsername && u.password === cleanPassword;
+      });
 
-      const sessionUserObj = {
-        id: foundUser.id || 'admin-default',
-        username: foundUser.username || rawInputUsername,
-        role: isUserAdmin ? 'YÖNETİCİ' : (foundUser.role || 'PERSONEL'),
-        permissions: userPermissions,
-        lastLogin: nowIso
-      };
+      if (!foundUser && cleanInputUsername === 'ADMIN' && cleanPassword === 'admin1233') {
+        foundUser = { 
+          id: 'admin-default',
+          username: 'ADMİN', 
+          role: 'YÖNETİCİ',
+          permissions: DEFAULT_PERMISSIONS
+        };
+      }
 
-      if (foundUser.id && foundUser.id !== 'admin-default') {
+      // 🟢 الدخول بنجاح
+      if (foundUser) {
+        setLoginStatus('SUCCESS');
+        setError('');
+        clearUserLockInfo(cleanInputUsername);
+
+        // 🌟 حفظ اسم المستخدم وتفعيل إشارة الشعار ليختفي في الـ Dashboard
+        const loggedName = foundUser.username || rawInputUsername;
+        sessionStorage.setItem('dashboard_logo_exit_anim', 'true');
+        sessionStorage.setItem('logged_username_display', loggedName.toUpperCase());
+
+        const uNameNormalized = (foundUser.username || '').toString().trim().toUpperCase().replace(/İ/g, 'I');
+        const isUserAdmin = foundUser.role === 'YÖNETİCİ' || foundUser.role === 'ADMIN' || uNameNormalized === 'ADMIN';
+        
+        const userPermissions = isUserAdmin 
+          ? DEFAULT_PERMISSIONS 
+          : (foundUser.permissions || {});
+
+        const nowIso = new Date().toISOString();
+
+        const sessionUserObj = {
+          id: foundUser.id || 'admin-default',
+          username: loggedName,
+          role: isUserAdmin ? 'YÖNETİCİ' : (foundUser.role || 'PERSONEL'),
+          permissions: userPermissions,
+          lastLogin: nowIso
+        };
+
+        if (foundUser.id && foundUser.id !== 'admin-default') {
+          try {
+            await updateDoc(doc(db, 'users', foundUser.id), {
+              lastLogin: nowIso
+            });
+          } catch (err) {
+            console.error('Son giriş güncelleme hatası:', err);
+          }
+        }
+
+        sessionStorage.setItem('user', JSON.stringify(sessionUserObj));
+        localStorage.setItem('user', JSON.stringify(sessionUserObj));
+
+        const cookieValue = encodeURIComponent(JSON.stringify(sessionUserObj));
+        document.cookie = `auth_token=valid_token_${Date.now()}; path=/; max-age=604800; SameSite=Lax`;
+        document.cookie = `user_session=${cookieValue}; path=/; max-age=604800; SameSite=Lax`;
+        document.cookie = `user_role=${isUserAdmin ? 'ADMIN' : 'USER'}; path=/; max-age=604800; SameSite=Lax`;
+
+        window.dispatchEvent(new Event('userSessionUpdated'));
+
+        setTimeout(() => {
+          window.location.replace('/dashboard');
+        }, 1200);
+
+      } else {
+        // 🔴 فشل تسجيل الدخول
+        setLoginStatus('ERROR');
+        const currentLockInfo = getUserLockInfo(cleanInputUsername);
+        const newFailedAttempts = (currentLockInfo.failedAttempts || 0) + 1;
+
         try {
-          await updateDoc(doc(db, 'users', foundUser.id), {
-            lastLogin: nowIso
+          await addDoc(collection(db, 'failed_logins'), {
+            username: rawInputUsername || 'Bilinmeyen Kullanıcı',
+            attemptedUser: cleanInputUsername,
+            timestamp: serverTimestamp(),
+            date: new Date().toLocaleString('tr-TR'),
+            status: 'HATALI_PAROLA'
           });
-        } catch (err) {
-          console.error('Son giriş güncelleme hatası:', err);
+        } catch (logErr) {
+          console.error("Hatalı giriş kaydı Firestore hatası:", logErr);
+        }
+
+        if (newFailedAttempts >= 3) {
+          setIsLocked(true);
+          const currentLevel = currentLockInfo.lockLevel || 0;
+          const nextLevel = Math.min(currentLevel + 1, LOCK_DURATIONS.length);
+          const lockDurationSeconds = LOCK_DURATIONS[nextLevel - 1] || 86400;
+          const lockUntil = Date.now() + lockDurationSeconds * 1000;
+
+          setUserLockInfo(cleanInputUsername, {
+            lockUntil: lockUntil,
+            lockLevel: nextLevel,
+            failedAttempts: 0
+          });
+
+          startLockCountdown(cleanInputUsername, lockDurationSeconds);
+
+          const timeText = lockDurationSeconds >= 3600 
+            ? `${Math.floor(lockDurationSeconds / 3600)} saat`
+            : `${Math.floor(lockDurationSeconds / 60)} dakika`;
+
+          setError(`3 hatalı deneme! '${cleanInputUsername}' hesabı ${timeText} süreyle kilitlenmiştir.`);
+        } else {
+          setUserLockInfo(cleanInputUsername, {
+            ...currentLockInfo,
+            failedAttempts: newFailedAttempts
+          });
+
+          if (!userExists && cleanInputUsername !== 'ADMIN') {
+            setError(`'${rawInputUsername}' adında kullanıcı bulunamadı!`);
+          } else {
+            setError(`Şifre hatalı! (Kalan Hak: ${3 - newFailedAttempts})`);
+          }
         }
       }
-
-      setShowSuccessToast(true);
-
-      sessionStorage.setItem('user', JSON.stringify(sessionUserObj));
-      localStorage.setItem('user', JSON.stringify(sessionUserObj));
-
-      const cookieValue = encodeURIComponent(JSON.stringify(sessionUserObj));
-      document.cookie = `auth_token=valid_token_${Date.now()}; path=/; max-age=604800; SameSite=Lax`;
-      document.cookie = `user_session=${cookieValue}; path=/; max-age=604800; SameSite=Lax`;
-      document.cookie = `user_role=${isUserAdmin ? 'ADMIN' : 'USER'}; path=/; max-age=604800; SameSite=Lax`;
-
-      window.dispatchEvent(new Event('userSessionUpdated'));
-
-      setTimeout(() => {
-        window.location.replace('/dashboard');
-      }, 450);
-
-    } else {
-      const newAttempts = failedAttempts + 1;
-      setFailedAttempts(newAttempts);
-
-      // 🚨 كتابة تسجيل المحاولة الخاطئة في Firestore لصفحة الإحصائيات
-      try {
-        await addDoc(collection(db, 'failed_logins'), {
-          username: rawInputUsername || 'Bilinmeyen Kullanıcı',
-          attemptedUser: cleanInputUsername,
-          timestamp: serverTimestamp(),
-          date: new Date().toLocaleString('tr-TR'),
-          status: 'HATALI_PAROLA'
-        });
-      } catch (logErr) {
-        console.error("Hatalı giriş kaydı Firestore hatası:", logErr);
-      }
-
-      if (newAttempts >= 3) {
-        setIsLocked(true);
-        const lockDurationSeconds = 1800;
-        const lockUntil = Date.now() + lockDurationSeconds * 1000;
-        localStorage.setItem('login_lock_until', lockUntil.toString());
-        setLockTimer(lockDurationSeconds);
-        startLockCountdown(lockDurationSeconds);
-        setError('Çok sayıda hatalı deneme! Hesabınız 30 dakika süreyle kilitlenmiştir.');
-      } else {
-        setError(`Kullanıcı adı veya şifre hatalı! (Kalan Hak: ${3 - newAttempts})`);
-      }
+    } catch (err) {
+      setLoginStatus('ERROR');
+      setError('Sunucu hatası oluştu! Lütfen tekrar deneyiniz.');
     }
   };
 
   const formatLockTime = (secs: number) => {
-    const mins = Math.floor(secs / 60);
+    const hours = Math.floor(secs / 3600);
+    const mins = Math.floor((secs % 3600) / 60);
     const remainingSecs = secs % 60;
+
+    if (hours > 0) {
+      return `${hours}:${mins < 10 ? '0' : ''}${mins}:${remainingSecs < 10 ? '0' : ''}${remainingSecs}`;
+    }
     return `${mins < 10 ? '0' : ''}${mins}:${remainingSecs < 10 ? '0' : ''}${remainingSecs}`;
   };
 
@@ -429,150 +520,139 @@ export default function LoginPage() {
       })
     : [];
 
-  const dotCount = 12;
-  const dotsArray = Array.from({ length: dotCount });
-
   return (
-    <div className={`h-screen w-screen overflow-hidden fixed inset-0 flex items-center justify-center transition-colors duration-500 font-sans ${
+    <div className={`h-[100dvh] w-screen overflow-hidden fixed inset-0 overscroll-none touch-none flex items-center justify-center transition-colors duration-700 font-sans select-none ${
       isDarkMode ? 'bg-[#020617] text-slate-100' : 'bg-[#f8fafc] text-slate-900'
     }`}>
 
+      <style jsx global>{`
+        html, body {
+          overflow: hidden !important;
+          height: 100dvh !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          touch-action: none !important;
+          overscroll-behavior: none !important;
+        }
+        ::-webkit-scrollbar {
+          display: none !important;
+          width: 0px !important;
+          height: 0px !important;
+        }
+
+        @keyframes slideInFromRight {
+          0% {
+            transform: translateX(120%);
+            opacity: 0;
+          }
+          100% {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+
+        .animate-slideInRight {
+          animation: slideInFromRight 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+      `}</style>
+
+      {/* 🌌 الخلفية والوهج - لون أخضر زمردي مبهر وعصري */}
       <div className="absolute inset-0 z-0 pointer-events-none select-none">
-        <div className={`absolute inset-0 transition-opacity duration-500 ${
-          isDarkMode 
+        <div className={`absolute inset-0 transition-opacity duration-700 ${
+          loginStatus === 'SUCCESS'
+            ? (isDarkMode ? 'bg-emerald-950/50' : 'bg-gradient-to-br from-emerald-100 via-teal-50 to-emerald-200')
+            : loginStatus === 'ERROR'
+            ? (isDarkMode ? 'bg-rose-950/30' : 'bg-rose-100/40')
+            : isDarkMode 
             ? 'bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-950/40 via-[#020617] to-[#020617]' 
             : 'bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-sky-200/50 via-slate-100/80 to-[#f8fafc]'
         }`} />
 
         <canvas ref={gridCanvasRef} className="absolute inset-0 w-full h-full block z-0" />
 
-        <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[85vw] max-w-[550px] h-[320px] rounded-full blur-[130px] pointer-events-none transition-all duration-300 ${
-          isDarkMode ? 'bg-cyan-500/10' : 'bg-sky-400/25'
+        <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[85vw] max-w-[500px] h-[300px] rounded-full blur-[120px] pointer-events-none transition-all duration-700 ${
+          loginStatus === 'SUCCESS'
+            ? 'bg-emerald-500/50 scale-125'
+            : loginStatus === 'ERROR'
+            ? 'bg-rose-500/25'
+            : isDarkMode ? 'bg-cyan-500/10' : 'bg-sky-400/25'
         }`} />
       </div>
 
-      {/* 🔮 شاشة التحميل الكريستالية بالرمز الكبير عالي الدقة والكتابة المصغرة فقط */}
-      {showSuccessToast && (
-        <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-slate-950/80 dark:bg-slate-950/85 backdrop-blur-2xl transition-all duration-300 animate-fadeIn select-none pointer-events-auto">
-          
-          <div className="relative flex flex-col items-center text-center max-w-xs w-full">
-            
-            {/* وهج نيون ناعم خلف الرمز */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-36 h-36 rounded-full bg-cyan-500/15 dark:bg-cyan-500/20 blur-3xl pointer-events-none animate-pulse" />
-
-            {/* 💫 الرمز الدائري العصري الدقيق والكبير */}
-            <div className="relative w-24 h-24 sm:w-28 sm:h-28 flex items-center justify-center mb-6">
-              
-              <div className="relative w-full h-full animate-[spin_1.1s_steps(12)_infinite] transform-gpu">
-                {dotsArray.map((_, index) => {
-                  const angle = (index * 360) / dotCount;
-                  const opacity = (index + 1) / dotCount;
-
-                  return (
-                    <div
-                      key={index}
-                      className="absolute top-0 left-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 -ml-1.75 sm:-ml-2 origin-[50%_48px] sm:origin-[50%_56px]"
-                      style={{
-                        transform: `rotate(${angle}deg)`,
-                        opacity: opacity,
-                      }}
-                    >
-                      <span className="block w-full h-full rounded-full bg-gradient-to-tr from-cyan-400 via-teal-300 to-sky-400 dark:from-cyan-300 dark:to-emerald-400 shadow-[0_0_12px_rgba(34,211,238,0.95)] subpixel-antialiased" />
-                    </div>
-                  );
-                })}
-              </div>
-
-            </div>
-
-            {/* 📝 كتابة YÜKLENİYOR... بحجم مصغر وأنيق جداً */}
-            <div className="z-10 flex items-center justify-center gap-0.5">
-              <h3 className="text-xs sm:text-sm font-black tracking-[0.25em] text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-white to-teal-300 dark:from-cyan-200 dark:via-white dark:to-emerald-300 uppercase font-sans">
-                YÜKLENİYOR
-              </h3>
-              <span className="w-4 text-left text-cyan-400 font-mono font-black text-xs sm:text-sm">
-                {dots}
-              </span>
-            </div>
-
-          </div>
-
-        </div>
-      )}
-
-      <div className={`max-w-md w-full border border-transparent rounded-3xl p-7 sm:p-8 shadow-xl transition-all duration-300 z-10 relative select-none ${
-        isDarkMode 
-          ? 'bg-[#020617]/10 backdrop-blur-[2px] hover:border-cyan-400/40 hover:bg-slate-950/20 hover:shadow-cyan-500/10 hover:shadow-2xl' 
-          : 'bg-white/20 backdrop-blur-[2px] hover:border-blue-400/50 hover:bg-white/40 hover:shadow-sky-500/10 hover:shadow-2xl'
+      {/* 📦 الحاوية الشفافة العريضة */}
+      <div className={`w-[92vw] max-w-sm sm:max-w-md rounded-[2.5rem] border-0 p-7 sm:p-8 bg-transparent transition-none z-10 relative select-none transform-gpu ${
+        isDarkMode ? 'text-slate-100' : 'text-slate-900'
       }`}>
-        <div className="text-center mb-6 flex flex-col items-center">
-          <h2 className={`text-xl sm:text-2xl font-black uppercase tracking-wider transition-colors duration-300 ${
-            isDarkMode 
-              ? 'text-cyan-300 drop-shadow-[0_2px_10px_rgba(34,211,238,0.3)]' 
-              : 'text-blue-950 drop-shadow-sm'
-          }`}>
-            SİSTEME GİRİŞ YAP
-          </h2>
-        </div>
 
-        {error && (
-          <div className={`mb-6 p-4 rounded-2xl border-2 backdrop-blur-md transition-all duration-300 ${
-            isLocked 
-              ? 'bg-rose-500/15 border-rose-500/60 text-rose-400 shadow-[0_0_25px_rgba(244,63,94,0.3)]' 
-              : 'bg-amber-500/15 border-amber-500/50 text-amber-400'
-          }`}>
-            <div className="flex items-start gap-3">
-              <div className="p-2 rounded-xl bg-rose-500/20 text-rose-500 shrink-0">
-                <svg className="w-6 h-6 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-              </div>
-              <div className="space-y-1">
-                <h4 className="text-xs font-black uppercase tracking-widest text-rose-400">
-                  {isLocked ? 'GÜVENLİK KİLİDİ AKTİF' : 'GİRİŞ BAŞARISIZ'}
-                </h4>
-                <p className="text-sm font-bold leading-tight">
-                  {error}
-                </p>
-                {isLocked && (
-                  <div className="mt-2 pt-2 border-t border-rose-500/30 flex items-center justify-between">
-                    <span className="text-xs font-mono font-bold text-slate-300">TEKRAR DENEME SÜRESİ:</span>
-                    <span className="text-base font-mono font-black text-rose-400 bg-rose-950/60 px-2.5 py-0.5 rounded-lg border border-rose-500/40">
-                      ⏱️ {formatLockTime(lockTimer)}
-                    </span>
-                  </div>
-                )}
+        {/* 📝 عرض الأخطاء والقفل التنازلي */}
+        {isLocked ? (
+          <div className="mb-6 space-y-4 animate-fadeIn text-center">
+            <div className="flex items-center justify-center gap-2 text-rose-500 dark:text-rose-400 font-extrabold text-xs sm:text-sm tracking-wide">
+              <svg className="w-5 h-5 shrink-0 animate-pulse stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <span>{error}</span>
+            </div>
+
+            <div className="pt-2 flex flex-col items-center justify-center">
+              <span className="text-[11px] sm:text-xs font-black uppercase tracking-[0.3em] text-rose-500/80 dark:text-rose-400/80 mb-1">
+                KALAN SÜRE
+              </span>
+              <div className="text-4xl sm:text-5xl font-mono font-black tracking-widest text-rose-600 dark:text-rose-400 drop-shadow-[0_0_20px_rgba(244,63,94,0.45)] animate-pulse">
+                {formatLockTime(lockTimer)}
               </div>
             </div>
           </div>
-        )}
+        ) : error ? (
+          <div className="mb-5 flex items-center justify-center gap-2 animate-fadeIn text-center">
+            <svg className="w-5 h-5 shrink-0 animate-pulse stroke-[2.5] text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <p className={`text-xs sm:text-sm font-black tracking-wide leading-tight ${
+              isDarkMode ? 'text-rose-400 drop-shadow-sm' : 'text-rose-600 font-extrabold'
+            }`}>
+              {error}
+            </p>
+          </div>
+        ) : null}
 
         <form onSubmit={handleLogin} className="space-y-5">
+          
+          {/* حقل اسم المستخدم */}
           <div className="relative" ref={dropdownRef}>
-            <label className={`block text-xs sm:text-sm font-black mb-1.5 uppercase tracking-wide ${isDarkMode ? 'text-slate-200' : 'text-slate-800'}`}>
+            <label className={`block text-xs sm:text-sm font-black mb-2 uppercase tracking-wider ${
+              loginStatus === 'SUCCESS'
+                ? (isDarkMode ? 'text-emerald-300' : 'text-emerald-950')
+                : isDarkMode ? 'text-slate-100' : 'text-slate-900'
+            }`}>
               Kullanıcı Adı
             </label>
             <input
               type="text"
               required
-              disabled={isLocked}
+              disabled={isLocked || loginStatus === 'SUCCESS'}
               value={username}
               onFocus={() => setShowUserDropdown(true)}
               onChange={(e) => handleUsernameChange(e.target.value)}
-              className={`w-full px-4 py-3 rounded-xl border-2 font-black uppercase outline-none transition-all duration-200 ${
+              className={`w-full px-4 py-3.5 sm:py-4 rounded-2xl border-2 text-sm sm:text-base font-black uppercase outline-none bg-transparent transition-colors ${
                 isLocked
-                  ? 'opacity-50 cursor-not-allowed bg-slate-900 border-slate-800'
+                  ? 'opacity-50 cursor-not-allowed border-slate-800'
+                  : loginStatus === 'SUCCESS'
+                  ? (isDarkMode 
+                      ? 'border-emerald-400 text-emerald-200' 
+                      : 'border-emerald-600 text-emerald-950 font-black')
                   : isDarkMode 
-                    ? 'bg-slate-950/60 border-slate-800/80 text-slate-100 focus:border-cyan-400 focus:bg-slate-900/90' 
-                    : 'bg-white/80 border-slate-300/80 text-slate-900 focus:border-blue-600 focus:bg-white'
+                    ? 'border-slate-700 text-white placeholder:text-slate-500 focus:border-cyan-400' 
+                    : 'border-slate-300 text-slate-900 placeholder:text-slate-400 focus:border-blue-600'
               }`}
-              placeholder="Kullanıcı Adı"
+              placeholder="KULLANICI ADI"
               autoComplete="off"
             />
 
-            {showUserDropdown && filteredUsers.length > 0 && !isLocked && (
-              <div className={`absolute left-0 right-0 mt-2 max-h-48 overflow-y-auto rounded-xl border-2 shadow-xl z-40 ${
-                isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-300 text-slate-900'
+            {/* قائمة المستخدمين المنسدلة */}
+            {showUserDropdown && filteredUsers.length > 0 && !isLocked && loginStatus !== 'SUCCESS' && (
+              <div className={`absolute left-0 right-0 mt-2 max-h-48 overflow-y-auto rounded-2xl border-2 shadow-2xl z-40 ${
+                isDarkMode ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-white border-slate-300 text-slate-900'
               }`}>
                 {filteredUsers.map((u: any, idx: number) => (
                   <div
@@ -584,29 +664,33 @@ export default function LoginPage() {
                         passwordInputRef.current?.focus();
                       }, 50);
                     }}
-                    className={`flex justify-between items-center p-3 cursor-pointer transition-colors duration-150 text-sm font-black border-b last:border-b-0 ${
+                    className={`flex justify-between items-center p-3 cursor-pointer transition-colors duration-150 text-xs sm:text-sm font-black border-b last:border-b-0 ${
                       isDarkMode 
-                        ? 'hover:bg-cyan-950/40 border-slate-800 text-slate-200 hover:text-cyan-300' 
-                        : 'hover:bg-blue-50 border-slate-100 text-slate-800 hover:text-blue-900'
+                        ? 'hover:bg-cyan-950/60 border-slate-900 text-slate-200 hover:text-cyan-300' 
+                        : 'hover:bg-sky-50 border-slate-100 text-slate-800 hover:text-sky-900'
                     }`}
                   >
                     <div className="flex items-center gap-2.5">
                       <div className={`w-7 h-7 rounded-full font-black flex items-center justify-center text-xs ${
-                        isDarkMode ? 'bg-cyan-500/20 text-cyan-400' : 'bg-blue-100 text-blue-800'
+                        isDarkMode ? 'bg-cyan-500/20 text-cyan-400' : 'bg-sky-100 text-sky-800'
                       }`}>
                         {u.username ? u.username.charAt(0).toUpperCase() : 'U'}
                       </div>
                       <span>{u.username?.toUpperCase()}</span>
                     </div>
-                    <span className="text-xs text-slate-400 font-mono">@{u.username?.toLowerCase()}</span>
                   </div>
                 ))}
               </div>
             )}
           </div>
 
+          {/* حقل كلمة السر */}
           <div>
-            <label className={`block text-xs sm:text-sm font-black mb-1.5 uppercase tracking-wide ${isDarkMode ? 'text-slate-200' : 'text-slate-800'}`}>
+            <label className={`block text-xs sm:text-sm font-black mb-2 uppercase tracking-wider ${
+              loginStatus === 'SUCCESS'
+                ? (isDarkMode ? 'text-emerald-300' : 'text-emerald-950')
+                : isDarkMode ? 'text-slate-100' : 'text-slate-900'
+            }`}>
               Şifre
             </label>
             <div className="relative">
@@ -614,64 +698,83 @@ export default function LoginPage() {
                 ref={passwordInputRef}
                 type={showPassword ? 'text' : 'password'}
                 required
-                disabled={isLocked}
+                disabled={isLocked || loginStatus === 'SUCCESS'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className={`w-full px-4 py-3 rounded-xl border-2 font-black outline-none transition-all duration-200 pr-12 ${
+                className={`w-full px-4 py-3.5 sm:py-4 rounded-2xl border-2 text-sm sm:text-base font-black outline-none bg-transparent transition-colors pr-12 ${
                   isLocked
-                    ? 'opacity-50 cursor-not-allowed bg-slate-900 border-slate-800'
+                    ? 'opacity-50 cursor-not-allowed border-slate-800'
+                    : loginStatus === 'SUCCESS'
+                    ? (isDarkMode 
+                        ? 'border-emerald-400 text-emerald-200' 
+                        : 'border-emerald-600 text-emerald-950 font-black')
                     : isDarkMode 
-                      ? 'bg-slate-950/60 border-slate-800/80 text-slate-100 focus:border-cyan-400 focus:bg-slate-900/90' 
-                      : 'bg-white/80 border-slate-300/80 text-slate-900 focus:border-blue-600 focus:bg-white'
+                      ? 'border-slate-700 text-white placeholder:text-slate-500 focus:border-cyan-400' 
+                      : 'border-slate-300 text-slate-900 placeholder:text-slate-400 focus:border-blue-600'
                 }`}
                 placeholder="••••••••"
               />
               <button
                 type="button"
-                disabled={isLocked}
+                disabled={isLocked || loginStatus === 'SUCCESS'}
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-cyan-400 transition-colors cursor-pointer p-1"
                 title={showPassword ? 'Şifreyi Gizle' : 'Şifreyi Göster'}
               >
                 {showPassword ? (
-                  <svg className="w-5 h-5 opacity-80 hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                   </svg>
                 ) : (
-                  <svg className="w-5 h-5 opacity-80 hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858-5.908a10.02 10.02 0 013.98-.863c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m-6.182-1.928a3 3 0 01-4.243-4.243" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3l18 18" />
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858-5.908a10.02 10.02 0 013.98-.863c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m-6.182-1.928a3 3 0 01-4.243-4.243" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 3l18 18" />
                   </svg>
                 )}
               </button>
             </div>
           </div>
 
-          <button
-            type="submit"
-            disabled={isLocked}
-            className={`w-full py-3.5 px-4 font-black rounded-xl text-base transition-all duration-200 shadow-lg cursor-pointer mt-2 flex items-center justify-center gap-2 active:scale-[0.98] ${
-              isLocked
-                ? 'bg-slate-800 text-slate-500 cursor-not-allowed shadow-none'
-                : isDarkMode
-                  ? 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black shadow-cyan-500/20'
-                  : 'bg-gradient-to-r from-blue-700 to-sky-600 hover:from-blue-800 hover:to-sky-700 text-white font-black shadow-blue-500/20'
-            }`}
-          >
-            {isLocked ? (
-              <>
-                <svg className="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span>SİSTEM KİLİTLİ ({formatLockTime(lockTimer)})</span>
-              </>
-            ) : (
+          {/* زر تسجيل الدخول */}
+          {loginStatus !== 'SUCCESS' && !isLocked && (
+            <button
+              type="submit"
+              className={`w-full py-4 px-4 font-black rounded-2xl text-sm sm:text-base tracking-widest transition-transform duration-150 cursor-pointer mt-3 flex items-center justify-center gap-2 active:scale-95 ${
+                isDarkMode
+                  ? 'bg-gradient-to-r from-cyan-400 via-teal-300 to-sky-400 text-slate-950 font-black'
+                  : 'bg-gradient-to-r from-blue-600 via-sky-600 to-cyan-600 text-white font-black'
+              }`}
+            >
               <span>GİRİŞ YAP</span>
-            )}
-          </button>
+            </button>
+          )}
+
         </form>
       </div>
+
+      {/* 💎 النص والرمز الجميل في أقصى اليمين بالأسفل (بدون أي مربع أو إطار) */}
+      {loginStatus === 'SUCCESS' && (
+        <div className="fixed bottom-8 right-8 z-[9999] flex items-center gap-3 animate-slideInRight select-none">
+          <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-500 dark:text-emerald-400 flex items-center justify-center shrink-0 shadow-[0_0_20px_rgba(16,185,129,0.3)]">
+            <svg className="w-6 h-6 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+            </svg>
+          </div>
+          <div className="flex flex-col">
+            <span className={`text-sm sm:text-base font-black tracking-wider uppercase ${
+              isDarkMode ? 'text-emerald-300 drop-shadow-[0_0_10px_rgba(52,211,153,0.5)]' : 'text-emerald-950 font-black'
+            }`}>
+              {username.toUpperCase()}
+            </span>
+            <span className={`text-xs font-black tracking-widest uppercase ${
+              isDarkMode ? 'text-emerald-400/90' : 'text-emerald-700'
+            }`}>
+              GİRİŞ BAŞARILI
+            </span>
+          </div>
+        </div>
+      )}
 
     </div>
   );

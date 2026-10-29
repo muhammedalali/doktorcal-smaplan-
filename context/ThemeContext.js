@@ -156,12 +156,16 @@ export function ThemeProvider({ children }) {
   const [pageLoading, setPageLoading] = useState(false);
   const pathname = usePathname();
 
-  // 🌟 ربط وضع الألوان العام تلقائياً بعنصر الـ HTML لتطبيقه عبر كل الصفحات
+  // 🌟 ربط وضع الألوان العام تلقائياً بعنصر الـ HTML ومزامنة المفاتيح
   useEffect(() => {
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+      localStorage.setItem('doktorsys_theme', 'dark');
     } else {
       document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+      localStorage.setItem('doktorsys_theme', 'light');
     }
   }, [isDarkMode]);
 
@@ -224,15 +228,23 @@ export function ThemeProvider({ children }) {
     setCurrentUserData(user);
     if (user?.phone) setEditPhone(user.phone);
 
-    // قراءة الإعدادات العامة أولاً ثم التخصيص للمستخدم
-    const globalTheme = localStorage.getItem('theme');
+    // قراءة الإعدادات العامة والحفظ المزدوج
+    const globalTheme = localStorage.getItem('theme') || localStorage.getItem('doktorsys_theme');
     const userKey = user?.username ? `user_prefs_${user.username.toLowerCase()}` : 'global_user_prefs';
     const savedPrefs = JSON.parse(localStorage.getItem(userKey) || '{}');
 
+    let initialDark = true;
     if (savedPrefs.isDarkMode !== undefined) {
-      setIsDarkMode(savedPrefs.isDarkMode);
+      initialDark = Boolean(savedPrefs.isDarkMode);
     } else if (globalTheme) {
-      setIsDarkMode(globalTheme === 'dark');
+      initialDark = globalTheme === 'dark';
+    }
+
+    setIsDarkMode(initialDark);
+    if (initialDark) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
     }
 
     if (savedPrefs.selectedPalette) setSelectedPalette(savedPrefs.selectedPalette);
@@ -262,7 +274,14 @@ export function ThemeProvider({ children }) {
     const user = sessionUser ? JSON.parse(sessionUser) : (localUser ? JSON.parse(localUser) : {});
     
     if (newPrefs.isDarkMode !== undefined) {
-      localStorage.setItem('theme', newPrefs.isDarkMode ? 'dark' : 'light');
+      const modeStr = newPrefs.isDarkMode ? 'dark' : 'light';
+      localStorage.setItem('theme', modeStr);
+      localStorage.setItem('doktorsys_theme', modeStr);
+      if (newPrefs.isDarkMode) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
     }
 
     const userKey = user?.username ? `user_prefs_${user.username.toLowerCase()}` : 'global_user_prefs';

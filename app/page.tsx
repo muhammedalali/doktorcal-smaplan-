@@ -11,61 +11,55 @@ export default function LandingPage() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // ⏳ حالة التحميل عند الضغط على البطاقات (1 للبطاقة الأولى، 2 للثانية)
-  const [loadingCard, setLoadingCard] = useState<number | null>(null);
+  // ⏳ حالة التحميل عند الضغط على البطاقة أو زر تسجيل الدخول
+  const [loadingTarget, setLoadingTarget] = useState<'schedule' | 'login' | null>(null);
 
-  // زوايا الإمالة وإحداثيات البؤرة الضوئية للبطاقتين
-  const [card1Style, setCard1Style] = useState({ transform: '', spotX: '50%', spotY: '50%' });
-  const [card2Style, setCard2Style] = useState({ transform: '', spotX: '50%', spotY: '50%' });
+  // زوايا الإمالة وإحداثيات البؤرة الضوئية لبطاقة جدول الزوار
+  const [cardStyle, setCardStyle] = useState({ transform: '', spotX: '50%', spotY: '50%' });
 
-  // 🛡️ حارس الصفحة الرئيسية: منع الخروج بالرجوع وإبقاء المستخدم في الصفحة الرئيسية دائماً
+  // 🔒 قفل سكرول الصفحة بالكامل عبر الـ Body كحماية إضافية ضد التمرير
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    window.history.pushState({ page: 'home_guard' }, '', window.location.href);
-
-    const handlePopState = () => {
-      window.history.pushState({ page: 'home_guard' }, '', window.location.href);
-      // إظهار رمز التحميل الفاخر فوراً عند استخدام زر الرجوع
-      setLoadingCard(1);
-    };
-
-    window.addEventListener('popstate', handlePopState);
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.width = '100%';
+    document.body.style.height = '100%';
 
     return () => {
-      window.removeEventListener('popstate', handlePopState);
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+      document.body.style.height = '';
     };
   }, []);
 
-  // 🔄 فحص التوجيه للوحة التحكم إن كان المستخدم مسجل الدخول بالفعل
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
+  // 🚀 دالة التعامل مع النقر مع تنظيف الجلسة والتوجيه الآمن
+  const handleNavigate = (target: 'schedule' | 'login', path: string) => {
+    if (loadingTarget !== null) return;
+    setLoadingTarget(target);
 
-    const sessionUser = sessionStorage.getItem('user');
-    const localUser = localStorage.getItem('user');
-    const activeUser = sessionUser ? JSON.parse(sessionUser) : (localUser ? JSON.parse(localUser) : null);
-
-    if (activeUser && activeUser.username) {
-      const isNavigatingBack = window.performance && 
-        window.performance.getEntriesByType('navigation')[0]?.type === 'back_forward';
-
-      if (!isNavigatingBack) {
-        router.replace('/dashboard');
+    // 🔒 تفريغ أي جلسة سابقة لمنع التداخل بين الزائر والأدمن
+    if (target === 'login' || target === 'schedule') {
+      try {
+        sessionStorage.clear();
+        localStorage.removeItem('user');
+        localStorage.removeItem('login_lock_until');
+        document.cookie = 'auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax;';
+        document.cookie = 'user_session=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax;';
+        document.cookie = 'user_role=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax;';
+        document.cookie = 'user=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax;';
+      } catch (e) {
+        console.error("Session clear error:", e);
       }
     }
-  }, [router]);
-
-  // 🚀 دالة التعامل مع النقر مع إظهار الرمز العصري فقط
-  const handleCardClick = (cardNum: number, path: string) => {
-    if (loadingCard !== null) return;
-    setLoadingCard(cardNum);
 
     setTimeout(() => {
-      router.replace(path);
+      router.push(path);
     }, 380);
   };
 
-  // ⚡ متابعة حركة الماوس
+  // ⚡ متابعة حركة الماوس للضوء الخلفي
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!containerRef.current || window.innerWidth < 640) return;
     const { clientX, clientY } = e;
@@ -74,9 +68,9 @@ export default function LandingPage() {
     containerRef.current.style.setProperty('--mouse-y', `${clientY}px`);
   };
 
-  // 💎 حساب الإمالة ثلاثية الأبعاد
-  const handleCardMouseMove = (e: React.MouseEvent<HTMLDivElement>, cardNum: number) => {
-    if (window.innerWidth < 640 || loadingCard !== null) return;
+  // 💎 حساب الإمالة ثلاثية الأبعاد 3D Tilt لبطاقة الجدول
+  const handleCardMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (window.innerWidth < 640 || loadingTarget !== null) return;
 
     const card = e.currentTarget;
     const rect = card.getBoundingClientRect();
@@ -93,22 +87,15 @@ export default function LandingPage() {
     const spotY = `${(y / rect.height) * 100}%`;
 
     const transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
-
-    if (cardNum === 1) {
-      setCard1Style({ transform, spotX, spotY });
-    } else {
-      setCard2Style({ transform, spotX, spotY });
-    }
+    setCardStyle({ transform, spotX, spotY });
   };
 
-  const resetCardTilt = (cardNum: number) => {
+  const resetCardTilt = () => {
     if (window.innerWidth < 640) return;
-    const resetState = { transform: 'perspective(1000px) rotateX(0deg) rotateY(0deg)', spotX: '50%', spotY: '50%' };
-    if (cardNum === 1) setCard1Style(resetState);
-    else setCard2Style(resetState);
+    setCardStyle({ transform: 'perspective(1000px) rotateX(0deg) rotateY(0deg)', spotX: '50%', spotY: '50%' });
   };
 
-  // 🎨 رسم الجزيئات المضيئة
+  // 🎨 رسم الجزيئات المضيئة الخلفية عبر Canvas
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -197,7 +184,7 @@ export default function LandingPage() {
     <div 
       ref={containerRef}
       onMouseMove={handleMouseMove}
-      className={`h-screen w-screen overflow-hidden fixed inset-0 flex flex-col justify-between selection:bg-cyan-500 selection:text-slate-950 transition-colors duration-500 font-sans overscroll-none touch-none select-none ${
+      className={`h-dvh w-dvw max-h-dvh max-w-dvw overflow-hidden fixed inset-0 flex flex-col justify-between selection:bg-cyan-500 selection:text-slate-950 transition-colors duration-500 font-sans overscroll-none touch-none select-none ${
         isDarkMode ? 'bg-[#030712] text-slate-100' : 'bg-[#f8fafc] text-slate-900'
       }`}
       style={{
@@ -229,7 +216,9 @@ export default function LandingPage() {
       </div>
 
       {/* 📍 الهيدر العلوي */}
-      <div className="w-full px-5 py-4 sm:px-10 sm:py-6 flex justify-end items-center z-30 relative bg-transparent select-none">
+      <div className="w-full px-5 py-4 sm:px-10 sm:py-6 flex justify-between items-center z-30 relative bg-transparent select-none shrink-0">
+        
+        {/* 1️⃣ أقصى اليسار: زر الوضع الليلي/النهاري */}
         <button
           onClick={toggleTheme}
           aria-label="Toggle Theme"
@@ -267,23 +256,56 @@ export default function LandingPage() {
             }`} />
           </div>
         </button>
+
+        {/* 2️⃣ أقصى اليمين: زر تسجيل الدخول الممتد بسلاسة */}
+        <button
+          onClick={() => handleNavigate('login', '/login')}
+          aria-label="Giriş Yap"
+          className={`group relative flex items-center h-10 sm:h-11 px-3 sm:px-3.5 rounded-2xl border transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] cursor-pointer shadow-2xl backdrop-blur-2xl overflow-hidden transform-gpu active:scale-95 ${
+            isDarkMode 
+              ? 'bg-slate-900/80 border-blue-500/30 shadow-blue-950/50 hover:border-blue-400/80 hover:bg-slate-900/95' 
+              : 'bg-white/80 border-slate-300/80 shadow-slate-300/60 hover:border-blue-500 hover:bg-white'
+          }`}
+        >
+          <div className={`absolute inset-0 transition-opacity duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] rounded-2xl blur-sm -z-10 opacity-0 group-hover:opacity-100 ${
+            isDarkMode ? 'bg-blue-500/20' : 'bg-blue-400/20'
+          }`} />
+
+          <div className={`flex items-center justify-center shrink-0 transition-colors duration-500 ${
+            isDarkMode ? 'text-blue-400 group-hover:text-blue-300' : 'text-blue-600 group-hover:text-blue-700'
+          }`}>
+            {loadingTarget === 'login' ? (
+              <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <LogIn className="w-5 h-5 sm:w-5 sm:h-5 stroke-[2.3] transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-110 group-hover:translate-x-0.5" />
+            )}
+          </div>
+
+          <span className={`max-w-0 opacity-0 group-hover:max-w-[100px] group-hover:opacity-100 transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] whitespace-nowrap text-xs sm:text-sm font-black tracking-wide overflow-hidden select-none ${
+            isDarkMode ? 'text-blue-300' : 'text-blue-900'
+          }`}>
+            <span className="inline-block pl-2">
+              giriş yap
+            </span>
+          </span>
+        </button>
+
       </div>
 
-      {/* 🎯 المحتوى الرئيسي */}
-      <main className="max-w-lg sm:max-w-xl md:max-w-2xl mx-auto z-10 w-full flex-1 flex items-center justify-center p-4 sm:p-6 select-none">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-8 md:gap-10 w-full">
+      {/* 🎯 المحتوى الرئيسي: مربع جدول الزوار المتركز بدقة في الوسط */}
+      <main className="max-w-md sm:max-w-lg md:max-w-xl mx-auto z-10 w-full flex-1 flex items-center justify-center p-4 sm:p-6 select-none overflow-hidden">
+        <div className="w-full flex justify-center">
           
-          {/* 1️⃣ البطاقة الأولى: Doktor Çalışma Listesi */}
           <div 
-            onClick={() => handleCardClick(1, '/schedule')}
-            onMouseMove={(e) => handleCardMouseMove(e, 1)}
-            onMouseLeave={() => resetCardTilt(1)}
+            onClick={() => handleNavigate('schedule', '/schedule')}
+            onMouseMove={handleCardMouseMove}
+            onMouseLeave={resetCardTilt}
             style={{
-              transform: card1Style.transform,
-              transition: card1Style.transform.includes('0deg') ? 'all 0.4s ease-out' : 'none'
+              transform: cardStyle.transform,
+              transition: cardStyle.transform.includes('0deg') ? 'all 0.4s ease-out' : 'none'
             }}
-            className={`group relative cursor-pointer flex flex-col items-center justify-center text-center p-5 sm:p-6 md:p-7 rounded-[2rem] border transition-all duration-500 transform-gpu overflow-hidden active:scale-95 ${
-              loadingCard === 1
+            className={`group relative cursor-pointer flex flex-col items-center justify-center text-center p-6 sm:p-8 md:p-10 rounded-[2.5rem] border transition-all duration-500 transform-gpu overflow-hidden active:scale-95 w-full max-w-sm sm:max-w-md ${
+              loadingTarget === 'schedule'
                 ? isDarkMode 
                   ? 'bg-slate-900/90 border-cyan-400/90 shadow-2xl shadow-cyan-950/60 scale-95' 
                   : 'bg-white/95 border-sky-500 shadow-2xl shadow-sky-200 scale-95'
@@ -293,21 +315,21 @@ export default function LandingPage() {
             }`}
           >
             <div 
-              className="hidden sm:block pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-[2rem]"
+              className="hidden sm:block pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-[2.5rem]"
               style={{
-                background: `radial-gradient(280px circle at ${card1Style.spotX} ${card1Style.spotY}, ${
+                background: `radial-gradient(280px circle at ${cardStyle.spotX} ${cardStyle.spotY}, ${
                   isDarkMode ? 'rgba(56, 189, 248, 0.22)' : 'rgba(2, 132, 199, 0.18)'
                 }, transparent 80%)`
               }}
             />
 
-            <div className="relative mb-3 sm:mb-4">
+            <div className="relative mb-4 sm:mb-5">
               <div className={`hidden sm:block absolute -inset-3 rounded-3xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 ${
                 isDarkMode ? 'bg-cyan-400/50' : 'bg-sky-400/40'
               }`} />
 
-              <div className={`relative w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-3xl border transition-all duration-300 flex items-center justify-center shadow-lg ${
-                loadingCard === 1
+              <div className={`relative w-22 h-22 sm:w-28 sm:h-28 md:w-32 md:h-32 rounded-3xl border transition-all duration-300 flex items-center justify-center shadow-lg ${
+                loadingTarget === 'schedule'
                   ? isDarkMode
                     ? 'border-cyan-400 bg-slate-950/90 text-cyan-300 shadow-[0_0_35px_rgba(34,211,238,0.7)]'
                     : 'border-sky-500 bg-white text-sky-600 shadow-[0_0_35px_rgba(2,132,199,0.35)]'
@@ -315,10 +337,8 @@ export default function LandingPage() {
                   ? 'border-cyan-500/30 bg-cyan-950/40 text-cyan-300 sm:group-hover:border-cyan-300 sm:group-hover:bg-cyan-400 sm:group-hover:text-slate-950 sm:group-hover:shadow-[0_0_30px_rgba(34,211,238,0.6)]'
                   : 'border-sky-300/70 bg-white/90 text-sky-900 sm:group-hover:border-sky-600 sm:group-hover:bg-sky-600 sm:group-hover:text-white sm:group-hover:shadow-[0_0_30px_rgba(2,132,199,0.4)]'
               }`}>
-                {loadingCard === 1 ? (
-                  /* ⚛️ الرمز الدوار المزدوج المتقن والعصري (واضح تماماً في النهار والليل وبدون أي كتابة) */
+                {loadingTarget === 'schedule' ? (
                   <div className="relative w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center">
-                    {/* الحلقة الخارجية المتدرجة النيونية */}
                     <div className={`absolute inset-0 rounded-full p-[2.5px] animate-[spin_1.3s_linear_infinite] ${
                       isDarkMode 
                         ? 'bg-gradient-to-tr from-cyan-400 via-teal-300 to-emerald-400 shadow-[0_0_18px_rgba(34,211,238,0.7)]' 
@@ -327,7 +347,6 @@ export default function LandingPage() {
                       <div className={`w-full h-full rounded-full ${isDarkMode ? 'bg-slate-950' : 'bg-white'}`}></div>
                     </div>
 
-                    {/* الحلقة الداخلية المعاكسة */}
                     <div className={`absolute inset-1.5 rounded-full p-[2px] animate-[spin_0.85s_linear_infinite_reverse] ${
                       isDarkMode 
                         ? 'bg-gradient-to-bl from-emerald-400 via-teal-400 to-cyan-400' 
@@ -336,106 +355,22 @@ export default function LandingPage() {
                       <div className={`w-full h-full rounded-full ${isDarkMode ? 'bg-slate-950' : 'bg-white'}`}></div>
                     </div>
 
-                    {/* النواة المضيئة المركزية */}
                     <span className={`w-3 h-3 rounded-full animate-ping ${
                       isDarkMode ? 'bg-cyan-400 shadow-[0_0_12px_rgba(34,211,238,1)]' : 'bg-sky-600 shadow-[0_0_10px_rgba(2,132,199,0.8)]'
                     }`} />
                   </div>
                 ) : (
-                  <CalendarDays className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 transition-transform duration-300 stroke-[2.3] sm:group-hover:scale-110 sm:group-hover:rotate-3 subpixel-antialiased" />
+                  <CalendarDays className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 transition-transform duration-300 stroke-[2.3] sm:group-hover:scale-110 sm:group-hover:rotate-3 subpixel-antialiased" />
                 )}
               </div>
             </div>
 
-            <h2 className={`text-sm sm:text-base md:text-lg font-black tracking-wide whitespace-nowrap transition-all duration-300 ${
+            <h2 className={`text-base sm:text-lg md:text-xl font-black tracking-wide whitespace-nowrap transition-all duration-300 ${
               isDarkMode 
                 ? 'text-slate-100 sm:group-hover:text-cyan-300 sm:group-hover:drop-shadow-[0_1px_8px_rgba(34,211,238,0.8)]' 
                 : 'text-slate-950 sm:group-hover:text-sky-950 font-extrabold'
             }`}>
               Doktor Çalışma Listesi
-            </h2>
-          </div>
-
-          {/* 2️⃣ البطاقة الثانية: Sisteme Giriş Yap */}
-          <div 
-            onClick={() => handleCardClick(2, '/login')}
-            onMouseMove={(e) => handleCardMouseMove(e, 2)}
-            onMouseLeave={() => resetCardTilt(2)}
-            style={{
-              transform: card2Style.transform,
-              transition: card2Style.transform.includes('0deg') ? 'all 0.4s ease-out' : 'none'
-            }}
-            className={`group relative cursor-pointer flex flex-col items-center justify-center text-center p-5 sm:p-6 md:p-7 rounded-[2rem] border transition-all duration-500 transform-gpu overflow-hidden active:scale-95 ${
-              loadingCard === 2
-                ? isDarkMode 
-                  ? 'bg-slate-900/90 border-blue-400/90 shadow-2xl shadow-blue-950/60 scale-95' 
-                  : 'bg-white/95 border-blue-600 shadow-2xl shadow-blue-200 scale-95'
-                : isDarkMode
-                ? 'bg-transparent border-transparent sm:hover:bg-slate-900/60 sm:hover:border-blue-400/90 sm:hover:backdrop-blur-2xl sm:hover:shadow-2xl sm:hover:shadow-blue-950/40'
-                : 'bg-transparent border-transparent sm:hover:bg-white/85 sm:hover:border-blue-600 sm:hover:backdrop-blur-2xl sm:hover:shadow-2xl sm:hover:shadow-slate-300/80'
-            }`}
-          >
-            <div 
-              className="hidden sm:block pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-[2rem]"
-              style={{
-                background: `radial-gradient(280px circle at ${card2Style.spotX} ${card2Style.spotY}, ${
-                  isDarkMode ? 'rgba(99, 102, 241, 0.22)' : 'rgba(37, 99, 235, 0.18)'
-                }, transparent 80%)`
-              }}
-            />
-
-            <div className="relative mb-3 sm:mb-4">
-              <div className={`hidden sm:block absolute -inset-3 rounded-3xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 ${
-                isDarkMode ? 'bg-blue-400/50' : 'bg-blue-500/40'
-              }`} />
-
-              <div className={`relative w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-3xl border transition-all duration-300 flex items-center justify-center shadow-lg ${
-                loadingCard === 2
-                  ? isDarkMode
-                    ? 'border-blue-400 bg-slate-950/90 text-blue-300 shadow-[0_0_35px_rgba(96,165,250,0.7)]'
-                    : 'border-blue-600 bg-white text-blue-600 shadow-[0_0_35px_rgba(37,99,235,0.35)]'
-                  : isDarkMode
-                  ? 'border-blue-500/30 bg-blue-950/40 text-blue-300 sm:group-hover:border-blue-300 sm:group-hover:bg-blue-400 sm:group-hover:text-slate-950 sm:group-hover:shadow-[0_0_30px_rgba(96,165,250,0.6)]'
-                  : 'border-blue-300/70 bg-white/90 text-blue-900 sm:group-hover:border-blue-600 sm:group-hover:bg-blue-600 sm:group-hover:text-white sm:group-hover:shadow-[0_0_30px_rgba(37,99,235,0.4)]'
-              }`}>
-                {loadingCard === 2 ? (
-                  /* ⚛️ الرمز الدوار المزدوج المتقن والعصري (واضح تماماً في النهار والليل وبدون أي كتابة) */
-                  <div className="relative w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center">
-                    {/* الحلقة الخارجية المتدرجة النيونية */}
-                    <div className={`absolute inset-0 rounded-full p-[2.5px] animate-[spin_1.3s_linear_infinite] ${
-                      isDarkMode 
-                        ? 'bg-gradient-to-tr from-blue-400 via-indigo-300 to-cyan-400 shadow-[0_0_18px_rgba(96,165,250,0.7)]' 
-                        : 'bg-gradient-to-tr from-blue-600 via-indigo-500 to-cyan-600 shadow-[0_0_15px_rgba(37,99,235,0.4)]'
-                    }`}>
-                      <div className={`w-full h-full rounded-full ${isDarkMode ? 'bg-slate-950' : 'bg-white'}`}></div>
-                    </div>
-
-                    {/* الحلقة الداخلية المعاكسة */}
-                    <div className={`absolute inset-1.5 rounded-full p-[2px] animate-[spin_0.85s_linear_infinite_reverse] ${
-                      isDarkMode 
-                        ? 'bg-gradient-to-bl from-cyan-400 via-blue-400 to-indigo-500' 
-                        : 'bg-gradient-to-bl from-cyan-600 via-blue-600 to-indigo-700'
-                    }`}>
-                      <div className={`w-full h-full rounded-full ${isDarkMode ? 'bg-slate-950' : 'bg-white'}`}></div>
-                    </div>
-
-                    {/* النواة المضيئة المركزية */}
-                    <span className={`w-3 h-3 rounded-full animate-ping ${
-                      isDarkMode ? 'bg-blue-400 shadow-[0_0_12px_rgba(96,165,250,1)]' : 'bg-blue-600 shadow-[0_0_10px_rgba(37,99,235,0.8)]'
-                    }`} />
-                  </div>
-                ) : (
-                  <LogIn className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 transition-transform duration-300 stroke-[2.3] sm:group-hover:scale-110 sm:group-hover:translate-x-0.5 subpixel-antialiased" />
-                )}
-              </div>
-            </div>
-
-            <h2 className={`text-sm sm:text-base md:text-lg font-black tracking-wide whitespace-nowrap transition-all duration-300 ${
-              isDarkMode 
-                ? 'text-slate-100 sm:group-hover:text-blue-300 sm:group-hover:drop-shadow-[0_1px_8px_rgba(96,165,250,0.8)]' 
-                : 'text-slate-950 sm:group-hover:text-blue-950 font-extrabold'
-            }`}>
-              Sisteme Giriş Yap
             </h2>
           </div>
 

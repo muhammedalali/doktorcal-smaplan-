@@ -29,7 +29,8 @@ function AutoLogoutHandler() {
       pathname === '/' || 
       pathname === '/login' || 
       pathname === '/schedule' || 
-      pathname === '/public-schedule'
+      pathname === '/public-schedule' ||
+      pathname === '/phonebook'
     ) {
       if (timerRef.current) clearTimeout(timerRef.current);
       return;
@@ -65,7 +66,7 @@ function AutoLogoutHandler() {
   return null;
 }
 
-// 🌟 شريط التبويبات التفاعلي السفلي الملتصق بالأسفل (Bottom Multi-Tab Bar)
+// 🌟 شريط التبويبات التفاعلي السفلي (Bottom Multi-Tab Bar)
 function BottomMultiTabBar() {
   const router = useRouter();
   const pathname = usePathname();
@@ -76,13 +77,14 @@ function BottomMultiTabBar() {
     { id: '/dashboard', title: 'ANASAYFA', path: '/dashboard' }
   ]);
 
-  // حفظ الصفحات المفتوحة تلقائياً دون حذف الصفحات السابقة
+  // حفظ الصفحات المفتوحة تلقائياً (مع استثناء دليل الهواتف /phonebook)
   useEffect(() => {
     if (
       pathname === '/' || 
       pathname === '/login' || 
       pathname === '/schedule' || 
-      pathname === '/public-schedule'
+      pathname === '/public-schedule' ||
+      pathname === '/phonebook' // 🚫 منع إضافة صفحة دليل الهواتف للتبويبات
     ) return;
 
     let tabTitle = '';
@@ -90,7 +92,6 @@ function BottomMultiTabBar() {
     else if (pathname === '/admin/stats') tabTitle = 'Sistem İstatistikleri';
     else if (pathname === '/admin/doctors') tabTitle = 'Bölüm ve Doktor Yönetimi';
     else if (pathname === '/admin/users') tabTitle = 'Kullanıcı Yönetimi';
-    else if (pathname === '/phonebook') tabTitle = 'Telefon Rehberi';
     else if (pathname === '/admin/reports') tabTitle = 'Arıza Bildirimleri';
     else if (pathname === '/report' || pathname === '/reports') tabTitle = 'Arıza Bildir';
     else if (pathname === '/profile') tabTitle = 'Profil Bilgileri';
@@ -105,11 +106,13 @@ function BottomMultiTabBar() {
     });
   }, [pathname]);
 
+  // 🙈 إخفاء شريط التبويبات السفلي تماماً في صفحة دليل الهواتف والصفحات العامة
   if (
     pathname === '/' || 
     pathname === '/login' || 
     pathname === '/schedule' || 
-    pathname === '/public-schedule'
+    pathname === '/public-schedule' ||
+    pathname === '/phonebook' // 🚫 عدم عرض الشريط السفلي عند التواجد في /phonebook
   ) {
     return null;
   }

@@ -268,6 +268,38 @@ export default function DashboardPage() {
 
   const [showLogoConfigModal, setShowLogoConfigModal] = useState(false);
 
+  // 🌟 حركة الشعار الشفاف المرفوع فوق شريط التبويبات السفلي
+  const [showExitLogo, setShowExitLogo] = useState(false);
+  const [displaySuccessName, setDisplaySuccessName] = useState('');
+
+  useEffect(() => {
+    const shouldAnimate = sessionStorage.getItem('dashboard_logo_exit_anim');
+    const storedName = sessionStorage.getItem('logged_username_display');
+
+    if (shouldAnimate === 'true') {
+      const activeUser = sessionStorage.getItem('user');
+      let fallbackName = 'KULLANICI';
+      if (storedName) {
+        fallbackName = storedName;
+      } else if (activeUser) {
+        try {
+          fallbackName = (JSON.parse(activeUser).username || 'KULLANICI').toUpperCase();
+        } catch (e) {}
+      }
+
+      setDisplaySuccessName(fallbackName);
+      setShowExitLogo(true);
+
+      const timer = setTimeout(() => {
+        setShowExitLogo(false);
+        sessionStorage.removeItem('dashboard_logo_exit_anim');
+        sessionStorage.removeItem('logged_username_display');
+      }, 2300);
+
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
   // 🎯 قفل التمرير الخارجي بالكامل لضمان عدم وجود سكرول للأسفل
   useEffect(() => {
     document.body.style.overflow = 'hidden';
@@ -297,7 +329,7 @@ export default function DashboardPage() {
   const profileRef = useRef(null);
   const router = useRouter();   
 
-  // 🔄 دالة مسح الجلسة والتوجيه إلى الصفحة الرئيسية '/'
+  // 🔒 دالة تنظيف الكوكيز والجلسة بشكل كلي عند تسجيل الخروج أو الرجوع للخلف
   const clearSessionAndLogout = () => {
     document.cookie = 'auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax;';
     document.cookie = 'user_session=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax;';
@@ -308,7 +340,6 @@ export default function DashboardPage() {
     localStorage.removeItem('user');
     localStorage.removeItem('login_lock_until');
 
-    // الانتقال المباشر إلى الصفحة الرئيسية عند الخروج أو الرجوع
     window.location.replace('/');
   };
 
@@ -529,12 +560,12 @@ export default function DashboardPage() {
     : 'bg-slate-200/70 border-slate-300/90 hover:border-sky-600 text-slate-900 font-extrabold backdrop-blur-xl shadow-xs';
 
   return (     
-    <div className={`fixed inset-0 h-dvh w-dvw max-h-dvh max-w-dvw overflow-hidden flex flex-col font-sans antialiased transition-colors duration-300 select-none cursor-default ${isDarkMode ? 'bg-[#020617] text-slate-100' : 'bg-[#edf4ff] text-slate-900'}`}>              
+    <div className={`fixed inset-0 pb-10 sm:pb-11 h-dvh w-dvw max-h-dvh max-w-dvw overflow-hidden flex flex-col font-sans antialiased transition-colors duration-300 select-none cursor-default ${isDarkMode ? 'bg-[#020617] text-slate-100' : 'bg-[#edf4ff] text-slate-900'}`}>              
       
       {/* 💫 شاشة التحميل */}
       {isEcgLoading && <RadialDotsLoader title={loadingTitle} isDarkMode={isDarkMode} />}
 
-      {/* 🏙️ خلفية هندسية ثلاثية الأبعاد فاخرة ومطابقة لصفحة stats (غير مضيئة وعالية الكثافة) */}
+      {/* 🏙️ خلفية هندسية ثلاثية الأبعاد */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
         <div className={`absolute -top-40 left-1/2 -translate-x-1/2 w-[120vw] h-[60vh] rounded-full blur-[140px] pointer-events-none transition-all duration-700 ${
           isDarkMode 
@@ -936,6 +967,42 @@ export default function DashboardPage() {
         </div>
 
       </main>
+
+      {/* 💎 الشعار الشفاف متموضع بأمان أعلى شريط التبويبات السفلي (bottom-14 sm:bottom-16) */}
+      {showExitLogo && (
+        <div className="fixed bottom-14 sm:bottom-16 right-6 sm:right-10 z-[999999] flex items-center gap-3 select-none pointer-events-none animate-[slideOutRight_0.7s_cubic-bezier(0.16,1,0.3,1)_1.5s_forwards]">
+          <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-500 dark:text-emerald-400 flex items-center justify-center shrink-0 shadow-[0_0_20px_rgba(16,185,129,0.3)]">
+            <svg className="w-6 h-6 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+            </svg>
+          </div>
+          <div className="flex flex-col">
+            <span className={`text-sm sm:text-base font-black tracking-wider uppercase ${
+              isDarkMode ? 'text-emerald-300 drop-shadow-[0_0_10px_rgba(52,211,153,0.5)]' : 'text-emerald-950 font-black'
+            }`}>
+              {displaySuccessName}
+            </span>
+            <span className={`text-xs font-black tracking-widest uppercase ${
+              isDarkMode ? 'text-emerald-400/90' : 'text-emerald-700'
+            }`}>
+              GİRİŞ BAŞARILI
+            </span>
+          </div>
+
+          <style jsx global>{`
+            @keyframes slideOutRight {
+              0% {
+                transform: translateX(0);
+                opacity: 1;
+              }
+              100% {
+                transform: translateX(150%);
+                opacity: 0;
+              }
+            }
+          `}</style>
+        </div>
+      )}
 
       {showLogoConfigModal && isGlobalAdmin && (
         <div className="fixed inset-0 z-[400] flex items-center justify-center bg-slate-950/70 p-4 animate-fadeIn backdrop-blur-md">
