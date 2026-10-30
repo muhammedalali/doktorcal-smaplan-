@@ -1,6 +1,6 @@
 'use client'; 
 
-import { useState, useEffect, useRef } from 'react'; 
+import { useState, useEffect, useRef, memo, useCallback } from 'react'; 
 import { useRouter } from 'next/navigation'; 
 import { db } from '@/lib/firebase';
 import { doc, collection, onSnapshot, updateDoc, setDoc, query, orderBy } from 'firebase/firestore';
@@ -94,59 +94,54 @@ function RadialDotsLoader({ title = "YÜKLENİYOR", isDarkMode }) {
   return (
     <>
       {showNetworkWarning && (
-        <div className="fixed top-0 left-0 right-0 z-[100000] bg-rose-600/90 text-white text-center py-2 px-4 text-xs font-black uppercase tracking-widest shadow-xl animate-pulse flex items-center justify-center gap-2 antialiased">
+        <div className="fixed top-0 left-0 right-0 z-[100000] bg-rose-600 text-white text-center py-2 px-4 text-xs font-bold tracking-wide shadow-xl animate-pulse flex items-center justify-center gap-2 antialiased">
           <span>⚠ İNTERNET BAĞLANTISI KESİLDİ - YENİDEN BAĞLANILIYOR{dots}</span>
         </div>
       )}
 
       <div className={`fixed inset-0 z-[99999] flex flex-col items-center justify-center transition-all duration-300 animate-fadeIn select-none pointer-events-auto antialiased ${
-        isDarkMode ? 'bg-slate-950/80 text-slate-100' : 'bg-slate-900/60 text-slate-900'
+        isDarkMode ? 'bg-slate-950/80 text-slate-100 backdrop-blur-md' : 'bg-slate-900/60 text-slate-900 backdrop-blur-md'
       }`}>
         
         <div className="relative flex flex-col items-center justify-center transform-gpu">
-          
-          <div className={`absolute w-36 h-36 rounded-full blur-2xl pointer-events-none transition-all duration-700 ease-in-out ${
+          <div className={`absolute w-40 h-40 rounded-full blur-3xl pointer-events-none transition-all duration-700 ease-in-out ${
             !isRedAlert 
               ? (isDarkMode 
-                  ? 'bg-gradient-to-r from-cyan-500/25 to-emerald-500/25' 
+                  ? 'bg-gradient-to-r from-cyan-500/30 to-emerald-500/30' 
                   : 'bg-gradient-to-r from-teal-600/30 to-cyan-600/30') 
-              : 'bg-rose-500/35'
+              : 'bg-rose-500/40'
           }`} />
 
-          <div className="relative w-24 h-24 sm:w-28 sm:h-28 flex items-center justify-center mb-6">
-            
+          <div className="relative w-28 h-28 sm:w-32 sm:h-32 flex items-center justify-center mb-8">
             <div 
               className="absolute inset-0 rounded-full border-2 border-transparent border-t-cyan-400 border-r-emerald-400 dark:border-t-cyan-300 dark:border-r-emerald-300 animate-[spin_1.2s_linear_infinite] transform-gpu"
               style={{ animationDuration: `${animSpeed}s` }}
             />
-
             <div 
-              className="absolute inset-2 sm:inset-2.5 rounded-full border-2 border-transparent border-b-sky-400 border-l-teal-300 dark:border-b-sky-300 dark:border-l-teal-200 animate-[spin_1.8s_linear_infinite_reverse] transform-gpu opacity-90"
+              className="absolute inset-3 sm:inset-3.5 rounded-full border-2 border-transparent border-b-sky-400 border-l-teal-300 dark:border-b-sky-300 dark:border-l-teal-200 animate-[spin_1.8s_linear_infinite_reverse] transform-gpu opacity-90"
               style={{ animationDuration: `${animSpeed * 1.5}s` }}
             />
-
-            <div className="relative w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center bg-white/10 dark:bg-slate-900/40 border border-white/20 dark:border-cyan-500/30 shadow-inner">
-              <div className={`w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full animate-ping duration-1000 ${
+            <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center bg-white/5 dark:bg-slate-900/60 border border-white/10 dark:border-cyan-500/30 shadow-[0_0_20px_rgba(34,211,238,0.2)]">
+              <div className={`w-4 h-4 sm:w-5 sm:h-5 rounded-full animate-ping duration-1000 ${
                 !isRedAlert 
                   ? (isDarkMode ? 'bg-cyan-400' : 'bg-teal-600')
                   : 'bg-rose-500'
               }`} />
             </div>
-
           </div>
 
-          <div className="z-10 flex flex-col items-center justify-center gap-1.5 subpixel-antialiased">
-            <div className="flex items-center justify-center gap-0.5">
-              <h3 className={`text-xs sm:text-sm font-black tracking-[0.3em] uppercase font-sans transition-colors duration-300 ${
+          <div className="z-10 flex flex-col items-center justify-center gap-2 subpixel-antialiased">
+            <div className="flex items-center justify-center gap-1">
+              <h3 className={`text-sm sm:text-base font-bold tracking-[0.2em] uppercase transition-colors duration-300 ${
                 !isRedAlert 
                   ? (isDarkMode 
-                      ? 'text-transparent bg-clip-text bg-gradient-to-r from-cyan-200 via-white to-teal-200' 
-                      : 'text-slate-900 font-extrabold') 
-                  : 'text-rose-500 dark:text-rose-400'
+                      ? 'text-transparent bg-clip-text bg-gradient-to-r from-cyan-200 via-white to-teal-200 drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]' 
+                      : 'text-slate-900 font-bold') 
+                  : 'text-rose-500 dark:text-rose-400 drop-shadow-[0_0_10px_rgba(244,63,94,0.5)]'
               }`}>
                 {title}
               </h3>
-              <span className={`w-4 text-left font-mono font-black text-xs sm:text-sm ${
+              <span className={`w-5 text-left font-mono font-bold text-sm sm:text-base ${
                 !isRedAlert 
                   ? (isDarkMode ? 'text-cyan-300' : 'text-teal-800') 
                   : 'text-rose-500 dark:text-rose-400'
@@ -156,12 +151,11 @@ function RadialDotsLoader({ title = "YÜKLENİYOR", isDarkMode }) {
             </div>
 
             {!isOnline && (
-              <span className="text-[10px] sm:text-xs font-black tracking-widest text-rose-500 dark:text-rose-400 uppercase animate-pulse font-mono mt-0.5">
+              <span className="text-[10px] sm:text-xs font-bold tracking-wide text-rose-500 dark:text-rose-400 uppercase animate-pulse mt-1">
                 {isRedAlert ? 'BAĞLANTI BAŞARISIZ' : `İNTERNETE BAĞLANIYOR${dots}`}
               </span>
             )}
           </div>
-
         </div>
       </div>
     </>
@@ -169,13 +163,12 @@ function RadialDotsLoader({ title = "YÜKLENİYOR", isDarkMode }) {
 }
 
 // 🔤 شعار النظام المطور بحماية الهيدريشن والتحميل الآمن
-function AnimatedTypewriterLogo({ isDarkMode, logoConfig }) {
+const AnimatedTypewriterLogo = memo(function AnimatedTypewriterLogo({ isDarkMode, logoConfig }) {
   const fullText = "DOKTORSYS";
   const [displayedLength, setDisplayedLength] = useState(0);
   const [phase, setPhase] = useState('TYPING');
 
   const isEnabled = logoConfig?.isEnabled ?? true;
-
   const darkStyle = logoConfig?.darkColor || 'from-emerald-400 via-teal-300 to-cyan-400';
   const lightStyle = logoConfig?.lightColor || 'from-emerald-800 via-teal-700 to-cyan-800';
   const activeColorClasses = isDarkMode ? darkStyle : lightStyle;
@@ -197,7 +190,6 @@ function AnimatedTypewriterLogo({ isDarkMode, logoConfig }) {
     }
 
     let timer;
-
     if (phase === 'TYPING') {
       if (displayedLength < fullText.length) {
         timer = setTimeout(() => {
@@ -230,7 +222,7 @@ function AnimatedTypewriterLogo({ isDarkMode, logoConfig }) {
   if (!isEnabled) {
     return (
       <div className="flex items-center h-full my-auto select-none pointer-events-none">
-        <div className={`font-black text-xs sm:text-base tracking-[0.18em] bg-clip-text text-transparent uppercase flex items-center transition-all duration-300 bg-gradient-to-r ${activeColorClasses}`}>
+        <div className={`font-bold text-xs sm:text-sm tracking-[0.15em] bg-clip-text text-transparent uppercase flex items-center transition-all duration-300 bg-gradient-to-r ${activeColorClasses} drop-shadow-sm`}>
           {fullText}
         </div>
       </div>
@@ -241,19 +233,16 @@ function AnimatedTypewriterLogo({ isDarkMode, logoConfig }) {
 
   return (
     <div className="flex items-center h-full my-auto select-none pointer-events-none">
-      <div className={`font-black text-xs sm:text-base tracking-[0.18em] bg-clip-text text-transparent uppercase flex items-center transition-all duration-300 bg-gradient-to-r ${activeColorClasses}`}>
+      <div className={`font-bold text-xs sm:text-sm tracking-[0.15em] bg-clip-text text-transparent uppercase flex items-center transition-all duration-300 bg-gradient-to-r ${activeColorClasses} drop-shadow-sm`}>
         {visibleLetters.split('').map((char, index) => (
-          <span 
-            key={index}
-            className="inline-block transition-all duration-200 animate-fadeIn transform translate-y-0"
-          >
+          <span key={index} className="inline-block transition-all duration-200 animate-fadeIn transform translate-y-0">
             {char}
           </span>
         ))}
       </div>
     </div>
   );
-}
+});
 
 export default function DashboardPage() {   
   const [currentUser, setCurrentUser] = useState(null);   
@@ -265,10 +254,8 @@ export default function DashboardPage() {
   const [isModulesOpen, setIsModulesOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
-
   const [showLogoConfigModal, setShowLogoConfigModal] = useState(false);
 
-  // 🌟 حركة الشعار الشفاف المرفوع فوق شريط التبويبات السفلي
   const [showExitLogo, setShowExitLogo] = useState(false);
   const [displaySuccessName, setDisplaySuccessName] = useState('');
 
@@ -300,7 +287,6 @@ export default function DashboardPage() {
     }
   }, []);
 
-  // 🎯 قفل التمرير الخارجي بالكامل لضمان عدم وجود سكرول للأسفل
   useEffect(() => {
     document.body.style.overflow = 'hidden';
     return () => {
@@ -319,7 +305,6 @@ export default function DashboardPage() {
   });
 
   const [notifications, setNotifications] = useState([]);
-
   const [isEcgLoading, setIsEcgLoading] = useState(false);
   const [loadingTitle, setLoadingTitle] = useState('YÜKLENİYOR');
 
@@ -329,8 +314,7 @@ export default function DashboardPage() {
   const profileRef = useRef(null);
   const router = useRouter();   
 
-  // 🔒 دالة تنظيف الكوكيز والجلسة بشكل كلي عند تسجيل الخروج أو الرجوع للخلف
-  const clearSessionAndLogout = () => {
+  const clearSessionAndLogout = useCallback(() => {
     document.cookie = 'auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax;';
     document.cookie = 'user_session=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax;';
     document.cookie = 'user_role=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax;';
@@ -341,7 +325,7 @@ export default function DashboardPage() {
     localStorage.removeItem('login_lock_until');
 
     window.location.replace('/');
-  };
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -383,9 +367,7 @@ export default function DashboardPage() {
 
     setCurrentUser(activeUser);   
 
-    const handlePopState = () => {
-      clearSessionAndLogout();
-    };
+    const handlePopState = () => clearSessionAndLogout();
     window.addEventListener('popstate', handlePopState);
 
     let unsubscribeUser = () => {};
@@ -395,7 +377,6 @@ export default function DashboardPage() {
           const freshData = { id: docSnap.id, ...docSnap.data() };
           setCurrentUser(freshData);
           sessionStorage.setItem('user', JSON.stringify(freshData));
-          if (localUser) localStorage.setItem('user', JSON.stringify(freshData));
         }
       });
     }
@@ -429,16 +410,9 @@ export default function DashboardPage() {
             hour: '2-digit', minute: '2-digit'
           });
         }
-        return {
-          id: doc.id,
-          ...data,
-          formattedDate
-        };
+        return { id: doc.id, ...data, formattedDate };
       });
-
       setNotifications(fetchedReports);
-    }, (err) => {
-      console.error("Firestore Reports Listen Error:", err);
     });
 
     return () => {
@@ -447,7 +421,7 @@ export default function DashboardPage() {
       unsubscribeLogoConfig();
       unsubscribeReports();
     };
-  }, [router]);   
+  }, [router, clearSessionAndLogout]);   
 
   const rawUName = currentUser?.username ? currentUser.username.trim() : '';   
   const normalizedUName = rawUName.toUpperCase().replace(/İ/g, 'I');
@@ -456,21 +430,17 @@ export default function DashboardPage() {
   const checkPermission = (permKey) => {
     if (isGlobalAdmin) return true;
     if (!currentUser) return false;
-
     if (Array.isArray(currentUser.permissions)) {
       return currentUser.permissions.includes(permKey);
     }
-
     if (typeof currentUser.permissions === 'object' && currentUser.permissions !== null) {
       return Boolean(currentUser.permissions[permKey]);
     }
-
     return false;
   };
 
   const canManageDoctors = checkPermission('bölüm ve doktor yönetimi') || checkPermission('canEditDoctors');
   const canManageReports = checkPermission('sorun bildirme yönetimi') || checkPermission('canManageReports');
-
   const hasAuthorizedModules = isGlobalAdmin || canManageDoctors || canManageReports;
 
   const visibleNotifications = notifications.filter(n => {
@@ -482,16 +452,12 @@ export default function DashboardPage() {
 
   const handleNotificationClick = async (notificationItem) => {
     setIsNotificationsOpen(false);
-    
     try {
       const reportRef = doc(db, 'reports', notificationItem.id);
-      await updateDoc(reportRef, {
-        isRead: true
-      });
+      await updateDoc(reportRef, { isRead: true });
     } catch (e) {
       console.error("Error updating notification status:", e);
     }
-
     const targetPath = canManageReports ? `/admin/reports?id=${notificationItem.id}` : `/report?id=${notificationItem.id}`;
     handleOpenModule(targetPath, 'YÜKLENİYOR');
   };
@@ -511,10 +477,7 @@ export default function DashboardPage() {
     setShowExitModal(false);
     setLoadingTitle('YÜKLENİYOR');
     setIsEcgLoading(true);
-
-    setTimeout(() => {
-      clearSessionAndLogout();
-    }, 400);
+    setTimeout(() => clearSessionAndLogout(), 400);
   };
 
   const handleOpenModule = (path, title = 'YÜKLENİYOR') => {
@@ -524,10 +487,7 @@ export default function DashboardPage() {
     setIsNotificationsOpen(false);
     setLoadingTitle('YÜKLENİYOR');
     setIsEcgLoading(true);
-
-    setTimeout(() => {
-      router.push(path);
-    }, 250);
+    setTimeout(() => router.push(path), 250);
   };
 
   const toggleFullScreen = () => {
@@ -556,13 +516,32 @@ export default function DashboardPage() {
   const displayUsername = rawUName ? rawUName.toUpperCase() : 'KULLANICI';
 
   const unifiedHeaderPillStyle = isDarkMode
-    ? 'bg-slate-900/80 border-slate-700/80 hover:border-cyan-400/80 text-slate-100 hover:text-cyan-300 backdrop-blur-xl'
-    : 'bg-slate-200/70 border-slate-300/90 hover:border-sky-600 text-slate-900 font-extrabold backdrop-blur-xl shadow-xs';
+    ? 'bg-slate-900/60 border-slate-700/60 text-slate-100 backdrop-blur-2xl shadow-lg shadow-black/20'
+    : 'bg-white/60 border-slate-200/80 text-slate-900 backdrop-blur-2xl shadow-lg shadow-slate-200/50';
 
   return (     
-    <div className={`fixed inset-0 pb-10 sm:pb-11 h-dvh w-dvw max-h-dvh max-w-dvw overflow-hidden flex flex-col font-sans antialiased transition-colors duration-300 select-none cursor-default ${isDarkMode ? 'bg-[#020617] text-slate-100' : 'bg-[#edf4ff] text-slate-900'}`}>              
-      
-      {/* 💫 شاشة التحميل */}
+    <div 
+      className={`fixed inset-0 pb-10 sm:pb-11 h-dvh w-dvw max-h-dvh max-w-dvw overflow-hidden flex flex-col antialiased transition-colors duration-300 select-none cursor-default ${isDarkMode ? 'bg-[#020617] text-white' : 'bg-[#edf4ff] text-black'}`}
+    >              
+      {/* 🎯 كود CSS عام لفرض الخط الواضح وإزالة تأثيرات التمرير */}
+      <style jsx global>{`
+        * {
+          font-family: 'Georgia', 'Times New Roman', Times, serif !important;
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
+        }
+        /* إزالة أي تأثير تمرير من أي زر أو قائمة في الصفحة بالكامل */
+        button, a, div[role="button"], select, input {
+          transition: none !important;
+        }
+        button:hover, a:hover, div[role="button"]:hover {
+          background-color: inherit !important;
+          color: inherit !important;
+          transform: none !important;
+          box-shadow: none !important;
+        }
+      `}</style>
+
       {isEcgLoading && <RadialDotsLoader title={loadingTitle} isDarkMode={isDarkMode} />}
 
       {/* 🏙️ خلفية هندسية ثلاثية الأبعاد */}
@@ -574,19 +553,11 @@ export default function DashboardPage() {
         }`} />
 
         <div 
-          className={`absolute inset-0 transition-all duration-300 ${
-            isDarkMode ? 'opacity-25' : 'opacity-35'
-          }`}
+          className={`absolute inset-0 transition-all duration-300 ${isDarkMode ? 'opacity-25' : 'opacity-35'}`}
           style={{
             backgroundImage: isDarkMode
-              ? `
-                linear-gradient(to right, rgba(148, 163, 184, 0.2) 1px, transparent 1px),
-                linear-gradient(to bottom, rgba(148, 163, 184, 0.2) 1px, transparent 1px)
-              `
-              : `
-                linear-gradient(to right, rgba(71, 85, 105, 0.25) 1px, transparent 1px),
-                linear-gradient(to bottom, rgba(71, 85, 105, 0.25) 1px, transparent 1px)
-              `,
+              ? `linear-gradient(to right, rgba(148, 163, 184, 0.2) 1px, transparent 1px), linear-gradient(to bottom, rgba(148, 163, 184, 0.2) 1px, transparent 1px)`
+              : `linear-gradient(to right, rgba(71, 85, 105, 0.25) 1px, transparent 1px), linear-gradient(to bottom, rgba(71, 85, 105, 0.25) 1px, transparent 1px)`,
             backgroundSize: '20px 20px',
             transform: 'perspective(500px) rotateX(20deg) scale(1.2)',
             transformOrigin: 'top center'
@@ -601,15 +572,13 @@ export default function DashboardPage() {
       </div>
 
       {/* 🚀 الهيدر العلوي */}
-      <header className="w-full shrink-0 px-2 sm:px-6 py-2.5 flex items-center justify-between flex-wrap lg:flex-nowrap gap-2 z-30 relative bg-transparent border-b border-sky-400/20">
-        
+      <header className="w-full shrink-0 px-3 sm:px-6 py-3 flex items-center justify-between flex-wrap lg:flex-nowrap gap-2 z-30 relative bg-transparent border-b border-white/5">
         <div className="flex items-center gap-3 h-full my-auto shrink-0">
           <AnimatedTypewriterLogo isDarkMode={isDarkMode} logoConfig={logoConfig} />
-
           {isGlobalAdmin && (
             <button
               onClick={() => setShowLogoConfigModal(true)}
-              className="p-1 text-slate-400 hover:text-emerald-400 transition-colors cursor-default text-xs"
+              className={`p-1.5 rounded-lg border border-transparent cursor-pointer text-xs ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}
               title="Logo Animasyon ve Renk Ayarları"
             >
               ⚙
@@ -617,95 +586,89 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap justify-end">
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-end">
           
+          {/* زر التنبيهات */}
           <div className="relative shrink-0" ref={notificationsRef}>
             <button 
               onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
-              className={`relative h-9 w-9 sm:h-10 sm:w-10 rounded-xl border flex items-center justify-center transition-all duration-200 active:scale-95 cursor-default shrink-0 ${unifiedHeaderPillStyle}`}
+              className={`relative h-10 w-10 rounded-2xl border flex items-center justify-center cursor-pointer shrink-0 ${unifiedHeaderPillStyle}`}
               title="Bildirimler"
             >
               {unreadNotifications.length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-rose-500 text-[10px] text-white font-black px-1.5 min-w-[18px] h-[18px] rounded-full flex items-center justify-center border-2 border-slate-100 dark:border-slate-900 animate-pulse shadow-md">
+                <span className="absolute -top-1 -right-1 bg-rose-500 text-[10px] text-white font-bold px-1.5 min-w-[18px] h-[18px] rounded-full flex items-center justify-center border-2 border-white dark:border-slate-900 animate-pulse shadow-[0_0_10px_rgba(244,63,94,0.5)]">
                   {unreadNotifications.length}
                 </span>
               )}
-              <svg className="w-4 h-4 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
               </svg>
             </button>
 
             {isNotificationsOpen && (
-              <div className={`absolute right-0 top-full mt-2 w-80 sm:w-88 border rounded-2xl shadow-2xl overflow-hidden z-[150] font-sans animate-fadeIn backdrop-blur-2xl ${
-                isDarkMode ? 'bg-slate-900/95 border-slate-800 text-slate-100' : 'bg-slate-100/95 border-slate-300 text-slate-800'
+              <div className={`absolute right-0 top-full mt-3 w-80 sm:w-88 border rounded-3xl shadow-2xl overflow-hidden z-[150] backdrop-blur-3xl ${
+                isDarkMode ? 'bg-slate-900/95 border-slate-700/50 text-white' : 'bg-white/95 border-slate-200 text-black'
               }`}>
-                <div className={`px-4 py-3 border-b flex justify-between items-center ${
-                  isDarkMode ? 'border-slate-800 bg-slate-950/60' : 'border-slate-200 bg-slate-200/50'
-                }`}>
+                <div className={`px-5 py-4 border-b flex justify-between items-center ${isDarkMode ? 'border-slate-700/50 bg-slate-950/40' : 'border-slate-200 bg-slate-50/50'}`}>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-black uppercase tracking-wider text-cyan-600 dark:text-cyan-400">BİLDİRİMLER</span>
+                    <span className="text-xs font-bold uppercase tracking-wider text-cyan-700 dark:text-cyan-400">BİLDİRİMLER</span>
                   </div>
                   {unreadNotifications.length > 0 && (
-                    <span className="bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 px-2.5 py-0.5 rounded-full text-[10px] font-black">
+                    <span className="bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 border border-cyan-500/30 px-2.5 py-0.5 rounded-full text-[10px] font-bold">
                       {unreadNotifications.length}
                     </span>
                   )}
                 </div>
 
-                <div className="max-h-72 overflow-y-auto divide-y divide-slate-700/20">
+                <div className="max-h-72 overflow-y-auto divide-y divide-slate-700/20 scrollbar-none">
                   {unreadNotifications.length > 0 ? (
                     unreadNotifications.map((item) => (
                       <div
                         key={item.id}
                         onClick={() => handleNotificationClick(item)}
-                        className={`p-3.5 flex flex-col gap-1.5 cursor-default transition-all ${
-                          isDarkMode 
-                            ? 'hover:bg-slate-800/80 bg-slate-950/20' 
-                            : 'hover:bg-slate-200/80 bg-slate-200/30'
+                        className={`p-4 flex flex-col gap-2 cursor-pointer ${
+                          isDarkMode ? 'bg-slate-950/20' : 'bg-white/40'
                         }`}
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <span className="font-black text-xs text-amber-600 dark:text-amber-500 truncate uppercase">
+                          <span className="font-bold text-xs text-amber-700 dark:text-amber-500 truncate uppercase">
                             👤 {item.senderName || item.createdBy || 'Kullanıcı'}
                           </span>
-                          <span className="text-[10px] font-mono opacity-60 shrink-0">
+                          <span className="text-[10px] font-mono font-bold opacity-80 shrink-0 bg-slate-200/50 dark:bg-slate-800/50 px-1.5 py-0.5 rounded">
                             {item.formattedDate}
                           </span>
                         </div>
-
-                        <p className="font-bold text-[11px] text-slate-700 dark:text-slate-200 leading-relaxed">
+                        <p className="font-bold text-[11px] leading-relaxed">
                           {item.title || item.message || item.description || 'Yeni bir sorun/arıza bildirimi gönderildi.'}
                         </p>
-
                         <div className="flex items-center justify-between pt-1">
-                          <span className="text-[9px] bg-rose-500/10 text-rose-600 dark:text-rose-500 border border-rose-500/20 px-2 py-0.5 rounded-md font-mono font-black uppercase">
+                          <span className="text-[9px] bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded-md font-mono font-bold uppercase">
                             {item.category || item.type || 'ARIZA'}
                           </span>
-                          <span className="text-[10px] text-cyan-600 dark:text-cyan-400 font-black">
+                          <span className="text-[10px] text-cyan-700 dark:text-cyan-400 font-bold flex items-center gap-1">
                             Detay ➔
                           </span>
                         </div>
                       </div>
                     ))
                   ) : (
-                    <div className="py-8 px-4 text-center space-y-2">
-                      <div className="w-10 h-10 rounded-2xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20 flex items-center justify-center mx-auto text-lg">
+                    <div className="py-10 px-4 text-center space-y-3">
+                      <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 border border-cyan-500/20 flex items-center justify-center mx-auto text-xl shadow-inner">
                         🔔
                       </div>
-                      <p className="text-xs font-black text-slate-500 dark:text-slate-400 tracking-wide">
+                      <p className="text-xs font-bold text-slate-700 dark:text-slate-300 tracking-wide">
                         okunmamış yeni bildirim yok
                       </p>
                     </div>
                   )}
                 </div>
-
               </div>
             )}
           </div>
 
           <button 
             onClick={toggleFullScreen}
-            className={`hidden sm:flex h-10 w-10 rounded-xl border items-center justify-center transition-all duration-200 active:scale-95 cursor-default shrink-0 ${unifiedHeaderPillStyle}`}
+            className={`hidden sm:flex h-10 w-10 rounded-2xl border items-center justify-center cursor-pointer shrink-0 ${unifiedHeaderPillStyle}`}
             title="Tam Ekran"
           >
             <svg className="w-4 h-4 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -716,44 +679,44 @@ export default function DashboardPage() {
           <button
             type="button"
             onClick={toggleTheme}
-            className={`h-9 w-9 sm:h-10 sm:w-10 rounded-xl border flex items-center justify-center transition-all duration-200 active:scale-95 cursor-default shrink-0 ${unifiedHeaderPillStyle}`}
+            className={`h-10 w-10 rounded-2xl border flex items-center justify-center cursor-pointer shrink-0 ${unifiedHeaderPillStyle}`}
             title={isDarkMode ? 'Gündüz Modu' : 'Gece Modu'}
           >
             {isDarkMode ? (
-              <svg className="w-4 h-4 text-amber-400 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-amber-400 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
               </svg>
             ) : (
-              <svg className="w-4 h-4 text-slate-800 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-slate-800 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
               </svg>
             )}
           </button>
 
-          {/* 🔘 زر Diğer İşlemler */}
+          {/* زر Diğer İşlemler */}
           <div className="relative shrink-0" ref={otherOperationsRef}>
             <button 
               onClick={() => setIsOtherOperationsOpen(!isOtherOperationsOpen)} 
-              className={`h-9 sm:h-10 px-3.5 sm:px-4.5 rounded-xl flex items-center gap-2 text-[11px] sm:text-xs font-black transition-all duration-200 cursor-default border active:scale-95 ${unifiedHeaderPillStyle}`}
+              className={`h-10 px-4 rounded-2xl flex items-center gap-2 text-xs font-bold cursor-pointer border ${unifiedHeaderPillStyle}`}
             >
-              <svg className="w-4 h-4 text-sky-600 dark:text-cyan-400 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 text-sky-700 dark:text-cyan-400 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
-              <span className="hidden md:inline tracking-wide font-black">Diğer İşlemler</span>
-              <svg className={`w-3.5 h-3.5 stroke-[2.5] opacity-80 transition-transform duration-200 ${isOtherOperationsOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <span className="hidden md:inline tracking-wide font-bold">Diğer İşlemler</span>
+              <svg className={`w-3.5 h-3.5 stroke-[2.5] opacity-80 transition-transform duration-300 ${isOtherOperationsOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
               </svg>
             </button>
 
             {isOtherOperationsOpen && (
-              <div className={`absolute right-0 top-full mt-2 w-56 border rounded-2xl shadow-xl py-2 z-[120] text-xs font-bold backdrop-blur-2xl ${isDarkMode ? 'bg-slate-900/95 border-slate-800 text-slate-200' : 'bg-slate-100/95 border-slate-300 text-slate-800'}`}>
+              <div className={`absolute right-0 top-full mt-3 w-60 border rounded-2xl shadow-2xl py-2 z-[120] text-xs font-bold backdrop-blur-3xl ${isDarkMode ? 'bg-slate-900/95 border-slate-700/50 text-white' : 'bg-white/95 border-slate-200 text-black'}`}>
                 {otherOperationsList.filter(m => m.show).map((mod) => (
                   <button
                     key={mod.id}
                     onClick={() => handleOpenModule(mod.path)}
-                    className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors cursor-default ${isDarkMode ? 'hover:bg-slate-800 hover:text-cyan-400' : 'hover:bg-slate-200 hover:text-sky-800'}`}
+                    className={`w-full text-left px-4 py-3 flex items-center gap-3 cursor-pointer`}
                   >
-                    <span className="w-2 h-2 rounded-full bg-cyan-500"></span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-500"></span>
                     <span>{mod.title}</span>
                   </button>
                 ))}
@@ -761,29 +724,28 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* 🔘 زر Yetkili İşlemler */}
+          {/* زر Yetkili İşlemler */}
           {hasAuthorizedModules && (
             <div className="relative shrink-0" ref={modulesRef}>
               <button 
                 onClick={() => setIsModulesOpen(!isModulesOpen)} 
-                className={`h-9 sm:h-10 px-3.5 sm:px-4.5 rounded-xl flex items-center gap-2 text-[11px] sm:text-xs font-black transition-all duration-200 cursor-default border active:scale-95 ${unifiedHeaderPillStyle}`}
+                className={`h-10 px-4 rounded-2xl flex items-center gap-2 text-xs font-bold cursor-pointer border ${unifiedHeaderPillStyle}`}
               >
-                <svg className="w-4 h-4 text-sky-600 dark:text-cyan-400 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-sky-700 dark:text-cyan-400 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                 </svg>
-                <span className="hidden md:inline tracking-wide font-black">Yetkili İşlemler</span>
-                <svg className={`w-3.5 h-3.5 stroke-[2.5] opacity-80 transition-transform duration-200 ${isModulesOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <span className="hidden md:inline tracking-wide font-bold">Yetkili İşlemler</span>
+                <svg className={`w-3.5 h-3.5 stroke-[2.5] opacity-80 transition-transform duration-300 ${isModulesOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
 
               {isModulesOpen && (
-                <div className={`absolute right-0 top-full mt-2 w-64 border rounded-2xl shadow-xl py-2 z-[120] text-xs font-bold backdrop-blur-2xl ${isDarkMode ? 'bg-slate-900/95 border-slate-800 text-slate-200' : 'bg-slate-100/95 border-slate-300 text-slate-800'}`}>
-                  
+                <div className={`absolute right-0 top-full mt-3 w-64 border rounded-2xl shadow-2xl py-2 z-[120] text-xs font-bold backdrop-blur-3xl ${isDarkMode ? 'bg-slate-900/95 border-slate-700/50 text-white' : 'bg-white/95 border-slate-200 text-black'}`}>
                   {isGlobalAdmin && (
                     <button
                       onClick={() => handleOpenModule('/admin/stats')}
-                      className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors cursor-default ${isDarkMode ? 'hover:bg-slate-800 hover:text-purple-400' : 'hover:bg-purple-100/60 hover:text-purple-800'}`}
+                      className={`w-full text-left px-4 py-3 flex items-center gap-3 cursor-pointer`}
                     >
                       <svg className="w-4 h-4 text-purple-500 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
@@ -795,7 +757,7 @@ export default function DashboardPage() {
                   {isGlobalAdmin && (
                     <button
                       onClick={() => handleOpenModule('/admin/users')}
-                      className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors cursor-default ${isDarkMode ? 'hover:bg-slate-800 hover:text-cyan-400' : 'hover:bg-slate-200 hover:text-sky-800'}`}
+                      className={`w-full text-left px-4 py-3 flex items-center gap-3 cursor-pointer`}
                     >
                       <svg className="w-4 h-4 text-cyan-500 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
@@ -807,7 +769,7 @@ export default function DashboardPage() {
                   {canManageDoctors && (
                     <button
                       onClick={() => handleOpenModule('/admin/doctors')}
-                      className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors cursor-default ${isDarkMode ? 'hover:bg-slate-800 hover:text-cyan-400' : 'hover:bg-slate-200 hover:text-sky-800'}`}
+                      className={`w-full text-left px-4 py-3 flex items-center gap-3 cursor-pointer`}
                     >
                       <svg className="w-4 h-4 text-cyan-500 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -819,7 +781,7 @@ export default function DashboardPage() {
                   {canManageReports && (
                     <button
                       onClick={() => handleOpenModule('/admin/reports')}
-                      className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors cursor-default ${isDarkMode ? 'hover:bg-slate-800 hover:text-amber-400' : 'hover:bg-amber-100/60 hover:text-amber-800'}`}
+                      className={`w-full text-left px-4 py-3 flex items-center gap-3 cursor-pointer`}
                     >
                       <svg className="w-4 h-4 text-amber-500 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -832,44 +794,46 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* 🔘 زر Profile / ADMIN */}
+          {/* زر Profile / ADMIN */}
           <div className="relative shrink-0" ref={profileRef}>
             <button 
               onClick={() => setIsProfileOpen(!isProfileOpen)} 
-              className={`h-9 sm:h-10 px-3.5 sm:px-4.5 rounded-xl flex items-center gap-2 text-[11px] sm:text-xs font-black transition-all duration-200 cursor-default border active:scale-95 ${unifiedHeaderPillStyle}`}
+              className={`h-10 px-3 sm:px-4 rounded-2xl flex items-center gap-2.5 text-xs font-bold cursor-pointer border ${unifiedHeaderPillStyle}`}
             >
-              <svg className="w-4 h-4 text-sky-600 dark:text-cyan-400 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-              <span className="tracking-wide font-black max-w-[80px] sm:max-w-none truncate">{displayUsername}</span>
-              <svg className={`w-3.5 h-3.5 stroke-[2.5] opacity-80 transition-transform duration-200 ${isProfileOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="relative flex items-center justify-center">
+                <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-cyan-500 to-blue-500 flex items-center justify-center text-white text-[10px] shadow-[0_0_10px_rgba(6,182,212,0.5)] border border-white/20">
+                  {displayUsername.charAt(0)}
+                </div>
+              </div>
+              <span className="tracking-wide font-bold max-w-[60px] sm:max-w-[100px] truncate hidden sm:block">{displayUsername}</span>
+              <svg className={`w-3.5 h-3.5 stroke-[2.5] opacity-80 transition-transform duration-300 ${isProfileOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
               </svg>
             </button>
 
             {isProfileOpen && (
-              <div className={`absolute right-0 top-full mt-2 w-60 border rounded-2xl shadow-xl py-2 z-[120] text-xs font-bold backdrop-blur-2xl ${isDarkMode ? 'bg-slate-900/95 border-slate-800 text-slate-200' : 'bg-slate-100/95 border-slate-300 text-slate-800'}`}>
-                <div className={`px-4 py-3 border-b ${isDarkMode ? 'border-slate-800 bg-slate-950/40' : 'border-slate-200 bg-slate-200/50'}`}>
-                  <p className="font-black text-sm text-cyan-600 dark:text-cyan-400">{displayUsername}</p>
-                  <p className="text-[11px] opacity-70 font-bold">{currentUser?.role || 'Kullanıcı'}</p>
+              <div className={`absolute right-0 top-full mt-3 w-64 border rounded-3xl shadow-2xl py-2 z-[120] text-xs font-bold backdrop-blur-3xl ${isDarkMode ? 'bg-slate-900/95 border-slate-700/50 text-white' : 'bg-white/95 border-slate-200 text-black'}`}>
+                <div className={`px-5 py-4 border-b ${isDarkMode ? 'border-slate-700/50 bg-slate-950/40' : 'border-slate-200 bg-slate-50/50'}`}>
+                  <p className="font-bold text-sm text-transparent bg-clip-text bg-gradient-to-r from-cyan-700 to-blue-700 dark:from-cyan-400 dark:to-blue-400">{displayUsername}</p>
+                  <p className="text-[11px] opacity-90 font-bold mt-0.5">{currentUser?.role || 'Kullanıcı'}</p>
                 </div>
 
-                <div className="py-1">
-                  <button onClick={() => handleOpenModule('/profile')} className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors cursor-default ${isDarkMode ? 'hover:bg-slate-800 hover:text-cyan-400' : 'hover:bg-slate-200 hover:text-sky-800'}`}>
+                <div className="py-2">
+                  <button onClick={() => handleOpenModule('/profile')} className={`w-full text-left px-5 py-3 flex items-center gap-3 cursor-pointer`}>
                     <svg className="w-4 h-4 text-cyan-500 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
                     <span>Profil Bilgileri</span>
                   </button>
 
-                  <button onClick={() => handleOpenModule('/report')} className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors cursor-default ${isDarkMode ? 'hover:bg-amber-950/40 text-amber-400' : 'hover:bg-amber-100/60 text-amber-800'}`}>
+                  <button onClick={() => handleOpenModule('/report')} className={`w-full text-left px-5 py-3 flex items-center gap-3 cursor-pointer`}>
                     <svg className="w-4 h-4 text-amber-500 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                     </svg>
                     <span>Arıza Bildir</span>
                   </button>
 
-                  <button onClick={() => { setIsProfileOpen(false); setShowExitModal(true); }} className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors border-t font-black cursor-default ${isDarkMode ? 'border-slate-800 hover:bg-rose-950/40 text-rose-400' : 'border-slate-200 hover:bg-rose-100/60 text-rose-700'}`}>
+                  <button onClick={() => { setIsProfileOpen(false); setShowExitModal(true); }} className={`w-full text-left px-5 py-3 flex items-center gap-3 border-t font-bold cursor-pointer ${isDarkMode ? 'border-slate-700/50' : 'border-slate-200'}`}>
                     <svg className="w-4 h-4 text-rose-500 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                     </svg>
@@ -879,46 +843,40 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
-
         </div>
       </header>
 
       {/* 🔮 منطقة البطاقات الرئيسية */}
       <main className="p-4 sm:p-8 w-full flex-1 flex flex-col items-start justify-start max-w-7xl mx-auto overflow-hidden relative z-10 pt-6 sm:pt-10 pb-12">
-        
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 w-full max-w-2xl">
-          
           {/* 💎 بطاقة DOKTOR ÇALIŞMA LİSTESİ */}
           <div 
             onClick={() => handleOpenModule('/schedule')}
-            className={`group relative rounded-2xl p-4 sm:p-5 border cursor-default transition-all duration-300 flex items-center justify-between active:scale-[0.98] overflow-hidden backdrop-blur-xl ${
+            className={`relative rounded-2xl p-4 sm:p-5 border cursor-pointer flex items-center justify-between overflow-hidden backdrop-blur-xl ${
               isDarkMode 
-                ? 'bg-slate-900/80 border-cyan-400/80 hover:border-cyan-300 hover:bg-slate-800/90' 
-                : 'bg-slate-200/70 border-slate-300/90 hover:border-cyan-600 hover:bg-slate-300/70 shadow-sm'
+                ? 'bg-slate-900/80 border-cyan-400/80 text-white' 
+                : 'bg-slate-200/70 border-slate-300/90 text-black shadow-sm'
             }`}
           >
             <div className="flex items-center gap-3.5 z-10">
-              <div className={`p-3 rounded-xl border transition-all duration-300 shrink-0 ${
+              <div className={`p-3 rounded-xl border shrink-0 ${
                 isDarkMode 
-                  ? 'bg-cyan-500/20 border-cyan-400/50 text-cyan-300 group-hover:bg-cyan-400 group-hover:text-slate-950' 
-                  : 'bg-slate-900 border-slate-950 text-cyan-300 group-hover:bg-slate-950'
+                  ? 'bg-cyan-500/20 border-cyan-400/50 text-cyan-300' 
+                  : 'bg-slate-900 border-slate-950 text-cyan-300'
               }`}>
-                <svg className="w-5 h-5 stroke-[2.8]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
                 </svg>
               </div>
-
-              <span className={`text-xs sm:text-sm font-black tracking-wide transition-colors ${
-                isDarkMode ? 'text-cyan-300 group-hover:text-cyan-200' : 'text-slate-900 group-hover:text-cyan-950'
-              }`}>
+              <span className={`text-sm sm:text-base font-bold tracking-wide`}>
                 DOKTOR ÇALIŞMA LİSTESİ
               </span>
             </div>
 
-            <div className={`z-10 p-2 rounded-full border transition-all duration-300 group-hover:translate-x-1 ${
+            <div className={`z-10 p-2 rounded-full border ${
               isDarkMode 
-                ? 'border-cyan-400/60 bg-slate-950/80 text-cyan-300 group-hover:border-cyan-300 group-hover:bg-cyan-500/20' 
-                : 'border-slate-400 bg-slate-300/80 text-slate-900 group-hover:border-slate-600 group-hover:bg-slate-300'
+                ? 'border-cyan-400/60 bg-slate-950/80 text-cyan-300' 
+                : 'border-slate-400 bg-slate-300/80 text-slate-900'
             }`}>
               <svg className="w-4 h-4 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
@@ -929,99 +887,84 @@ export default function DashboardPage() {
           {/* 💎 بطاقة TELEFON REHBERİ */}
           <div 
             onClick={() => handleOpenModule('/phonebook')}
-            className={`group relative rounded-2xl p-4 sm:p-5 border cursor-default transition-all duration-300 flex items-center justify-between active:scale-[0.98] overflow-hidden backdrop-blur-xl ${
+            className={`relative rounded-2xl p-4 sm:p-5 border cursor-pointer flex items-center justify-between overflow-hidden backdrop-blur-xl ${
               isDarkMode 
-                ? 'bg-slate-900/80 border-cyan-400/80 hover:border-cyan-300 hover:bg-slate-800/90' 
-                : 'bg-slate-200/70 border-slate-300/90 hover:border-cyan-600 hover:bg-slate-300/70 shadow-sm'
+                ? 'bg-slate-900/80 border-cyan-400/80 text-white' 
+                : 'bg-slate-200/70 border-slate-300/90 text-black shadow-sm'
             }`}
           >
             <div className="flex items-center gap-3.5 z-10">
-              <div className={`p-3 rounded-xl border transition-all duration-300 shrink-0 ${
+              <div className={`p-3 rounded-xl border shrink-0 ${
                 isDarkMode 
-                  ? 'bg-cyan-500/20 border-cyan-400/50 text-cyan-300 group-hover:bg-cyan-400 group-hover:text-slate-950' 
-                  : 'bg-slate-900 border-slate-950 text-cyan-300 group-hover:bg-slate-950'
+                  ? 'bg-cyan-500/20 border-cyan-400/50 text-cyan-300' 
+                  : 'bg-slate-900 border-slate-950 text-cyan-300'
               }`}>
-                <svg className="w-5 h-5 stroke-[2.8]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-2.826-1.47-5.11-3.754-6.58-6.58l1.293-.97c.362-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
                 </svg>
               </div>
-
-              <span className={`text-xs sm:text-sm font-black tracking-wide transition-colors ${
-                isDarkMode ? 'text-cyan-300 group-hover:text-cyan-200' : 'text-slate-900 group-hover:text-cyan-950'
-              }`}>
+              <span className={`text-sm sm:text-base font-bold tracking-wide`}>
                 TELEFON REHBERİ
               </span>
             </div>
 
-            <div className={`z-10 p-2 rounded-full border transition-all duration-300 group-hover:translate-x-1 ${
+            <div className={`z-10 p-2 rounded-full border ${
               isDarkMode 
-                ? 'border-cyan-400/60 bg-slate-950/80 text-cyan-300 group-hover:border-cyan-300 group-hover:bg-cyan-500/20' 
-                : 'border-slate-400 bg-slate-300/80 text-slate-900 group-hover:border-slate-600 group-hover:bg-slate-300'
+                ? 'border-cyan-400/60 bg-slate-950/80 text-cyan-300' 
+                : 'border-slate-400 bg-slate-300/80 text-slate-900'
             }`}>
               <svg className="w-4 h-4 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
               </svg>
             </div>
           </div>
-
         </div>
-
       </main>
 
-      {/* 💎 الشعار الشفاف متموضع بأمان أعلى شريط التبويبات السفلي (bottom-14 sm:bottom-16) */}
+      {/* 💎 الشعار الشفاف متموضع بأمان أعلى شريط التبويبات السفلي */}
       {showExitLogo && (
-        <div className="fixed bottom-14 sm:bottom-16 right-6 sm:right-10 z-[999999] flex items-center gap-3 select-none pointer-events-none animate-[slideOutRight_0.7s_cubic-bezier(0.16,1,0.3,1)_1.5s_forwards]">
-          <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-500 dark:text-emerald-400 flex items-center justify-center shrink-0 shadow-[0_0_20px_rgba(16,185,129,0.3)]">
+        <div className="fixed bottom-14 sm:bottom-16 right-6 sm:right-10 z-[999999] flex items-center gap-3 select-none pointer-events-none">
+          <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-500 dark:text-emerald-400 flex items-center justify-center shrink-0 shadow-[0_0_20px_rgba(16,185,129,0.3)] backdrop-blur-md border border-emerald-500/30">
             <svg className="w-6 h-6 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
             </svg>
           </div>
           <div className="flex flex-col">
-            <span className={`text-sm sm:text-base font-black tracking-wider uppercase ${
-              isDarkMode ? 'text-emerald-300 drop-shadow-[0_0_10px_rgba(52,211,153,0.5)]' : 'text-emerald-950 font-black'
+            <span className={`text-sm sm:text-base font-bold tracking-wider uppercase ${
+              isDarkMode ? 'text-emerald-300 drop-shadow-[0_0_10px_rgba(52,211,153,0.5)]' : 'text-emerald-950'
             }`}>
               {displaySuccessName}
             </span>
-            <span className={`text-xs font-black tracking-widest uppercase ${
-              isDarkMode ? 'text-emerald-400/90' : 'text-emerald-700'
+            <span className={`text-xs font-bold tracking-widest uppercase ${
+              isDarkMode ? 'text-emerald-400' : 'text-emerald-700'
             }`}>
               GİRİŞ BAŞARILI
             </span>
           </div>
-
-          <style jsx global>{`
-            @keyframes slideOutRight {
-              0% {
-                transform: translateX(0);
-                opacity: 1;
-              }
-              100% {
-                transform: translateX(150%);
-                opacity: 0;
-              }
-            }
-          `}</style>
         </div>
       )}
 
       {showLogoConfigModal && isGlobalAdmin && (
-        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-slate-950/70 p-4 animate-fadeIn backdrop-blur-md">
-          <div className={`w-full max-w-md rounded-3xl p-6 shadow-2xl border space-y-4 max-h-[90vh] overflow-y-auto ${
-            isDarkMode ? 'bg-slate-900/95 border-slate-800 text-white' : 'bg-slate-100/95 border-slate-300 text-slate-800'
+        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xl">
+          <div className={`w-full max-w-md rounded-[2rem] p-6 shadow-2xl border space-y-5 max-h-[90vh] overflow-y-auto scrollbar-none ${
+            isDarkMode ? 'bg-slate-900/90 border-slate-700/50 text-white' : 'bg-white/90 border-slate-200 text-black'
           }`}>
-            <div className="flex justify-between items-center pb-2 border-b border-slate-700/30">
-              <h3 className="text-xs font-black text-emerald-500 uppercase tracking-wider">⚙ LOGO ANIMASYON VE RENK AYARLARI</h3>
-              <button onClick={() => setShowLogoConfigModal(false)} className="text-slate-400 hover:text-white font-black text-sm cursor-default">✕</button>
+            <div className="flex justify-between items-center pb-3 border-b border-slate-700/30">
+              <h3 className="text-xs font-bold text-emerald-600 uppercase tracking-wider flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                LOGO ANIMASYON VE RENK AYARLARI
+              </h3>
+              <button onClick={() => setShowLogoConfigModal(false)} className="w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-600 cursor-pointer">✕</button>
             </div>
 
-            <form onSubmit={handleSaveLogoConfig} className="space-y-4 text-xs font-bold">
-              <div className="flex items-center justify-between p-3 rounded-2xl border border-slate-700/40 bg-slate-950/20">
+            <form onSubmit={handleSaveLogoConfig} className="space-y-5 text-xs font-bold">
+              <div className={`flex items-center justify-between p-3.5 rounded-2xl border ${isDarkMode ? 'border-slate-700 bg-slate-800/50' : 'border-slate-200 bg-slate-50'}`}>
                 <span>Animasyonlu Yazı:</span>
                 <button
                   type="button"
                   onClick={() => setLogoConfig(prev => ({ ...prev, isEnabled: !prev.isEnabled }))}
-                  className={`px-3 py-1 rounded-xl text-[10px] font-black uppercase transition-all ${
-                    logoConfig.isEnabled ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400'
+                  className={`px-4 py-1.5 rounded-xl text-[10px] font-bold uppercase shadow-sm ${
+                    logoConfig.isEnabled ? 'bg-emerald-600 text-white' : 'bg-slate-300 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
                   }`}
                 >
                   {logoConfig.isEnabled ? 'AÇIK' : 'KAPALI'}
@@ -1029,14 +972,16 @@ export default function DashboardPage() {
               </div>
 
               <div>
-                <label className="block text-[10px] text-slate-400 uppercase mb-1.5">Hazır Renk Şablonları</label>
-                <div className="flex flex-wrap gap-1.5">
+                <label className="block text-[10px] text-slate-600 uppercase mb-2 tracking-wider font-bold">Hazır Renk Şablonları</label>
+                <div className="flex flex-wrap gap-2">
                   {presetGradients.map((p, idx) => (
                     <button
                       key={idx}
                       type="button"
                       onClick={() => setLogoConfig(prev => ({ ...prev, darkColor: p.dark, lightColor: p.light }))}
-                      className="px-2.5 py-1 rounded-lg text-[9px] font-black bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-default"
+                      className={`px-3 py-1.5 rounded-lg text-[9px] font-bold border ${
+                        isDarkMode ? 'bg-slate-800 text-slate-200 border-slate-600' : 'bg-slate-100 text-slate-800 border-slate-300'
+                      }`}
                     >
                       {p.name}
                     </button>
@@ -1045,51 +990,49 @@ export default function DashboardPage() {
               </div>
 
               <div>
-                <label className="block text-[10px] text-amber-400 uppercase mb-1">Gece Modu Renk Gradyanı (Tailwind)</label>
+                <label className="block text-[10px] text-amber-600 uppercase mb-1.5 tracking-wider font-bold">Gece Modu Renk Gradyanı</label>
                 <input
                   type="text"
                   value={logoConfig.darkColor ?? ''}
                   onChange={(e) => setLogoConfig(prev => ({ ...prev, darkColor: e.target.value }))}
-                  placeholder="from-emerald-400 via-teal-300 to-cyan-400"
-                  className={`w-full px-3 py-2 rounded-xl border font-mono outline-none text-[11px] ${
-                    isDarkMode ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                  className={`w-full px-4 py-3 rounded-xl border font-mono outline-none focus:ring-2 focus:ring-amber-500/50 text-[11px] ${
+                    isDarkMode ? 'bg-slate-950 border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-black'
                   }`}
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] text-emerald-500 uppercase mb-1">Gündüz Modu Renk Gradyanı (Tailwind)</label>
+                <label className="block text-[10px] text-sky-600 uppercase mb-1.5 tracking-wider font-bold">Gündüz Modu Renk Gradyanı</label>
                 <input
                   type="text"
                   value={logoConfig.lightColor ?? ''}
                   onChange={(e) => setLogoConfig(prev => ({ ...prev, lightColor: e.target.value }))}
-                  placeholder="from-emerald-800 via-teal-700 to-cyan-800"
-                  className={`w-full px-3 py-2 rounded-xl border font-mono outline-none text-[11px] ${
-                    isDarkMode ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                  className={`w-full px-4 py-3 rounded-xl border font-mono outline-none focus:ring-2 focus:ring-sky-500/50 text-[11px] ${
+                    isDarkMode ? 'bg-slate-950 border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-black'
                   }`}
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] text-slate-400 uppercase mb-1">Ekranda Kalma Süresi</label>
+                  <label className="block text-[10px] text-slate-600 uppercase mb-1.5 tracking-wider font-bold">Ekranda Kalma Süresi</label>
                   <input
                     type="number"
                     min="1"
                     value={logoConfig.visibleValue ?? 5}
                     onChange={(e) => setLogoConfig(prev => ({ ...prev, visibleValue: e.target.value === '' ? '' : Number(e.target.value) }))}
-                    className={`w-full px-3 py-2 rounded-xl border font-mono outline-none ${
-                      isDarkMode ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                    className={`w-full px-4 py-2.5 rounded-xl border font-mono outline-none focus:ring-2 focus:ring-cyan-500/50 ${
+                      isDarkMode ? 'bg-slate-950 border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-black'
                     }`}
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] text-slate-400 uppercase mb-1">Birim</label>
+                  <label className="block text-[10px] text-slate-600 uppercase mb-1.5 tracking-wider font-bold">Birim</label>
                   <select
                     value={logoConfig.visibleUnit ?? 'SECONDS'}
                     onChange={(e) => setLogoConfig(prev => ({ ...prev, visibleUnit: e.target.value }))}
-                    className={`w-full px-3 py-2 rounded-xl border font-mono outline-none ${
-                      isDarkMode ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                    className={`w-full px-4 py-2.5 rounded-xl border font-mono outline-none focus:ring-2 focus:ring-cyan-500/50 ${
+                      isDarkMode ? 'bg-slate-950 border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-black'
                     }`}
                   >
                     <option value="SECONDS">Saniye</option>
@@ -1099,26 +1042,26 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] text-slate-400 uppercase mb-1">Gizli Kalma Süresi</label>
+                  <label className="block text-[10px] text-slate-600 uppercase mb-1.5 tracking-wider font-bold">Gizli Kalma Süresi</label>
                   <input
                     type="number"
                     min="1"
                     value={logoConfig.hiddenValue ?? 5}
                     onChange={(e) => setLogoConfig(prev => ({ ...prev, hiddenValue: e.target.value === '' ? '' : Number(e.target.value) }))}
-                    className={`w-full px-3 py-2 rounded-xl border font-mono outline-none ${
-                      isDarkMode ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                    className={`w-full px-4 py-2.5 rounded-xl border font-mono outline-none focus:ring-2 focus:ring-cyan-500/50 ${
+                      isDarkMode ? 'bg-slate-950 border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-black'
                     }`}
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] text-slate-400 uppercase mb-1">Birim</label>
+                  <label className="block text-[10px] text-slate-600 uppercase mb-1.5 tracking-wider font-bold">Birim</label>
                   <select
                     value={logoConfig.hiddenUnit ?? 'SECONDS'}
                     onChange={(e) => setLogoConfig(prev => ({ ...prev, hiddenUnit: e.target.value }))}
-                    className={`w-full px-3 py-2 rounded-xl border font-mono outline-none ${
-                      isDarkMode ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                    className={`w-full px-4 py-2.5 rounded-xl border font-mono outline-none focus:ring-2 focus:ring-cyan-500/50 ${
+                      isDarkMode ? 'bg-slate-950 border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-black'
                     }`}
                   >
                     <option value="SECONDS">Saniye</option>
@@ -1128,17 +1071,19 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div className="flex gap-2 pt-2">
+              <div className="flex gap-3 pt-3">
                 <button
                   type="button"
                   onClick={() => setShowLogoConfigModal(false)}
-                  className="flex-1 py-2.5 bg-slate-800 text-slate-300 rounded-xl text-xs font-black cursor-default"
+                  className={`flex-1 py-3 rounded-xl text-xs font-bold ${
+                    isDarkMode ? 'bg-slate-800 text-slate-300' : 'bg-slate-200 text-black'
+                  }`}
                 >
                   İPTAL
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black shadow-md cursor-default transition-all uppercase"
+                  className="flex-1 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl text-xs font-bold uppercase tracking-wider"
                 >
                   KAYDET
                 </button>
@@ -1149,27 +1094,29 @@ export default function DashboardPage() {
       )}
 
       {showExitModal && (
-        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-slate-950/70 p-4 animate-fadeIn backdrop-blur-md">
-          <div className={`w-full max-w-sm rounded-3xl p-6 shadow-2xl border space-y-4 text-center ${isDarkMode ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-slate-100/95 border-slate-300 text-slate-800'}`}>
-            <div className="w-12 h-12 rounded-2xl bg-rose-500/10 text-rose-500 mx-auto flex items-center justify-center">
-              <svg className="w-6 h-6 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xl">
+          <div className={`w-full max-w-sm rounded-[2rem] p-6 shadow-2xl border space-y-5 text-center ${isDarkMode ? 'bg-slate-900/90 border-slate-700/50 text-white' : 'bg-white/90 border-slate-200 text-black'}`}>
+            <div className="w-16 h-16 rounded-full bg-rose-500/10 text-rose-500 mx-auto flex items-center justify-center shadow-inner border border-rose-500/20">
+              <svg className="w-8 h-8 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
               </svg>
             </div>
             <div>
-              <h3 className="text-base font-black">SİSTEMDEN ÇIKIŞ YAPILSIN MI?</h3>
-              <p className="text-xs font-bold opacity-70 mt-1">Oturumunuz sonlandırılacaktır.</p>
+              <h3 className="text-lg font-bold tracking-wide">SİSTEMDEN ÇIKIŞ YAPILSIN MI?</h3>
+              <p className={`text-xs font-bold mt-1.5 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>Oturumunuz güvenli bir şekilde sonlandırılacaktır.</p>
             </div>
-            <div className="flex gap-2.5 pt-2">
+            <div className="flex gap-3 pt-3">
               <button
                 onClick={() => setShowExitModal(false)}
-                className={`flex-1 py-3 text-xs font-black rounded-xl transition-all active:scale-95 cursor-default ${isDarkMode ? 'bg-slate-800 hover:bg-slate-700 text-slate-200' : 'bg-slate-200 hover:bg-slate-300 text-slate-800'}`}
+                className={`flex-1 py-3 text-xs font-bold rounded-xl ${
+                  isDarkMode ? 'bg-slate-800 text-slate-200' : 'bg-slate-200 text-black'
+                }`}
               >
                 İPTAL
               </button>
               <button
                 onClick={handleConfirmExit}
-                className="flex-1 py-3 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white text-xs font-black rounded-xl shadow-lg shadow-rose-600/20 transition-all active:scale-95 cursor-default"
+                className="flex-1 py-3 bg-gradient-to-r from-rose-600 to-red-600 text-white text-xs font-bold rounded-xl uppercase tracking-wider"
               >
                 ÇIKIŞ YAP
               </button>
@@ -1177,7 +1124,6 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
-
     </div>   
   ); 
 }

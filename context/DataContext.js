@@ -1,5 +1,6 @@
 'use client';
-import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+
+import { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, onSnapshot, doc } from 'firebase/firestore';
 
@@ -17,10 +18,15 @@ export function DataProvider({ children }) {
     try {
       const sessionUser = sessionStorage.getItem('user');
       const localUser = localStorage.getItem('user');
-      if (sessionUser) {
-        setCurrentUser(JSON.parse(sessionUser));
-      } else if (localUser) {
-        setCurrentUser(JSON.parse(localUser));
+      const userStr = sessionUser || localUser;
+
+      if (userStr) {
+        const parsedUser = JSON.parse(userStr);
+        // ✅ تحديث الحالة فقط إذا كانت البيانات مختلفة فعلياً لتجنب إعادة الرسم
+        setCurrentUser((prev) => {
+          if (JSON.stringify(prev) === JSON.stringify(parsedUser)) return prev;
+          return parsedUser;
+        });
       } else {
         setCurrentUser(null);
       }
@@ -45,7 +51,7 @@ export function DataProvider({ children }) {
     };
   }, [updateCurrentUser]);
 
-  // 2. الاشتراك اللحظي في Firestore لبيانات المستخدم الحالي لمنح وتجريد الصلاحيات فوراً
+  // 2. الاشتراك اللحظي في Firestore لبيانات المستخدم الحالي
   useEffect(() => {
     if (!currentUser?.id) return;
 
@@ -55,24 +61,26 @@ export function DataProvider({ children }) {
         if (docSnap.exists()) {
           const freshUserData = { id: docSnap.id, ...docSnap.data() };
           
-          // تحديث الجلسة المحلية إذا اختلفت الصلاحيات أو البيانات
-          if (JSON.stringify(freshUserData.permissions) !== JSON.stringify(currentUser.permissions) ||
-              freshUserData.role !== currentUser.role) {
-            setCurrentUser(freshUserData);
-            if (sessionStorage.getItem('user')) {
-              sessionStorage.setItem('user', JSON.stringify(freshUserData));
+          setCurrentUser((prev) => {
+            // ✅ فحص التغيير الفعلي لتجنب الحلقات اللانهائية
+            const hasChanged = 
+              JSON.stringify(freshUserData.permissions) !== JSON.stringify(prev?.permissions) ||
+              freshUserData.role !== prev?.role;
+
+            if (hasChanged) {
+              if (sessionStorage.getItem('user')) sessionStorage.setItem('user', JSON.stringify(freshUserData));
+              if (localStorage.getItem('user')) localStorage.setItem('user', JSON.stringify(freshUserData));
+              return freshUserData;
             }
-            if (localStorage.getItem('user')) {
-              localStorage.setItem('user', JSON.stringify(freshUserData));
-            }
-          }
+            return prev;
+          });
         }
       },
       (err) => console.error('Kullanıcı verisi güncellenirken hata:', err)
     );
 
     return () => unsubscribeLiveUser();
-  }, [currentUser?.id, currentUser?.permissions, currentUser?.role]);
+  }, [currentUser?.id]); // ✅ الاعتماد فقط على الـ ID وليس الصلاحيات لتجنب إعادة الاشتراك
 
   // 3. الاشتراك اللحظي للأطباء والمستخدمين
   useEffect(() => {
@@ -142,23 +150,24 @@ export function DataProvider({ children }) {
     return false;
   }, [currentUser]);
 
-  // 🔑 التجميع الموحد لحالة التحميل: لا ينتهي التحميل إلا بعد تجهيز المستخدم والأطباء معا
+  // 🔑 التجميع الموحد لحالة التحميل
   const isGlobalLoading = authLoading || doctorsLoading;
 
+  // ✅ السر هنا: تغليف القيمة بـ useMemo لمنع إعادة الرسم العشوائية في كل الصفحات
+  const contextValue = useMemo(() => ({
+    doctors,
+    setDoctors,
+    users,
+    setUsers,
+    currentUser,
+    setCurrentUser,
+    loading: isGlobalLoading,
+    checkPermission,
+    updateCurrentUser
+  }), [doctors, users, currentUser, isGlobalLoading, checkPermission, updateCurrentUser]);
+
   return (
-    <DataContext.Provider
-      value={{
-        doctors,
-        setDoctors,
-        users,
-        setUsers,
-        currentUser,
-        setCurrentUser,
-        loading: isGlobalLoading,
-        checkPermission,
-        updateCurrentUser
-      }}
-    >
+    <DataContext.Provider value={contextValue}>
       {children}
     </DataContext.Provider>
   );

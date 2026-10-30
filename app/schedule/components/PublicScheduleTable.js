@@ -9,6 +9,10 @@ import TableSettingsModal from '@/components/TableSettingsModal';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
+// ============================================================================
+// 📌 CONSTANTS & HELPERS
+// ============================================================================
+
 const TURKEY_OFFICIAL_HOLIDAYS_2026 = {   
   '2026-01-01': 'Yılbaşı',
   '2026-03-20': 'Ramazan Bayramı Arifesi',
@@ -29,6 +33,22 @@ const TURKEY_OFFICIAL_HOLIDAYS_2026 = {
 };
 
 const DAY_NAMES = ['PAZAR', 'PAZARTESİ', 'SALI', 'ÇARŞAMBA', 'PERŞEMBE', 'CUMA', 'CUMARTESİ'];
+const MONTHS_TR = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+const DAYS_TR_SHORT = ['Pt', 'Sa', 'Ça', 'Pe', 'Cu', 'Ct', 'Pz'];
+
+// 🛠️ دوال مساعدة للتعامل مع التاريخ محلياً (لحل مشكلة توقيت غرينتش)
+const getLocalISODate = (dateObj) => {
+  const y = dateObj.getFullYear();
+  const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const d = String(dateObj.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
+const parseLocalISODate = (isoStr) => {
+  if (!isoStr) return new Date();
+  const [y, m, d] = isoStr.split('-').map(Number);
+  return new Date(y, m - 1, d);
+};
 
 const generateFullMonthSchedule = (year = 2026, month = 8) => {
   const days = [];
@@ -87,22 +107,30 @@ const getStatusStyles = (status, isPast = false) => {
       return 'bg-emerald-600 text-white font-black tracking-wide';
     case 'AMELİYATTA':
       return 'bg-purple-600 text-white font-black tracking-wide';
-    case 'RESMİ TATİL':
-      return 'bg-indigo-600 text-white font-black tracking-wide';
-    case 'HAFTA SONU':
-      return 'bg-red-600 text-white font-black tracking-wide';
-    case 'YILLIK İZİN':
-      return 'bg-sky-500 text-white font-black tracking-wide';
-    case 'RAPORLU':
-      return 'bg-amber-600 text-white font-black tracking-wide';
-    case 'NÖBET SONRASI İZİN':
+    case 'PALYATİF':
+      return 'bg-pink-600 text-white font-black tracking-wide';
+    case 'İŞLEM GÜNÜ':
       return 'bg-teal-600 text-white font-black tracking-wide';
-    case 'ASKERLİK':
-      return 'bg-stone-700 text-white font-black tracking-wide';
+    case 'YARIM GÜN':
+      return 'bg-orange-500 text-slate-950 font-black tracking-wide';
+    case 'SAATLİK İZİN':
+      return 'bg-amber-600 text-white font-black tracking-wide';
     case 'ŞUA İZNİ':
       return 'bg-cyan-600 text-white font-black tracking-wide';
     case 'KONGRE/SEMİNER':
       return 'bg-blue-600 text-white font-black tracking-wide';
+    case 'RESMİ TATİL':
+      return 'bg-indigo-700 text-white font-black tracking-wide';
+    case 'HAFTA SONU':
+      return 'bg-rose-600 text-white font-black tracking-wide';
+    case 'YILLIK İZİN':
+      return 'bg-amber-500 text-slate-950 font-black tracking-wide';
+    case 'RAPORLU':
+      return 'bg-amber-500 text-slate-950 font-black tracking-wide';
+    case 'NÖBET SONRASI İZİN':
+      return 'bg-sky-600 text-white font-black tracking-wide';
+    case 'ASKERLİK':
+      return 'bg-slate-800 text-white font-black tracking-wide';
     default:
       return 'bg-slate-700 text-white font-black tracking-wide';
   }
@@ -114,7 +142,7 @@ const getDateTextColor = (status, dayName, isPast, isDarkMode) => {
   }
 
   if (dayName === 'CUMARTESİ' || dayName === 'PAZAR' || status === 'HAFTA SONU') {
-    return 'text-red-500 dark:text-red-400 font-black';
+    return 'text-rose-500 dark:text-rose-400 font-black';
   }
 
   switch (status) {
@@ -122,29 +150,197 @@ const getDateTextColor = (status, dayName, isPast, isDarkMode) => {
     case 'POLİK':
       return 'text-emerald-500 dark:text-emerald-400 font-black';
     case 'AMELİYATTA':
-      return 'text-purple-500 dark:text-purple-300 font-black';
-    case 'RESMİ TATİL':
-      return 'text-indigo-500 dark:text-indigo-400 font-black';
-    case 'HAFTA SONU':
-      return 'text-red-500 dark:text-red-400 font-black';
-    case 'YILLIK İZİN':
-      return 'text-sky-500 dark:text-sky-400 font-black';
-    case 'RAPORLU':
-      return 'text-amber-500 dark:text-amber-400 font-black';
-    case 'NÖBET SONRASI İZİN':
+      return 'text-purple-500 dark:text-purple-400 font-black';
+    case 'PALYATİF':
+      return 'text-pink-500 dark:text-pink-400 font-black';
+    case 'İŞLEM GÜNÜ':
       return 'text-teal-500 dark:text-teal-400 font-black';
-    case 'ASKERLİK':
-      return 'text-stone-400 dark:text-stone-300 font-black';
+    case 'YARIM GÜN':
+      return 'text-orange-500 dark:text-orange-400 font-black';
+    case 'SAATLİK İZİN':
+      return 'text-amber-600 dark:text-amber-500 font-black';
     case 'ŞUA İZNİ':
       return 'text-cyan-500 dark:text-cyan-400 font-black';
     case 'KONGRE/SEMİNER':
       return 'text-blue-500 dark:text-blue-400 font-black';
+    case 'RESMİ TATİL':
+      return 'text-indigo-500 dark:text-indigo-400 font-black';
+    case 'HAFTA SONU':
+      return 'text-rose-500 dark:text-rose-400 font-black';
+    case 'YILLIK İZİN':
+    case 'RAPORLU':
+      return 'text-amber-500 dark:text-amber-400 font-black';
+    case 'NÖBET SONRASI İZİN':
+      return 'text-sky-500 dark:text-sky-400 font-black';
+    case 'ASKERLİK':
+      return 'text-slate-500 dark:text-slate-400 font-black';
     default:
       return isDarkMode ? 'text-slate-100 font-black' : 'text-slate-950 font-black';
   }
 };
 
+// ============================================================================
+// 📅 CUSTOM DATE PICKER COMPONENT (بدون حدود أو خلفية)
+// ============================================================================
+const CustomDatePicker = ({ selectedDate, onDateChange, isDarkMode }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [viewDate, setViewDate] = useState(() => parseLocalISODate(selectedDate));
+  const wrapperRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (selectedDate) setViewDate(parseLocalISODate(selectedDate));
+  }, [selectedDate]);
+
+  const handlePrevMonth = (e) => {
+    e.stopPropagation();
+    setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1));
+  };
+  
+  const handleNextMonth = (e) => {
+    e.stopPropagation();
+    setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1));
+  };
+
+  const handleDateSelect = (day) => {
+    const newDate = new Date(viewDate.getFullYear(), viewDate.getMonth(), day);
+    onDateChange(getLocalISODate(newDate));
+    setIsOpen(false);
+  };
+
+  const handleSetToday = (e) => {
+    e.stopPropagation();
+    const today = getLocalISODate(new Date());
+    onDateChange(today);
+    setIsOpen(false);
+  };
+
+  const daysInMonth = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0).getDate();
+  let firstDayIndex = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1).getDay();
+  firstDayIndex = firstDayIndex === 0 ? 6 : firstDayIndex - 1;
+
+  const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+  const blanksArray = Array.from({ length: firstDayIndex }, (_, i) => i);
+
+  const selectedDay = selectedDate ? parseLocalISODate(selectedDate).getDate() : null;
+  const selectedMonth = selectedDate ? parseLocalISODate(selectedDate).getMonth() : null;
+  const selectedYear = selectedDate ? parseLocalISODate(selectedDate).getFullYear() : null;
+
+  const isToday = (day) => {
+    const today = new Date();
+    return today.getDate() === day && today.getMonth() === viewDate.getMonth() && today.getFullYear() === viewDate.getFullYear();
+  };
+
+  const isSelected = (day) => {
+    return selectedDay === day && selectedMonth === viewDate.getMonth() && selectedYear === viewDate.getFullYear();
+  };
+
+  const formatDisplayDate = (dateStr) => {
+    if (!dateStr) return '';
+    const [y, m, d] = dateStr.split('-');
+    return `${d}.${m}.${y}`;
+  };
+
+  return (
+    <div className="relative" ref={wrapperRef}>
+      
+      {/* زر التقويم الشفاف (بدون مربع) */}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={`flex items-center gap-2 p-2 rounded-full transition-all duration-200 transform hover:scale-105 active:scale-95 cursor-pointer ${
+          isDarkMode 
+            ? 'text-emerald-400 hover:bg-emerald-400/10' 
+            : 'text-emerald-600 hover:bg-emerald-50'
+        }`}
+        title="Tarih Seç"
+      >
+        <svg className="w-5 h-5 stroke-[2.2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+        </svg>
+        <span className="text-xs font-black tracking-wide whitespace-nowrap">
+          {formatDisplayDate(selectedDate)}
+        </span>
+      </button>
+
+      {/* النافذة المنبثقة للتقويم */}
+      {isOpen && (
+        <div className={`absolute top-full right-0 mt-2 w-[280px] sm:w-[320px] p-4 rounded-3xl shadow-2xl border z-[999] animate-in fade-in zoom-in-95 ${
+          isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
+        }`}>
+          
+          <div className="flex justify-between items-center mb-4">
+            <button onClick={handlePrevMonth} className={`p-1.5 rounded-lg cursor-pointer ${isDarkMode ? 'hover:bg-slate-800' : 'hover:bg-slate-100'}`}>
+              <svg className="w-5 h-5 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
+            </button>
+            <div className="text-base font-black tracking-wide">
+              {MONTHS_TR[viewDate.getMonth()]} {viewDate.getFullYear()}
+            </div>
+            <button onClick={handleNextMonth} className={`p-1.5 rounded-lg cursor-pointer ${isDarkMode ? 'hover:bg-slate-800' : 'hover:bg-slate-100'}`}>
+              <svg className="w-5 h-5 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-7 gap-1 mb-2">
+            {DAYS_TR_SHORT.map(day => (
+              <div key={day} className={`text-center text-[11px] font-black uppercase tracking-wider ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                {day}
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-7 gap-1">
+            {blanksArray.map(blank => <div key={`blank-${blank}`} />)}
+            {daysArray.map(day => {
+              const selected = isSelected(day);
+              const today = isToday(day);
+              return (
+                <button
+                  key={day}
+                  onClick={() => handleDateSelect(day)}
+                  className={`h-9 w-9 mx-auto rounded-xl flex items-center justify-center text-sm font-bold transition-all cursor-pointer ${
+                    selected 
+                      ? (isDarkMode ? 'bg-slate-700 text-white shadow-md' : 'bg-slate-200 text-slate-900 shadow-sm')
+                      : today
+                      ? (isDarkMode ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-50 text-emerald-600')
+                      : (isDarkMode ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100')
+                  }`}
+                >
+                  {day}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800">
+            <button 
+              onClick={handleSetToday}
+              className={`w-full py-2.5 rounded-xl text-xs font-black uppercase tracking-wide transition-all cursor-pointer ${
+                isDarkMode ? 'bg-slate-800 hover:bg-slate-700 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+              }`}
+            >
+              Bugün (Bugüne Dön)
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+// ============================================================================
+
+
+// ============================================================================
 // ⚡ DOCTOR ROW COMPONENT
+// ============================================================================
 const DoctorRow = memo(function DoctorRow({ doc, index, isSelected, isDarkMode, activeStatusToday, rowPaddingClass, tableSettings, onClick }) {
   const borderClasses = useMemo(() => {
     const { gridStyle, borderOpacity } = tableSettings;
@@ -208,7 +404,9 @@ const DoctorRow = memo(function DoctorRow({ doc, index, isSelected, isDarkMode, 
   );
 });
 
+// ============================================================================
 // ⚡ MODAL DETAIL COMPONENT
+// ============================================================================
 const DoctorDetailModal = memo(function DoctorDetailModal({
   selectedDoctorDetail,
   isDarkMode,
@@ -216,7 +414,7 @@ const DoctorDetailModal = memo(function DoctorDetailModal({
   setIsMaximized,
   setIsMinimized,
   setSelectedDoctorDetail,
-  todayTimestamp,
+  todayTimestamp, 
   todayFormattedStr
 }) {
   const modalBoxRef = useRef(null);
@@ -284,7 +482,6 @@ const DoctorDetailModal = memo(function DoctorDetailModal({
           isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-300 text-slate-900'
         }`}
       >                 
-        {/* Modal Header */}
         <div className={`p-4 sm:p-5 border-b-2 flex justify-between items-center select-none ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'}`}>                   
           <div>                     
             <h3 className="text-base sm:text-xl font-black text-emerald-500 dark:text-emerald-400 uppercase tracking-tight">{selectedDoctorDetail.name}</h3>                     
@@ -450,7 +647,7 @@ const DoctorDetailModal = memo(function DoctorDetailModal({
                   </div>                       
                 );                     
               })                   
-            ) : (                     
+            ) : (                      
               <div className="p-8 text-center text-slate-400 font-bold border-2 border-dashed rounded-2xl uppercase">                       
                 Bu doktor için detaylı takvim bulunmamaktadır.                     
               </div>                   
@@ -463,11 +660,15 @@ const DoctorDetailModal = memo(function DoctorDetailModal({
   );
 });
 
+// ============================================================================
+// 🚀 MAIN COMPONENT
+// ============================================================================
 function PublicScheduleTableContent() {   
   const { doctors: rawDoctors } = useData(); 
   const { isDarkMode, toggleTheme } = useTheme(); 
   const { tableSettings, selectedFont, activeColor, customHexColor } = useTableSettings();
 
+  // --- UI STATES ---
   const [filter, setFilter] = useState('HEPSİ');   
   const [searchTerm, setSearchTerm] = useState('');   
   const [sortBy, setSortBy] = useState('NEWEST');   
@@ -482,27 +683,39 @@ function PublicScheduleTableContent() {
   const [showMenuDropdown, setShowMenuDropdown] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  // --- ZOOM STATE ---
   const [tableZoom, setTableZoom] = useState(100);
   const holdIntervalRef = useRef(null);
 
+  // --- MODAL STATES ---
   const [showReportModal, setShowReportModal] = useState(false);
   const [showGeneralAppSettingsModal, setShowGeneralAppSettingsModal] = useState(false);
   const [showTableSettingsCustomModal, setShowTableSettingsCustomModal] = useState(false);
 
+  // --- REPORT STATES ---
   const [reportText, setReportText] = useState('');
   const [reportCategory, setReportCategory] = useState('SİSTEM_HATASI');
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
 
+  // --- TOAST STATES ---
   const [toastNotification, setToastNotification] = useState({ show: false, leaving: false });
 
+  // --- REFS ---
   const searchInputRef = useRef(null);
   const filterDropdownRef = useRef(null);
   const sortDropdownRef = useRef(null);
   const menuDropdownRef = useRef(null);
 
+  // --- DATE STATE (local ISO string) ---
+  const [selectedDateISO, setSelectedDateISO] = useState(() => getLocalISODate(new Date()));
+
   const router = useRouter();   
 
-  // 📊 👁️ 1. تسجيل زيارة صفحة الجدول العامة في Firestore
+  // ==========================================================================
+  // 📊 EFFECTS: Firebase Logs & Setup
+  // ==========================================================================
+  
+  // 1. Log Visit to Firestore
   useEffect(() => {
     const logVisit = async () => {
       try {
@@ -521,17 +734,15 @@ function PublicScheduleTableContent() {
           date: new Date().toLocaleString('tr-TR')
         });
       } catch (err) {
-        console.error('Ziyaret kaydı oluşturma hatası:', err);
+        console.error('Ziyaret log hatası:', err);
       }
     };
-
     logVisit();
   }, []);
 
-  // 📊 👁️ 2. تسجيل فتح جدول تواريخ الطبيب/القسم المحدد في Firestore لظهر في الإحصائيات
+  // 2. Log Doctor Detail Visit
   useEffect(() => {
     if (!selectedDoctorDetail) return;
-
     const logDoctorDetailVisit = async () => {
       try {
         const sessionUser = sessionStorage.getItem('user');
@@ -549,29 +760,24 @@ function PublicScheduleTableContent() {
           date: new Date().toLocaleString('tr-TR')
         });
       } catch (err) {
-        console.error('Detay takvim ziyaret kaydı hatası:', err);
+        console.error('Detay ziyaret log hatası:', err);
       }
     };
-
     logDoctorDetailVisit();
   }, [selectedDoctorDetail]);
 
-  // 🔒 معالجة الرجوع النظيف وتجنب التراكم في History Stack
+  // 3. Handle PopState (Back Button)
   useEffect(() => {
     if (typeof window === 'undefined') return;
-
     const handlePopState = (e) => {
       e.preventDefault();
       router.replace('/');
     };
-
     window.addEventListener('popstate', handlePopState);
-
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
+    return () => window.removeEventListener('popstate', handlePopState);
   }, [router]);
 
+  // 4. Load Zoom from LocalStorage
   useEffect(() => {
     const savedZoom = localStorage.getItem('app_table_zoom');
     if (savedZoom) setTableZoom(Number(savedZoom));
@@ -604,6 +810,7 @@ function PublicScheduleTableContent() {
     return () => stopZoomHold();
   }, [stopZoomHold]);
 
+  // 5. Date/Timestamp Memos
   const todayTimestamp = useMemo(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -615,6 +822,13 @@ function PublicScheduleTableContent() {
     return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
   }, [todayTimestamp]);
 
+  const selectedDateFormatted = useMemo(() => {
+    if (!selectedDateISO) return todayFormattedStr;
+    const [y, m, d] = selectedDateISO.split('-');
+    return `${d}.${m}.${y}`;
+  }, [selectedDateISO, todayFormattedStr]);
+
+  // 6. Fullscreen API Listener
   useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
@@ -630,12 +844,11 @@ function PublicScheduleTableContent() {
         console.error(`Tam Ekran Hatası: ${err.message}`);
       });
     } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
-      }
+      if (document.exitFullscreen) document.exitFullscreen();
     }
   }, []);
 
+  // 7. Click Outside Dropdowns
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (filterDropdownRef.current && !filterDropdownRef.current.contains(event.target)) {
@@ -652,28 +865,37 @@ function PublicScheduleTableContent() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // 8. Body Overflow Lock (for modals)
   useEffect(() => {     
     const isModalActive = showPrintModal || (selectedDoctorDetail && !isMinimized) || showReportModal || showGeneralAppSettingsModal || showTableSettingsCustomModal;     
     document.body.style.overflow = isModalActive ? 'hidden' : 'auto';
     return () => { document.body.style.overflow = 'auto'; };   
   }, [showPrintModal, selectedDoctorDetail, isMinimized, showReportModal, showGeneralAppSettingsModal, showTableSettingsCustomModal]);   
 
-  const getCurrentDayStatus = useCallback((doc) => {
+  // 9. Get Status for specific date
+  const getStatusForDate = useCallback((doc, dateStr) => {
     if (!doc.scheduleDays || doc.scheduleDays.length === 0) return doc.status || 'POLİKLİNİK';
-    const todaySchedule = doc.scheduleDays.find(sd => sd.date === todayFormattedStr);
-    if (todaySchedule) {
-      return todaySchedule.status === 'POLİK' ? 'POLİKLİNİK' : todaySchedule.status;
+    const targetSchedule = doc.scheduleDays.find(sd => sd.date === dateStr);
+    if (targetSchedule) {
+      return targetSchedule.status === 'POLİK' ? 'POLİKLİNİK' : targetSchedule.status;
     }
-    const dayIndex = new Date(todayTimestamp).getDay();
-    if (dayIndex === 0 || dayIndex === 6) return 'HAFTA SONU';
+    // Fallback logic if not found in schedule
+    const parts = dateStr.split('.');
+    if (parts.length === 3) {
+       const d = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+       const dayIndex = d.getDay();
+       if (dayIndex === 0 || dayIndex === 6) return 'HAFTA SONU';
+    }
     return doc.status === 'POLİK' ? 'POLİKLİNİK' : doc.status;
-  }, [todayFormattedStr, todayTimestamp]);
+  }, []);
 
+  // 10. Load Sort Preference
   useEffect(() => {     
     const savedSort = localStorage.getItem('app_table_sort');     
     if (savedSort) setSortBy(savedSort);   
   }, []);
 
+  // 11. Process Raw Doctors Data
   useEffect(() => {
     if (rawDoctors && rawDoctors.length > 0) {
       const defaultMonthSchedule = generateFullMonthSchedule(2026, 8);
@@ -701,6 +923,8 @@ function PublicScheduleTableContent() {
     }
   }, [rawDoctors]);
 
+  // --- HANDLERS ---
+
   const handleRowClick = useCallback((doc) => {     
     if (selectedDoctorId === doc.id) {
       setSelectedDoctorDetail(doc);     
@@ -713,7 +937,9 @@ function PublicScheduleTableContent() {
 
   const handleSortChange = useCallback((newSort) => {     
     setSortBy(newSort);     
-    localStorage.getItem('app_table_sort') !== newSort && localStorage.setItem('app_table_sort', newSort);   
+    if (localStorage.getItem('app_table_sort') !== newSort) {
+      localStorage.setItem('app_table_sort', newSort);   
+    }
   }, []);   
 
   const filteredAndSortedDoctors = useMemo(() => {
@@ -721,9 +947,17 @@ function PublicScheduleTableContent() {
     
     return doctors     
       .filter((doc) => {       
-        const currentStatus = getCurrentDayStatus(doc);
-        const matchesFilter = filter === 'HEPSİ' || currentStatus === filter || (filter === 'POLİKLİNİK' && (currentStatus === 'POLİKLİNİK' || currentStatus === 'POLİK'));       
-        const matchesSearch = !searchLower || doc.name.toLowerCase().includes(searchLower) || doc.clinic.toLowerCase().includes(searchLower);       
+        const currentStatus = getStatusForDate(doc, selectedDateFormatted);
+        const matchesFilter = 
+          filter === 'HEPSİ' || 
+          currentStatus === filter || 
+          (filter === 'POLİKLİNİK' && (currentStatus === 'POLİKLİNİK' || currentStatus === 'POLİK'));       
+        
+        const matchesSearch = 
+          !searchLower || 
+          doc.name.toLowerCase().includes(searchLower) || 
+          doc.clinic.toLowerCase().includes(searchLower);       
+        
         return matchesFilter && matchesSearch;     
       })     
       .sort((a, b) => {       
@@ -734,15 +968,17 @@ function PublicScheduleTableContent() {
         if (sortBy === 'OLDEST') return (a.createdAt || a.id) - (b.createdAt || b.id);       
         return 0;     
       });
-  }, [doctors, filter, searchTerm, sortBy, getCurrentDayStatus]);
+  }, [doctors, filter, searchTerm, sortBy, getStatusForDate, selectedDateFormatted]);
 
-  // 🛠 دالة التعامل مع اختصارات لوحة المفاتيح
   const handleKeyDown = useCallback((e) => {
     const activeElement = document.activeElement;
-    const isInputActive = activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || activeElement.tagName === 'SELECT');
+    const isInputActive = activeElement && (
+      activeElement.tagName === 'INPUT' || 
+      activeElement.tagName === 'TEXTAREA' || 
+      activeElement.tagName === 'SELECT'
+    );
     
     if (isInputActive) return;
-
     if (filteredAndSortedDoctors.length === 0) return;
 
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -772,9 +1008,7 @@ function PublicScheduleTableContent() {
   const handleSendReport = async (e) => {
     e.preventDefault();
     if (!reportText.trim()) return;
-
     setIsSubmittingReport(true);
-
     try {
       await addDoc(collection(db, 'reports'), {
         category: reportCategory,
@@ -785,22 +1019,13 @@ function PublicScheduleTableContent() {
         source: 'PUBLIC_SCHEDULE_TABLE',
         createdAt: serverTimestamp()
       });
-
       setShowReportModal(false);
       setReportText('');
-
       setToastNotification({ show: true, leaving: false });
-
-      setTimeout(() => {
-        setToastNotification((prev) => ({ ...prev, leaving: true }));
-      }, 2500);
-
-      setTimeout(() => {
-        setToastNotification({ show: false, leaving: false });
-      }, 3000);
-
+      setTimeout(() => { setToastNotification((prev) => ({ ...prev, leaving: true })); }, 2500);
+      setTimeout(() => { setToastNotification({ show: false, leaving: false }); }, 3000);
     } catch (err) {
-      console.error('Report submission error:', err);
+      console.error('Rapor gönderme hatası:', err);
       alert('Hata oluştu. Lütfen tekrar deneyin.');
     } finally {
       setIsSubmittingReport(false);
@@ -810,16 +1035,16 @@ function PublicScheduleTableContent() {
   const exportToExcel = useCallback(() => {     
     let tableCSV = 'NO;BİRİM;DOKTOR ADI SOYADI;DURUM\n';     
     filteredAndSortedDoctors.forEach((doc, idx) => {       
-      const currentStatus = getCurrentDayStatus(doc);
+      const currentStatus = getStatusForDate(doc, selectedDateFormatted);
       tableCSV += `"${idx + 1}";"${doc.clinic}";"${doc.name}";"${currentStatus}"\n`;     
     });     
     const blob = new Blob(['\uFEFF' + tableCSV], { type: 'text/csv;charset=utf-8;' });     
     const url = URL.createObjectURL(blob);     
     const a = document.createElement('a');     
     a.href = url;     
-    a.download = `Doktor_Calisma_Listesi_${todayFormattedStr.replace(/\./g, '_')}.csv`;     
+    a.download = `Doktor_Calisma_Listesi_${selectedDateFormatted.replace(/\./g, '_')}.csv`;     
     a.click();   
-  }, [filteredAndSortedDoctors, getCurrentDayStatus, todayFormattedStr]);
+  }, [filteredAndSortedDoctors, getStatusForDate, selectedDateFormatted]);
 
   const rowPaddingClass = useMemo(() => {
     if (tableSettings.rowPadding === 'compact') return 'py-1.5 px-3 sm:px-4';
@@ -837,11 +1062,11 @@ function PublicScheduleTableContent() {
   ], []);
 
   const sortOptionsList = useMemo(() => [
-    { label: 'En Yeni Eklenenler', key: 'NEWEST' },
-    { label: 'En Eski Eklenenler', key: 'OLDEST' },
-    { label: 'Doktor Adına Göre (A-Z)', key: 'NAME_ASC' },
-    { label: 'Doktor Adına Göre (Z-A)', key: 'NAME_DESC' },
-    { label: 'Bölüme Göre (A-Z)', key: 'CLINIC_ASC' },
+    { label: 'En Yeni', key: 'NEWEST' },
+    { label: 'En Eski', key: 'OLDEST' },
+    { label: 'A-Z', key: 'NAME_ASC' },
+    { label: 'Z-A', key: 'NAME_DESC' },
+    { label: 'Bölüm', key: 'CLINIC_ASC' },
   ], []);
 
   const getSortLabel = useCallback((key) => {
@@ -849,6 +1074,9 @@ function PublicScheduleTableContent() {
     return found ? found.label : 'Sıralama';
   }, [sortOptionsList]);
 
+  // ==========================================================================
+  // 🖥️ RENDER
+  // ==========================================================================
   return (     
     <div 
       dir="ltr" 
@@ -856,6 +1084,8 @@ function PublicScheduleTableContent() {
       onKeyDown={handleKeyDown}
       className={`min-h-screen relative pt-[52px] pb-0 p-0 w-full max-w-[100vw] overflow-x-hidden cursor-default ${selectedFont} ${isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'} outline-none`}
     >              
+      
+      {/* Global CSS for Print & Animations */}
       <style jsx global>{`         
         @media print {           
           body * { visibility: hidden !important; }           
@@ -870,45 +1100,30 @@ function PublicScheduleTableContent() {
         }
 
         @keyframes toastSlideIn {
-          0% {
-            opacity: 0;
-            transform: translate(-50%, -40px);
-          }
-          100% {
-            opacity: 1;
-            transform: translate(-50%, 0);
-          }
+          0% { opacity: 0; transform: translate(-50%, -40px); }
+          100% { opacity: 1; transform: translate(-50%, 0); }
         }
 
         @keyframes toastSlideRightOut {
-          0% {
-            opacity: 1;
-            transform: translate(-50%, 0);
-          }
-          100% {
-            opacity: 0;
-            transform: translate(100vw, 0);
-          }
+          0% { opacity: 1; transform: translate(-50%, 0); }
+          100% { opacity: 0; transform: translate(100vw, 0); }
         }
 
-        .animate-toast-in {
-          animation: toastSlideIn 0.25s ease-out forwards;
-        }
-
-        .animate-toast-out {
-          animation: toastSlideRightOut 0.35s ease-in forwards;
-        }
+        .animate-toast-in { animation: toastSlideIn 0.25s ease-out forwards; }
+        .animate-toast-out { animation: toastSlideRightOut 0.35s ease-in forwards; }
       `}</style>
 
       {/* 🔔 Toast Notification */}
       {toastNotification.show && (
-        <div className={`fixed top-4 left-1/2 z-[300] -translate-x-1/2 px-6 py-3.5 rounded-2xl shadow-2xl border flex items-center gap-3 hardware-accelerated ${
-          toastNotification.leaving ? 'animate-toast-out' : 'animate-toast-in'
-        } ${
-          isDarkMode 
-            ? 'bg-slate-900 border-emerald-500/50 text-emerald-400 shadow-emerald-950/50' 
-            : 'bg-white border-emerald-400 text-emerald-800 shadow-emerald-100'
-        }`}>
+        <div 
+          className={`fixed top-4 left-1/2 z-[300] -translate-x-1/2 px-6 py-3.5 rounded-2xl shadow-2xl border flex items-center gap-3 hardware-accelerated ${
+            toastNotification.leaving ? 'animate-toast-out' : 'animate-toast-in'
+          } ${
+            isDarkMode 
+              ? 'bg-slate-900 border-emerald-500/50 text-emerald-400 shadow-emerald-950/50' 
+              : 'bg-white border-emerald-400 text-emerald-800 shadow-emerald-100'
+          }`}
+        >
           <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-500 flex items-center justify-center shrink-0">
             <svg className="w-5 h-5 stroke-[2.8]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
@@ -921,14 +1136,16 @@ function PublicScheduleTableContent() {
       )}
 
       {/* 🌟 HEADER */}
-      <div className={`no-print fixed top-0 left-0 right-0 z-50 h-[52px] px-3 sm:px-6 shadow-sm cursor-default flex items-center ${
-        isDarkMode 
-          ? 'bg-slate-950 border-b border-slate-800' 
-          : 'bg-white border-b border-slate-200'
-      }`}>                      
-        
-        <div className="w-full flex flex-row items-center justify-between gap-2 sm:gap-4 max-w-7xl mx-auto">                          
+      <div 
+        className={`no-print fixed top-0 left-0 right-0 z-50 h-[52px] px-3 sm:px-6 shadow-sm cursor-default flex items-center ${
+          isDarkMode 
+            ? 'bg-slate-950 border-b border-slate-800' 
+            : 'bg-white border-b border-slate-200'
+        }`}
+      >                      
+        <div className="w-full flex flex-row items-center justify-between gap-2 sm:gap-4 max-w-[1600px] mx-auto">                          
           
+          {/* Back Button */}
           <div className="flex items-center shrink-0">
             <button
               onClick={() => router.replace('/')}
@@ -945,51 +1162,49 @@ function PublicScheduleTableContent() {
             </button>
           </div>
 
-          <div className="flex-1 flex justify-center mx-auto">               
+          {/* Right Tools */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 py-1">
+            
+            {/* 🔍 SEARCH BOX */}
             <div 
-              onClick={() => searchInputRef.current?.focus()}
-              className={`relative flex items-center w-full max-w-[170px] sm:max-w-[220px] focus-within:max-w-[280px] sm:focus-within:max-w-[360px] rounded-full py-1 px-3 shadow-xs cursor-text ${
+              className={`relative flex items-center h-[36px] rounded-xl border transition-all duration-300 shadow-sm focus-within:ring-2 focus-within:ring-emerald-500/50 ${
                 isDarkMode 
-                  ? 'bg-slate-900 border border-slate-800' 
-                  : 'bg-slate-100 border border-slate-200'
+                  ? 'bg-slate-900/80 border-slate-700 focus-within:border-emerald-500' 
+                  : 'bg-white border-slate-300 focus-within:border-emerald-500'
               }`}
             >
+              <span className="pl-3 pr-1 text-slate-400">
+                <svg className="w-4 h-4 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                </svg>
+              </span>
               <input 
                 ref={searchInputRef}                
                 type="text"                 
                 placeholder="Doktor veya Birim Ara..."                 
                 value={searchTerm}                 
                 onChange={(e) => setSearchTerm(e.target.value)}                 
-                className="w-full bg-transparent text-xs font-extrabold outline-none tracking-wide text-center focus:text-left placeholder-slate-400 cursor-text uppercase"
+                className={`w-[110px] sm:w-[140px] lg:w-[180px] bg-transparent text-xs font-black outline-none tracking-wide placeholder-slate-400 cursor-text uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}
               />             
-
               {searchTerm && (
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSearchTerm('');
-                  }}
-                  className="p-1 text-slate-400 hover:text-rose-500 font-black text-xs shrink-0 ml-1 cursor-pointer"
+                  onClick={() => setSearchTerm('')}
+                  className="pr-3 pl-1 text-slate-400 hover:text-rose-500 font-black text-xs cursor-pointer transition-colors"
                 >
                   ✕
                 </button>
               )}
             </div>
-          </div>
 
-          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-            
-            {/* 🔍 ➕ Büyüt */}
+            {/* 🔍 ➕ Zoom In */}
             <button
               onMouseDown={() => startZoomHold(3)}
               onMouseUp={stopZoomHold}
               onMouseLeave={stopZoomHold}
               onTouchStart={() => startZoomHold(3)}
               onTouchEnd={stopZoomHold}
-              className={`p-2 rounded-full flex items-center justify-center outline-none cursor-pointer select-none transition-all duration-200 transform hover:scale-110 active:scale-90 ${
-                isDarkMode 
-                  ? 'text-sky-400 hover:bg-sky-400/10' 
-                  : 'text-sky-600 hover:bg-sky-50'
+              className={`p-2 rounded-full flex items-center justify-center outline-none cursor-pointer select-none transition-all duration-200 transform hover:scale-110 active:scale-90 shrink-0 ${
+                isDarkMode ? 'text-sky-400 hover:bg-sky-400/10' : 'text-sky-600 hover:bg-sky-50'
               }`}
               title="Görünümü Büyüt (+)"
             >
@@ -1001,17 +1216,15 @@ function PublicScheduleTableContent() {
               </svg>
             </button>
 
-            {/* 🔍 ➖ Küçült */}
+            {/* 🔍 ➖ Zoom Out */}
             <button
               onMouseDown={() => startZoomHold(-3)}
               onMouseUp={stopZoomHold}
               onMouseLeave={stopZoomHold}
               onTouchStart={() => startZoomHold(-3)}
               onTouchEnd={stopZoomHold}
-              className={`p-2 rounded-full flex items-center justify-center outline-none cursor-pointer select-none transition-all duration-200 transform hover:scale-110 active:scale-90 ${
-                isDarkMode 
-                  ? 'text-sky-400 hover:bg-sky-400/10' 
-                  : 'text-sky-600 hover:bg-sky-50'
+              className={`p-2 rounded-full flex items-center justify-center outline-none cursor-pointer select-none transition-all duration-200 transform hover:scale-110 active:scale-90 shrink-0 ${
+                isDarkMode ? 'text-sky-400 hover:bg-sky-400/10' : 'text-sky-600 hover:bg-sky-50'
               }`}
               title="Görünümü Küçült (-)"
             >
@@ -1022,13 +1235,11 @@ function PublicScheduleTableContent() {
               </svg>
             </button>
 
-            {/* ⛶ Fullscreen Button */}
+            {/* ⛶ Fullscreen */}
             <button
               onClick={toggleFullscreen}
-              className={`p-2 rounded-full flex items-center justify-center outline-none cursor-pointer transition-all duration-200 transform hover:scale-110 active:scale-90 ${
-                isDarkMode 
-                  ? 'text-sky-400 hover:bg-sky-400/10' 
-                  : 'text-sky-600 hover:bg-sky-50'
+              className={`hidden sm:flex p-2 rounded-full flex items-center justify-center outline-none cursor-pointer transition-all duration-200 transform hover:scale-110 active:scale-90 shrink-0 ${
+                isDarkMode ? 'text-sky-400 hover:bg-sky-400/10' : 'text-sky-600 hover:bg-sky-50'
               }`}
               title={isFullscreen ? 'Tam Ekrandan Çık' : 'Tam Ekran'}
             >
@@ -1043,16 +1254,11 @@ function PublicScheduleTableContent() {
               )}
             </button>
 
-            {/* 🌙 / ☀️ Mode Switcher */}
+            {/* 🌙 / ☀️ Theme Switcher */}
             <button
-              onClick={(e) => {
-                toggleTheme();
-                e.currentTarget.blur();
-              }}
-              className={`p-2 rounded-full flex items-center justify-center outline-none cursor-pointer transition-all duration-300 transform hover:scale-110 hover:translate-y-1 active:scale-90 ${
-                isDarkMode 
-                  ? 'text-amber-400 hover:bg-amber-400/10' 
-                  : 'text-indigo-600 hover:bg-indigo-50'
+              onClick={(e) => { toggleTheme(); e.currentTarget.blur(); }}
+              className={`p-2 rounded-full flex items-center justify-center outline-none cursor-pointer transition-all duration-300 transform hover:scale-110 hover:translate-y-1 active:scale-90 shrink-0 ${
+                isDarkMode ? 'text-amber-400 hover:bg-amber-400/10' : 'text-indigo-600 hover:bg-indigo-50'
               }`}
               title={isDarkMode ? 'Gündüz Moduna Geç' : 'Gece Moduna Geç'}
             >
@@ -1068,13 +1274,11 @@ function PublicScheduleTableContent() {
             </button>
 
             {/* 🔻 Filter Dropdown */}
-            <div className="relative" ref={filterDropdownRef}>
+            <div className="relative shrink-0" ref={filterDropdownRef}>
               <button
                 onClick={() => { setShowFilterDropdown(!showFilterDropdown); setShowSortDropdown(false); setShowMenuDropdown(false); }}
-                className={`px-1.5 py-1 rounded-lg font-black text-[11px] flex items-center gap-1 cursor-pointer transition-colors ${
-                  isDarkMode 
-                    ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-400/10' 
-                    : 'text-slate-800 hover:text-slate-950 hover:bg-slate-200/60'
+                className={`px-2 py-1 rounded-lg font-black text-[11px] flex items-center gap-1 cursor-pointer transition-colors ${
+                  isDarkMode ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-400/10' : 'text-slate-800 hover:text-slate-950 hover:bg-slate-200/60'
                 }`}
                 title="Durum Filtresi"
               >
@@ -1085,9 +1289,7 @@ function PublicScheduleTableContent() {
               </button>
 
               {showFilterDropdown && (
-                <div className={`absolute right-0 mt-3 w-56 rounded-3xl border p-2.5 shadow-2xl z-50 ${
-                  isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
-                }`}>
+                <div className={`absolute right-0 mt-3 w-56 rounded-3xl border p-2.5 shadow-2xl z-[999] ${isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'}`}>
                   <div className="flex justify-between items-center pb-2 px-2 border-b border-slate-200 dark:border-slate-800">
                     <span className="text-[10px] font-black text-amber-500 uppercase tracking-wider">DURUM SEÇİN</span>
                     <button onClick={() => setShowFilterDropdown(false)} className="w-5 h-5 rounded-full font-black text-[10px] flex items-center justify-center cursor-pointer">✕</button>
@@ -1096,16 +1298,9 @@ function PublicScheduleTableContent() {
                     {statusFilterList.map((item) => (
                       <button
                         key={item.key}
-                        onClick={() => {
-                          setFilter(item.key);
-                          setShowFilterDropdown(false);
-                        }}
+                        onClick={() => { setFilter(item.key); setShowFilterDropdown(false); }}
                         className={`w-full p-2.5 rounded-2xl text-xs flex items-center justify-between cursor-pointer ${
-                          filter === item.key
-                            ? 'bg-emerald-600 text-white font-black shadow-md'
-                            : isDarkMode
-                            ? 'text-slate-300 hover:bg-slate-800'
-                            : 'text-slate-800 hover:bg-slate-100'
+                          filter === item.key ? 'bg-emerald-600 text-white font-black shadow-md' : isDarkMode ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-800 hover:bg-slate-100'
                         }`}
                       >
                         <span>{item.label}</span>
@@ -1118,13 +1313,11 @@ function PublicScheduleTableContent() {
             </div>
 
             {/* 🔻 Sort Dropdown */}
-            <div className="relative" ref={sortDropdownRef}>
+            <div className="relative shrink-0" ref={sortDropdownRef}>
               <button
                 onClick={() => { setShowSortDropdown(!showSortDropdown); setShowFilterDropdown(false); setShowMenuDropdown(false); }}
-                className={`px-1.5 py-1 rounded-lg font-black text-[11px] flex items-center gap-1 cursor-pointer transition-colors ${
-                  isDarkMode 
-                    ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-400/10' 
-                    : 'text-slate-800 hover:text-slate-950 hover:bg-slate-200/60'
+                className={`px-2 py-1 rounded-lg font-black text-[11px] flex items-center gap-1 cursor-pointer transition-colors ${
+                  isDarkMode ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-400/10' : 'text-slate-800 hover:text-slate-950 hover:bg-slate-200/60'
                 }`}
                 title="Sıralama Seçenekleri"
               >
@@ -1135,9 +1328,7 @@ function PublicScheduleTableContent() {
               </button>
 
               {showSortDropdown && (
-                <div className={`absolute right-0 mt-3 w-60 rounded-3xl border p-2.5 shadow-2xl z-50 ${
-                  isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
-                }`}>
+                <div className={`absolute right-0 mt-3 w-60 rounded-3xl border p-2.5 shadow-2xl z-[999] ${isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'}`}>
                   <div className="flex justify-between items-center pb-2 px-2 border-b border-slate-200 dark:border-slate-800">
                     <span className="text-[10px] font-black text-amber-500 uppercase tracking-wider">SIRALAMA SEÇENEKLERİ</span>
                     <button onClick={() => setShowSortDropdown(false)} className="w-5 h-5 rounded-full font-black text-[10px] flex items-center justify-center cursor-pointer">✕</button>
@@ -1146,16 +1337,9 @@ function PublicScheduleTableContent() {
                     {sortOptionsList.map((item) => (
                       <button
                         key={item.key}
-                        onClick={() => {
-                          handleSortChange(item.key);
-                          setShowSortDropdown(false);
-                        }}
+                        onClick={() => { handleSortChange(item.key); setShowSortDropdown(false); }}
                         className={`w-full p-2.5 rounded-2xl text-xs flex items-center justify-between cursor-pointer ${
-                          sortBy === item.key
-                            ? 'bg-amber-500 text-slate-950 font-black shadow-md'
-                            : isDarkMode
-                            ? 'text-slate-300 hover:bg-slate-800'
-                            : 'text-slate-800 hover:bg-slate-100'
+                          sortBy === item.key ? 'bg-amber-500 text-slate-950 font-black shadow-md' : isDarkMode ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-800 hover:bg-slate-100'
                         }`}
                       >
                         <span>{item.label}</span>
@@ -1167,14 +1351,17 @@ function PublicScheduleTableContent() {
               )}
             </div>
 
+            {/* 📅 Custom Date Picker (Icon + Date, No Box) */}
+            <div className="shrink-0">
+              <CustomDatePicker selectedDate={selectedDateISO} onDateChange={setSelectedDateISO} isDarkMode={isDarkMode} />
+            </div>
+
             {/* Print Trigger */}
-            <div className="flex items-center">
+            <div className="flex items-center shrink-0">
               <button
                 onClick={() => setShowPrintModal(true)}
                 className={`p-2 rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 transform hover:scale-110 active:scale-90 ${
-                  isDarkMode 
-                    ? 'text-emerald-400 hover:bg-emerald-400/10' 
-                    : 'text-emerald-600 hover:bg-emerald-50'
+                  isDarkMode ? 'text-emerald-400 hover:bg-emerald-400/10' : 'text-emerald-600 hover:bg-emerald-50'
                 }`}
                 title="İndir ve Yazdır"
               >
@@ -1185,62 +1372,36 @@ function PublicScheduleTableContent() {
             </div>
 
             {/* ☰ MENU BUTTON */}
-            <div className="relative" ref={menuDropdownRef}>
+            <div className="relative shrink-0" ref={menuDropdownRef}>
               <button
-                onClick={() => {
-                  setShowMenuDropdown(!showMenuDropdown);
-                  setShowFilterDropdown(false);
-                  setShowSortDropdown(false);
-                }}
+                onClick={() => { setShowMenuDropdown(!showMenuDropdown); setShowFilterDropdown(false); setShowSortDropdown(false); }}
                 className="group relative p-2 rounded-full flex items-center justify-center outline-none cursor-pointer transition-all duration-300 transform hover:scale-110 hover:translate-y-1 active:scale-90"
                 title="Menü"
               >
                 <div className="absolute inset-0 rounded-full bg-emerald-500/20 blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-
                 <svg 
-                  className={`w-6 h-6 stroke-[2.2] transition-transform duration-300 ease-out group-hover:rotate-90 ${
-                    isDarkMode ? 'text-emerald-400' : 'text-emerald-600'
-                  }`} 
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
+                  className={`w-6 h-6 stroke-[2.2] transition-transform duration-300 ease-out group-hover:rotate-90 ${isDarkMode ? 'text-emerald-400' : 'text-emerald-600'}`} 
+                  fill="none" stroke="currentColor" viewBox="0 0 24 24"
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
                 </svg>
               </button>
 
               {showMenuDropdown && (
-                <div className={`absolute right-0 mt-3 w-56 rounded-3xl border p-2 shadow-2xl z-50 font-black text-xs ${
-                  isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
-                }`}>
+                <div className={`absolute right-0 mt-3 w-56 rounded-3xl border p-2 shadow-2xl z-[999] font-black text-xs ${isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'}`}>
                   <button
-                    onClick={() => {
-                      setShowMenuDropdown(false);
-                      setShowReportModal(true);
-                    }}
-                    className={`w-full text-left p-3 rounded-2xl flex items-center gap-3 cursor-pointer transition-colors ${
-                      isDarkMode ? 'hover:bg-slate-800 text-rose-400' : 'hover:bg-rose-50 text-rose-600'
-                    }`}
+                    onClick={() => { setShowMenuDropdown(false); setShowReportModal(true); }}
+                    className={`w-full text-left p-3 rounded-2xl flex items-center gap-3 cursor-pointer transition-colors ${isDarkMode ? 'hover:bg-slate-800 text-rose-400' : 'hover:bg-rose-50 text-rose-600'}`}
                   >
-                    <svg className="w-4 h-4 stroke-[2.2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-                    </svg>
+                    <svg className="w-4 h-4 stroke-[2.2]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
                     <span>Sorun Bildir</span>
                   </button>
 
                   <button
-                    onClick={() => {
-                      setShowMenuDropdown(false);
-                      setShowGeneralAppSettingsModal(true);
-                    }}
-                    className={`w-full text-left p-3 rounded-2xl flex items-center gap-3 cursor-pointer transition-colors ${
-                      isDarkMode ? 'hover:bg-slate-800 text-amber-400' : 'hover:bg-amber-50 text-amber-600'
-                    }`}
+                    onClick={() => { setShowMenuDropdown(false); setShowGeneralAppSettingsModal(true); }}
+                    className={`w-full text-left p-3 rounded-2xl flex items-center gap-3 cursor-pointer transition-colors ${isDarkMode ? 'hover:bg-slate-800 text-amber-400' : 'hover:bg-amber-50 text-amber-600'}`}
                   >
-                    <svg className="w-4 h-4 stroke-[2.2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 012.6-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
+                    <svg className="w-4 h-4 stroke-[2.2]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 012.6-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                     <span>Genel Ayarlar</span>
                   </button>
                 </div>
@@ -1248,81 +1409,56 @@ function PublicScheduleTableContent() {
             </div>
 
           </div>
-
         </div>         
       </div>         
 
       {/* 📊 TABLE CONTAINER */}         
       <div className="w-full space-y-4 px-0 select-none mt-0 hardware-accelerated">
         <div className={`w-full rounded-none overflow-hidden shadow-2xl border-x-0 border-t-0 border-b ${           
-          isDarkMode 
-            ? 'bg-slate-900 border-slate-800' 
-            : 'bg-white border-slate-200'         
+          isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'         
         }`}>           
-          <div 
-            style={{ zoom: `${tableZoom}%` }} 
-            className="overflow-x-auto w-full relative"
-          >             
+          <div style={{ zoom: `${tableZoom}%` }} className="overflow-x-auto w-full relative">             
             <table className={`w-full text-left border-collapse ${selectedFont} ${tableSettings.fontWeight}`}>               
-              
               <thead>                 
-                <tr className={`text-xs sm:text-sm font-black uppercase select-none ${                   
-                  isDarkMode                      
-                    ? 'bg-slate-950 text-amber-400 border-b border-slate-800'                      
-                    : 'bg-slate-900 text-white border-b border-slate-800'                 
-                }`}>                   
-                  <th className={`${rowPaddingClass} border-r border-slate-700/60 dark:border-slate-800/80 font-black tracking-wider text-xs sm:text-sm text-center w-12 sm:w-16 shrink-0`}>
-                    #
-                  </th>
-
+                <tr className={`text-xs sm:text-sm font-black uppercase select-none ${isDarkMode ? 'bg-slate-950 text-amber-400 border-b border-slate-800' : 'bg-slate-900 text-white border-b border-slate-800'}`}>                   
+                  <th className={`${rowPaddingClass} border-r border-slate-700/60 dark:border-slate-800/80 font-black tracking-wider text-xs sm:text-sm text-center w-12 sm:w-16 shrink-0`}>#</th>
                   {tableSettings.showClinic && (
-                    <th className={`${rowPaddingClass} border-r border-slate-700/60 dark:border-slate-800/80 font-black tracking-wider text-xs sm:text-sm w-1/3`}>
-                      BİRİM
-                    </th>                   
+                    <th className={`${rowPaddingClass} border-r border-slate-700/60 dark:border-slate-800/80 font-black tracking-wider text-xs sm:text-sm w-1/3`}>BİRİM</th>                   
                   )}
-
                   {tableSettings.showDoctorName && (
-                    <th className={`${rowPaddingClass} border-r border-slate-700/60 dark:border-slate-800/80 font-black tracking-wider text-xs sm:text-sm w-1/3`}>
-                      DOKTOR ADI SOYADI
-                    </th>                   
+                    <th className={`${rowPaddingClass} border-r border-slate-700/60 dark:border-slate-800/80 font-black tracking-wider text-xs sm:text-sm w-1/3`}>DOKTOR ADI SOYADI</th>                   
                   )}
-
                   {tableSettings.showStatus && (
-                    <th className={`${rowPaddingClass} font-black text-center tracking-wider text-xs sm:text-sm w-1/3`}>
-                      DURUM
-                    </th>                   
+                    <th className={`${rowPaddingClass} font-black text-center tracking-wider text-xs sm:text-sm w-1/3`}>DURUM</th>                   
                   )}
                 </tr>               
               </thead>               
-              
               <tbody 
                 style={customHexColor ? { color: customHexColor } : {}}
                 className={`text-xs sm:text-sm md:text-base ${!customHexColor ? activeColor : ''} ${
                   tableSettings.gridStyle === 'full' || tableSettings.gridStyle === 'horizontal' 
-                    ? tableSettings.borderOpacity === 'strong'
-                      ? 'divide-y-2 divide-slate-400 dark:divide-slate-600'
-                      : 'divide-y divide-slate-200 dark:divide-slate-800/80'
+                    ? tableSettings.borderOpacity === 'strong' ? 'divide-y-2 divide-slate-400 dark:divide-slate-600' : 'divide-y divide-slate-200 dark:divide-slate-800/80'
                     : 'divide-y-0'
                 }`}
               >                 
                 {filteredAndSortedDoctors.length > 0 ? (                   
                   filteredAndSortedDoctors.map((doc, index) => (
-                    <DoctorRow
-                      key={doc.id}
-                      doc={doc}
-                      index={index}
-                      isSelected={selectedDoctorId === doc.id}
-                      isDarkMode={isDarkMode}
-                      activeStatusToday={getCurrentDayStatus(doc)}
-                      rowPaddingClass={rowPaddingClass}
-                      tableSettings={tableSettings}
-                      onClick={handleRowClick}
+                    <DoctorRow 
+                      key={doc.id} 
+                      doc={doc} 
+                      index={index} 
+                      isSelected={selectedDoctorId === doc.id} 
+                      isDarkMode={isDarkMode} 
+                      activeStatusToday={getStatusForDate(doc, selectedDateFormatted)} 
+                      rowPaddingClass={rowPaddingClass} 
+                      tableSettings={tableSettings} 
+                      onClick={handleRowClick} 
                     />
                   ))                 
                 ) : (                   
                   <tr>                     
-                    <td colSpan={4} className="p-12 text-center text-slate-400 font-black border-dashed text-base uppercase">                         
-                      Arama kriterlerinize uygun doktor kaydı bulunamadı.                     
+                    <td colSpan={4} className="p-12 text-center text-slate-400 font-black border-dashed text-base uppercase">
+                      Arama kriterlerinize uygun doktor kaydı bulunamadı.
                     </td>                   
                   </tr>                 
                 )}               
@@ -1330,19 +1466,19 @@ function PublicScheduleTableContent() {
             </table>           
           </div>           
           <div className="p-3 pr-6 flex justify-end items-center border-t border-slate-200 dark:border-slate-800">             
-            <span className="text-xs font-black text-emerald-500 dark:text-emerald-400 uppercase tracking-wider">               
-              TOPLAM: {filteredAndSortedDoctors.length} DOKTOR             
+            <span className="text-xs font-black text-emerald-500 dark:text-emerald-400 uppercase tracking-wider">
+              TOPLAM: {filteredAndSortedDoctors.length} DOKTOR
             </span>           
           </div>         
         </div>       
       </div>       
 
-      {/* ⚙️ MODAL: GENEL UYGULAMA AYARLARI */}
+      {/* ====================================================================== */}
+      {/* ⚙️ MODAL: GENEL UYGULAMA AYARLARI                                      */}
+      {/* ====================================================================== */}
       {showGeneralAppSettingsModal && (
         <div className="fixed inset-0 z-[180] flex items-center justify-center bg-black/70 p-4 cursor-default">
-          <div className={`w-full max-w-md rounded-3xl p-6 sm:p-7 shadow-2xl border space-y-6 ${
-            isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
-          }`}>
+          <div className={`w-full max-w-md rounded-3xl p-6 sm:p-7 shadow-2xl border space-y-6 ${isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'}`}>
             <div className="flex justify-between items-center pb-2 border-b border-slate-200 dark:border-slate-800">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-2xl bg-orange-500/10 flex items-center justify-center text-orange-500">
@@ -1351,30 +1487,12 @@ function PublicScheduleTableContent() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
                 </div>
-                <h3 className="text-sm sm:text-base font-black text-orange-500 tracking-tight uppercase">
-                  GENEL UYGULAMA AYARLARI
-                </h3>
+                <h3 className="text-sm sm:text-base font-black text-orange-500 tracking-tight uppercase">GENEL UYGULAMA AYARLARI</h3>
               </div>
-              <button 
-                onClick={() => setShowGeneralAppSettingsModal(false)} 
-                className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-rose-500 font-black cursor-pointer"
-              >
-                ✕
-              </button>
+              <button onClick={() => setShowGeneralAppSettingsModal(false)} className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-rose-500 font-black cursor-pointer">✕</button>
             </div>
-
-            {/* Option Box 1: Tablo Görünüm Ayarlarını Aç */}
-            <div 
-              onClick={() => {
-                setShowGeneralAppSettingsModal(false);
-                setShowTableSettingsCustomModal(true);
-              }}
-              className={`p-4 rounded-2xl border flex items-center justify-between cursor-pointer transition-all hover:scale-[1.01] active:scale-95 ${
-                isDarkMode 
-                  ? 'bg-slate-950 border-slate-800 hover:bg-slate-800/60' 
-                  : 'bg-slate-50 border-slate-200 shadow-xs hover:border-orange-300'
-              }`}
-            >
+            
+            <div onClick={() => { setShowGeneralAppSettingsModal(false); setShowTableSettingsCustomModal(true); }} className={`p-4 rounded-2xl border flex items-center justify-between cursor-pointer transition-all hover:scale-[1.01] active:scale-95 ${isDarkMode ? 'bg-slate-950 border-slate-800 hover:bg-slate-800/60' : 'bg-slate-50 border-slate-200 shadow-xs hover:border-orange-300'}`}>
               <div className="flex items-center gap-3.5">
                 <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-teal-600 dark:text-teal-400">
                   <svg className="w-5 h-5 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1382,12 +1500,8 @@ function PublicScheduleTableContent() {
                   </svg>
                 </div>
                 <div>
-                  <h4 className="text-xs font-black text-orange-500 uppercase tracking-tight">
-                    TABLO GÖRÜNÜM AYARLARINI AÇ
-                  </h4>
-                  <p className="text-[10px] font-extrabold text-slate-400 mt-0.5">
-                    Sütunlar, renkler, yazı tipi ve kalınlık ayarları
-                  </p>
+                  <h4 className="text-xs font-black text-orange-500 uppercase tracking-tight">TABLO GÖRÜNÜM AYARLARINI AÇ</h4>
+                  <p className="text-[10px] font-extrabold text-slate-400 mt-0.5">Sütunlar, renkler, yazı tipi ve kalınlık ayarları</p>
                 </div>
               </div>
               <svg className="w-4 h-4 stroke-[3] text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1395,148 +1509,59 @@ function PublicScheduleTableContent() {
               </svg>
             </div>
 
-            {/* Option Box 2: Ekran Zumu */}
-            <div className={`p-4 rounded-2xl border space-y-3.5 ${
-              isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200 shadow-xs'
-            }`}>
+            <div className={`p-4 rounded-2xl border space-y-3.5 ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200 shadow-xs'}`}>
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
                   <svg className="w-4 h-4 text-orange-500 stroke-[2.2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6" />
                   </svg>
-                  <span className="text-xs font-black text-orange-500 uppercase tracking-tight">
-                    TABLO ZUMU (ZOOM SCALE)
-                  </span>
+                  <span className="text-xs font-black text-orange-500 uppercase tracking-tight">TABLO ZUMU (ZOOM SCALE)</span>
                 </div>
-                
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-black text-teal-600 dark:text-teal-400 font-mono px-2 py-0.5 rounded-lg bg-teal-500/10">
-                    %{tableZoom}
-                  </span>
+                  <span className="text-xs font-black text-teal-600 dark:text-teal-400 font-mono px-2 py-0.5 rounded-lg bg-teal-500/10">%{tableZoom}</span>
                   {tableZoom !== 100 && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTableZoom(100);
-                        localStorage.setItem('app_table_zoom', '100');
-                      }}
-                      className="text-[10px] font-black text-slate-400 hover:text-orange-500 underline uppercase cursor-pointer"
-                      title="Varsayılan Boyuta Dön"
-                    >
-                      Sıfırla
-                    </button>
+                    <button type="button" onClick={() => { setTableZoom(100); localStorage.setItem('app_table_zoom', '100'); }} className="text-[10px] font-black text-slate-400 hover:text-orange-500 underline uppercase cursor-pointer">Sıfırla</button>
                   )}
                 </div>
               </div>
-
-              {/* Slider & Buttons */}
               <div className="flex items-center gap-2.5 pt-1">
-                <button
-                  type="button"
-                  onClick={() => updateTableZoom(-5)}
-                  className="w-9 h-9 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-black flex items-center justify-center cursor-pointer transition-transform active:scale-90 select-none"
-                  title="Küçült"
-                >
-                  <svg className="w-4 h-4 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12h-15" />
-                  </svg>
+                <button type="button" onClick={() => updateTableZoom(-5)} className="w-9 h-9 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-black flex items-center justify-center cursor-pointer transition-transform active:scale-90 select-none">
+                  <svg className="w-4 h-4 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12h-15" /></svg>
                 </button>
-
-                <input
-                  type="range"
-                  min="70"
-                  max="140"
-                  step="5"
-                  value={tableZoom}
-                  onChange={(e) => {
-                    const val = Number(e.target.value);
-                    setTableZoom(val);
-                    localStorage.setItem('app_table_zoom', val.toString());
-                  }}
-                  className="w-full accent-orange-500 cursor-pointer h-2 rounded-lg bg-slate-200 dark:bg-slate-800"
-                />
-
-                <button
-                  type="button"
-                  onClick={() => updateTableZoom(5)}
-                  className="w-9 h-9 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-black flex items-center justify-center cursor-pointer transition-transform active:scale-90 select-none"
-                  title="Büyüt"
-                >
-                  <svg className="w-4 h-4 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                  </svg>
+                <input type="range" min="70" max="140" step="5" value={tableZoom} onChange={(e) => { const val = Number(e.target.value); setTableZoom(val); localStorage.setItem('app_table_zoom', val.toString()); }} className="w-full accent-orange-500 cursor-pointer h-2 rounded-lg bg-slate-200 dark:bg-slate-800" />
+                <button type="button" onClick={() => updateTableZoom(5)} className="w-9 h-9 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-black flex items-center justify-center cursor-pointer transition-transform active:scale-90 select-none">
+                  <svg className="w-4 h-4 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
                 </button>
               </div>
-
-              {/* Quick Presets */}
               <div className="flex justify-between items-center gap-2 pt-1 font-mono text-[10px] font-black">
-                <button 
-                  type="button"
-                  onClick={() => {
-                    setTableZoom(100);
-                    localStorage.setItem('app_table_zoom', '100');
-                  }} 
-                  className={`flex-1 py-1.5 rounded-lg border transition-all ${tableZoom === 100 ? 'bg-orange-500 text-white border-orange-500' : 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500'}`}
-                >
-                  %100 Normal
-                </button>
-                <button 
-                  type="button"
-                  onClick={() => {
-                    setTableZoom(115);
-                    localStorage.setItem('app_table_zoom', '115');
-                  }} 
-                  className={`flex-1 py-1.5 rounded-lg border transition-all ${tableZoom === 115 ? 'bg-orange-500 text-white border-orange-500' : 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500'}`}
-                >
-                  %115 Büyük
-                </button>
-                <button 
-                  type="button"
-                  onClick={() => {
-                    setTableZoom(130);
-                    localStorage.setItem('app_table_zoom', '130');
-                  }} 
-                  className={`flex-1 py-1.5 rounded-lg border transition-all ${tableZoom === 130 ? 'bg-orange-500 text-white border-orange-500' : 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500'}`}
-                >
-                  %130 Çok Büyük
-                </button>
+                <button type="button" onClick={() => { setTableZoom(100); localStorage.setItem('app_table_zoom', '100'); }} className={`flex-1 py-1.5 rounded-lg border transition-all ${tableZoom === 100 ? 'bg-orange-500 text-white border-orange-500' : 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500'}`}>%100 Normal</button>
+                <button type="button" onClick={() => { setTableZoom(115); localStorage.setItem('app_table_zoom', '115'); }} className={`flex-1 py-1.5 rounded-lg border transition-all ${tableZoom === 115 ? 'bg-orange-500 text-white border-orange-500' : 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500'}`}>%115 Büyük</button>
+                <button type="button" onClick={() => { setTableZoom(130); localStorage.setItem('app_table_zoom', '130'); }} className={`flex-1 py-1.5 rounded-lg border transition-all ${tableZoom === 130 ? 'bg-orange-500 text-white border-orange-500' : 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500'}`}>%130 Çok Büyük</button>
               </div>
             </div>
-
-            {/* Close Button */}
             <div className="pt-2">
-              <button
-                type="button"
-                onClick={() => setShowGeneralAppSettingsModal(false)}
-                className="w-full py-3.5 bg-teal-600 hover:bg-teal-700 active:scale-[0.98] text-white rounded-2xl text-xs font-black shadow-lg cursor-pointer uppercase tracking-wide transition-all"
-              >
-                AYARLARI KAYDET VE KAPAT
-              </button>
+              <button type="button" onClick={() => setShowGeneralAppSettingsModal(false)} className="w-full py-3.5 bg-teal-600 hover:bg-teal-700 active:scale-[0.98] text-white rounded-2xl text-xs font-black shadow-lg cursor-pointer uppercase tracking-wide transition-all">AYARLARI KAYDET VE KAPAT</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* 🎨 MODAL: TABLO GÖRÜNÜM AYARLARI */}
+      {/* ====================================================================== */}
+      {/* 🎨 MODAL: TABLO GÖRÜNÜM AYARLARI                                       */}
+      {/* ====================================================================== */}
       <TableSettingsModal 
         isOpen={showTableSettingsCustomModal}
         onClose={() => setShowTableSettingsCustomModal(false)}
-        onBack={() => {
-          setShowTableSettingsCustomModal(false);
-          setShowGeneralAppSettingsModal(true);
-        }}
+        onBack={() => { setShowTableSettingsCustomModal(false); setShowGeneralAppSettingsModal(true); }}
         isDarkMode={isDarkMode}
       />
 
-      {/* ⚠️ MODAL: SORUN BİLDİR */}
+      {/* ====================================================================== */}
+      {/* ⚠️ MODAL: SORUN BİLDİR                                                 */}
+      {/* ====================================================================== */}
       {showReportModal && (
-        <div 
-          onKeyDown={(e) => e.stopPropagation()} 
-          className="fixed inset-0 z-[180] flex items-center justify-center bg-black/80 p-4 cursor-default"
-        >
-          <div className={`w-full max-w-md rounded-3xl p-6 shadow-2xl border space-y-4 ${
-            isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-300 text-slate-900'
-          }`}>
+        <div onKeyDown={(e) => e.stopPropagation()} className="fixed inset-0 z-[180] flex items-center justify-center bg-black/80 p-4 cursor-default">
+          <div className={`w-full max-w-md rounded-3xl p-6 shadow-2xl border space-y-4 ${isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-300 text-slate-900'}`}>
             <div className="flex justify-between items-center pb-3 border-b border-slate-700">
               <div className="flex items-center gap-2">
                 <span className="text-xl">⚠️</span>
@@ -1544,95 +1569,61 @@ function PublicScheduleTableContent() {
               </div>
               <button onClick={() => setShowReportModal(false)} className="text-slate-400 hover:text-white font-black text-lg cursor-pointer">✕</button>
             </div>
-
             <form onSubmit={handleSendReport} className="space-y-4 font-black">
               <div>
                 <label className="block text-xs text-slate-400 mb-1 uppercase">KATEGORİ</label>
-                <select
-                  value={reportCategory}
-                  onChange={(e) => setReportCategory(e.target.value)}
-                  className={`w-full p-3 rounded-xl border text-xs font-black outline-none cursor-pointer ${
-                    isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-300'
-                  }`}
-                >
+                <select value={reportCategory} onChange={(e) => setReportCategory(e.target.value)} className={`w-full p-3 rounded-xl border text-xs font-black outline-none cursor-pointer ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-300'}`}>
                   <option value="SİSTEM_HATASI">Sistem Hatası / Çalışmıyor</option>
                   <option value="YANLIS_BILGI">Hatalı Doktor Bilgisi</option>
                   <option value="ONERI">Öneri / İstek</option>
                   <option value="DIGER">Diğer</option>
                 </select>
               </div>
-
               <div>
                 <label className="block text-xs text-slate-400 mb-1 uppercase">SORUN AÇIKLAMASI</label>
-                <textarea
-                  required
-                  rows="4"
-                  value={reportText}
-                  onChange={(e) => setReportText(e.target.value)}
-                  placeholder="Lütfen yaşadığınız sorunu detaylıca açıklayın..."
-                  className={`w-full p-3 rounded-xl border text-xs font-black outline-none cursor-text ${
-                    isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-300'
-                  }`}
-                />
+                <textarea required rows="4" value={reportText} onChange={(e) => setReportText(e.target.value)} placeholder="Lütfen yaşadığınız sorunu detaylıca açıklayın..." className={`w-full p-3 rounded-xl border text-xs font-black outline-none cursor-text ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-300'}`} />
               </div>
-
               <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowReportModal(false)}
-                  className="flex-1 py-3 bg-slate-800 text-slate-300 rounded-xl text-xs font-black hover:bg-slate-700 cursor-pointer"
-                >
-                  İPTAL
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmittingReport}
-                  className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black shadow-lg cursor-pointer disabled:opacity-50"
-                >
-                  {isSubmittingReport ? 'GÖNDERİLİYOR...' : 'BİLDİRİMİ GÖNDER 🚀'}
-                </button>
+                <button type="button" onClick={() => setShowReportModal(false)} className="flex-1 py-3 bg-slate-800 text-slate-300 rounded-xl text-xs font-black hover:bg-slate-700 cursor-pointer">İPTAL</button>
+                <button type="submit" disabled={isSubmittingReport} className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black shadow-lg cursor-pointer disabled:opacity-50">{isSubmittingReport ? 'GÖNDERİLİYOR...' : 'BİLDİRİMİ GÖNDER 🚀'}</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* 📥 PRINTABLE A4 MODAL */}       
+      {/* ====================================================================== */}
+      {/* 📥 PRINTABLE A4 MODAL                                                  */}
+      {/* ====================================================================== */}
       {showPrintModal && (         
         <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/85 p-3 cursor-default">           
           <div className="w-full max-w-4xl bg-white text-slate-900 rounded-3xl p-6 shadow-2xl max-h-[95vh] overflow-y-auto border border-slate-300">             
             <div className="flex justify-between items-center mb-4 pb-3 border-b border-slate-200 gap-2">               
-              <div className="flex items-center gap-2">                 
-                <span className="text-2xl">🖨️</span>                
-                <h2 className="text-base sm:text-lg font-black text-slate-900 uppercase">                   
-                  DOKTOR ÇALIŞMA LİSTESİ İNDİR VE YAZDIR                
-                </h2>               
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">🖨️</span>
+                <h2 className="text-base sm:text-lg font-black text-slate-900 uppercase">DOKTOR ÇALIŞMA LİSTESİ İNDİR VE YAZDIR</h2>
               </div>               
               <div className="flex items-center gap-2">                 
-                <button onClick={exportToExcel} className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-black rounded-xl text-xs flex items-center gap-1.5 cursor-pointer">                   
-                  <span>📊</span> EXCEL İNDİR                 
+                <button onClick={exportToExcel} className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-black rounded-xl text-xs flex items-center gap-1.5 cursor-pointer">
+                  <span>📊</span> EXCEL İNDİR
                 </button>                 
-                <button onClick={() => window.print()} className="px-4 py-2 bg-blue-900 hover:bg-blue-950 text-white font-black rounded-xl text-xs flex items-center gap-1.5 cursor-pointer">                   
-                  <span>🖨</span> YAZDIR / PDF               
+                <button onClick={() => window.print()} className="px-4 py-2 bg-blue-900 hover:bg-blue-950 text-white font-black rounded-xl text-xs flex items-center gap-1.5 cursor-pointer">
+                  <span>🖨</span> YAZDIR / PDF
                 </button>                 
-                <button onClick={() => setShowPrintModal(false)} className="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-black rounded-xl text-xs cursor-pointer">                   
-                  ✕                
+                <button onClick={() => setShowPrintModal(false)} className="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-black rounded-xl text-xs cursor-pointer">
+                  ✕
                 </button>               
               </div>             
             </div>             
-
             <div id="printableA4Area" className="p-4 bg-white text-slate-950 font-sans leading-tight">               
               <div className="flex justify-between items-end mb-4 pb-2 border-b-2 border-slate-900">                 
-                <div>                   
-                  <h1 className="text-xl font-black text-slate-950 tracking-tight uppercase">                     
-                    Doktor Çalışma Çizelgesi Listesi                   
-                  </h1>                 
+                <div>
+                  <h1 className="text-xl font-black text-slate-950 tracking-tight uppercase">Doktor Çalışma Çizelgesi Listesi</h1>
                 </div>                 
-                <div className="text-right font-black font-mono text-xs text-slate-800">                   
-                  <span>Tarih: {todayFormattedStr}</span>                 
+                <div className="text-right font-black font-mono text-xs text-slate-800">
+                  <span>Tarih: {selectedDateFormatted}</span>
                 </div>               
               </div>               
-
               <div className="w-full">                 
                 <table className="w-full text-left border-collapse text-xs">                   
                   <thead>                     
@@ -1645,7 +1636,7 @@ function PublicScheduleTableContent() {
                   </thead>                   
                   <tbody className="divide-y divide-slate-200 font-bold">                     
                     {filteredAndSortedDoctors.map((doc, i) => {                       
-                      const activeStatusToday = getCurrentDayStatus(doc);
+                      const activeStatusToday = getStatusForDate(doc, selectedDateFormatted);
                       return (
                         <tr key={doc.id} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>                         
                           <td className="py-2 px-2.5 border-r border-slate-300 font-black text-center text-slate-950">{i + 1}</td>
@@ -1663,65 +1654,45 @@ function PublicScheduleTableContent() {
         </div>       
       )}       
 
-      {/* 📅 MODAL DETAIL */}
+      {/* ====================================================================== */}
+      {/* 📅 MODAL DETAIL (Doctor Schedule)                                      */}
+      {/* ====================================================================== */}
       {selectedDoctorDetail && (         
         <>           
           {isMinimized ? (
             <div className="fixed bottom-4 right-4 sm:right-6 z-[170]">
-              <div 
-                onClick={() => setIsMinimized(false)}
-                className={`p-3.5 px-5 rounded-2xl shadow-2xl border-2 flex items-center gap-4 cursor-pointer transition-transform hover:scale-105 ${
-                  isDarkMode 
-                    ? 'bg-slate-900 border-amber-500/50 text-slate-100' 
-                    : 'bg-white border-emerald-500/50 text-slate-900'
-                }`}
-              >
+              <div onClick={() => setIsMinimized(false)} className={`p-3.5 px-5 rounded-2xl shadow-2xl border-2 flex items-center gap-4 cursor-pointer transition-transform hover:scale-105 ${isDarkMode ? 'bg-slate-900 border-amber-500/50 text-slate-100' : 'bg-white border-emerald-500/50 text-slate-900'}`}>
                 <div className="flex items-center gap-3">
                   <span className="w-3 h-3 rounded-full bg-emerald-500 animate-ping"></span>
                   <div>
                     <h4 className="text-xs sm:text-sm font-black uppercase tracking-tight">{selectedDoctorDetail.name}</h4>
-                    <p className="text-[10px] font-extrabold text-amber-500 uppercase">{getCurrentDayStatus(selectedDoctorDetail)}</p>
+                    <p className="text-[10px] font-extrabold text-amber-500 uppercase">{getStatusForDate(selectedDoctorDetail, todayFormattedStr)}</p>
                   </div>
                 </div>
-
                 <div className="flex items-center gap-1.5 ml-2 border-l border-slate-300 dark:border-slate-800 pl-3">
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); setIsMinimized(false); }} 
-                    className="p-1.5 hover:bg-amber-500/20 rounded-lg text-amber-500 font-black text-sm cursor-pointer"
-                    title="Aç"
-                  >
-                    🗖
-                  </button>
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); setSelectedDoctorDetail(null); }} 
-                    className="p-1.5 hover:bg-rose-500/20 rounded-lg text-rose-500 font-black text-sm cursor-pointer"
-                    title="Kapat"
-                  >
-                    ✕
-                  </button>
+                  <button onClick={(e) => { e.stopPropagation(); setIsMinimized(false); }} className="p-1.5 hover:bg-amber-500/20 rounded-lg text-amber-500 font-black text-sm cursor-pointer" title="Aç">🗖</button>
+                  <button onClick={(e) => { e.stopPropagation(); setSelectedDoctorDetail(null); }} className="p-1.5 hover:bg-rose-500/20 rounded-lg text-rose-500 font-black text-sm cursor-pointer" title="Kapat">✕</button>
                 </div>
               </div>
             </div>
           ) : (
-            <DoctorDetailModal
-              selectedDoctorDetail={selectedDoctorDetail}
-              isDarkMode={isDarkMode}
-              isMaximized={isMaximized}
-              setIsMaximized={setIsMaximized}
-              setIsMinimized={setIsMinimized}
-              setSelectedDoctorDetail={setSelectedDoctorDetail}
-              todayTimestamp={todayTimestamp}
-              todayFormattedStr={todayFormattedStr}
+            <DoctorDetailModal 
+              selectedDoctorDetail={selectedDoctorDetail} 
+              isDarkMode={isDarkMode} 
+              isMaximized={isMaximized} 
+              setIsMaximized={setIsMaximized} 
+              setIsMinimized={setIsMinimized} 
+              setSelectedDoctorDetail={setSelectedDoctorDetail} 
+              todayTimestamp={todayTimestamp} 
+              todayFormattedStr={todayFormattedStr} 
             />
           )}          
         </>       
       )}       
-
     </div>   
   ); 
 }
 
-// 🛡️ التصدير التلقائي المغلف بـ Provider
 export default function PublicScheduleTable() {
   return (
     <TableSettingsProvider>

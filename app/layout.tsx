@@ -16,11 +16,12 @@ interface TabItem {
   path: string;
 }
 
-// ⏱️ مكون مراقبة الخمول وتسجيل الخروج التلقائي
+// ⏱️ مكون مراقبة الخمول وتسجيل الخروج التلقائي (تم إصلاحه لمنع تجميد النظام)
 function AutoLogoutHandler() {
   const router = useRouter();
   const pathname = usePathname();
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastActivityRef = useRef<number>(Date.now());
 
   const INACTIVITY_TIME = 15 * 60 * 1000; // 15 دقيقة
 
@@ -43,16 +44,25 @@ function AutoLogoutHandler() {
     };
 
     const resetTimer = () => {
+      const now = Date.now();
+      // ✅ السر هنا: لا تقم بإعادة ضبط المؤقت إلا إذا مرت ثانية كاملة
+      // هذا يمنع المتصفح من التجمد بسبب حركة الماوس المستمرة
+      if (now - lastActivityRef.current < 1000) return;
+      lastActivityRef.current = now;
+
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = setTimeout(performLogout, INACTIVITY_TIME);
     };
 
     const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
 
-    resetTimer();
+    // بدء المؤقت عند الدخول
+    lastActivityRef.current = Date.now();
+    timerRef.current = setTimeout(performLogout, INACTIVITY_TIME);
 
     events.forEach((event) => {
-      window.addEventListener(event, resetTimer);
+      // ✅ passive: true يحسن الأداء بشكل كبير
+      window.addEventListener(event, resetTimer, { passive: true });
     });
 
     return () => {
@@ -183,7 +193,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   }, []);
 
   return (
-    <html lang="tr" className={cn("font-sans", geist.variable)}>
+    <html lang="tr" className={cn("font-sans", geist.variable)} suppressHydrationWarning>
       <body className="cursor-default min-h-screen overflow-x-hidden antialiased pb-11">
         <ThemeProvider>
           <DataProvider>

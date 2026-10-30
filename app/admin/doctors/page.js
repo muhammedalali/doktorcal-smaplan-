@@ -17,7 +17,8 @@ import DoctorScheduleModal from './components/DoctorScheduleModal';
 import ConfirmModals from './components/ConfirmModals';
 
 export default function AdminDoctorsPage() {
-  const { isDarkMode } = useTheme();
+  // ✅ 1. استدعاء triggerToast من ThemeContext
+  const { isDarkMode, triggerToast } = useTheme(); 
   const { doctors = [], setDoctors, checkPermission, loading, currentUser } = useData();
   
   const [openedFolder, setOpenedFolder] = useState('LIST_FOLDER'); 
@@ -39,6 +40,8 @@ export default function AdminDoctorsPage() {
 
   const [isMaximized, setIsMaximized] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
+  
+  // ✅ State للـ Position والـ Size
   const [winPos, setWinPos] = useState({ x: 0, y: 0 });
   const [winSize, setWinSize] = useState({ width: 880, height: 620 });
   
@@ -46,8 +49,6 @@ export default function AdminDoctorsPage() {
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth());
 
-  const [toastMessage, setToastMessage] = useState('');
-  const [showToast, setShowToast] = useState(false);
   const [deletingDept, setDeletingDept] = useState(null);
   const [deletingDoc, setDeletingDoc] = useState(null);
 
@@ -58,9 +59,13 @@ export default function AdminDoctorsPage() {
 
   const todayRef = useRef(null);
   const modalBoxRef = useRef(null);
+  
+  // ✅ Refs لإدارة السحب والتكبير والـ Initialization
   const isDraggingRef = useRef(false);
   const isResizingRef = useRef(false);
   const dragStartRef = useRef({ x: 0, y: 0 });
+  const resizeStartRef = useRef({ x: 0, y: 0, width: 0, height: 0 });
+  const initializedRef = useRef(false);
 
   const router = useRouter();
   const today = useMemo(() => {
@@ -74,11 +79,7 @@ export default function AdminDoctorsPage() {
   const canDeleteDocs = checkPermission ? checkPermission('bölüm ve doktor silme yetkisi') : true;
   const canChangeStatus = checkPermission ? checkPermission('çalışma durumu değiştirme') : true;
 
-  const triggerToast = useCallback((msg) => {
-    setToastMessage(msg);
-    setShowToast(true);
-    setTimeout(() => setShowToast(false), 3000);
-  }, []);
+  // ✅ 2. تم حذف دالة الإشعار الوهمية من هنا. سيتم استخدام triggerToast من useTheme.
 
   // 🎯 قفل التمرير الخارجي للمتصفح بالكامل لمنع نزول الهيكل العام
   useEffect(() => {
@@ -95,15 +96,18 @@ export default function AdminDoctorsPage() {
       return;
     }
 
-    const savedDepts = JSON.parse(localStorage.getItem('app_departments') || '[]');
-    let currentDepts = defaultDepartments;
-    if (savedDepts.length > 0) {
-      currentDepts = Array.from(new Set(savedDepts));
-    } else {
-      localStorage.setItem('app_departments', JSON.stringify(defaultDepartments));
+    if (!initializedRef.current) {
+      const savedDepts = JSON.parse(localStorage.getItem('app_departments') || '[]');
+      let currentDepts = defaultDepartments;
+      if (savedDepts.length > 0) {
+        currentDepts = Array.from(new Set(savedDepts));
+      } else {
+        localStorage.setItem('app_departments', JSON.stringify(defaultDepartments));
+      }
+      setDepartments(currentDepts);
+      setExpandedDepts({});
+      initializedRef.current = true;
     }
-    setDepartments(currentDepts);
-    setExpandedDepts({});
   }, [canManageDocs, loading, currentUser, router]);
 
   useEffect(() => {
@@ -124,49 +128,89 @@ export default function AdminDoctorsPage() {
     setExpandedDepts(prev => (prev[deptName] ? {} : { [deptName]: true }));
   };
 
-  const handleMouseDownHeader = (e) => {
+  // ✅ استخدام Pointer Events (يدعم الماوس واللمس) مع requestAnimationFrame لمنع التعليق
+  const handlePointerDownHeader = (e) => {
     if (isMaximized) return;
-    isDraggingRef.current = true;
-    dragStartRef.current = { x: e.clientX - winPos.x, y: e.clientY - winPos.y };
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    
+    e.preventDefault();
+    
+    const modal = modalBoxRef.current;
+    if (!modal) return;
 
-    const handleMouseMove = (moveEvent) => {
-      if (!isDraggingRef.current) return;
-      setWinPos({ x: moveEvent.clientX - dragStartRef.current.x, y: moveEvent.clientY - dragStartRef.current.y });
-    };
-
-    const handleMouseUp = () => {
-      isDraggingRef.current = false;
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-  };
-
-  const handleMouseDownResize = (e) => {
-    e.stopPropagation();
-    isResizingRef.current = true;
     const startX = e.clientX;
     const startY = e.clientY;
-    const startWidth = winSize.width;
-    const startHeight = winSize.height;
+    const initialX = winPos.x;
+    const initialY = winPos.y;
+    let rafId = null;
 
-    const handleMouseMove = (moveEvent) => {
-      if (!isResizingRef.current) return;
-      const newWidth = Math.max(340, startWidth + (moveEvent.clientX - startX));
-      const newHeight = Math.max(300, startHeight + (moveEvent.clientY - startY));
+    const handlePointerMove = (moveEvent) => {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        const deltaX = moveEvent.clientX - startX;
+        const deltaY = moveEvent.clientY - startY;
+        const newX = initialX + deltaX;
+        const newY = initialY + deltaY;
+        modal.style.transform = `translate(${newX}px, ${newY}px)`;
+      });
+    };
+
+    const handlePointerUp = (upEvent) => {
+      if (rafId) cancelAnimationFrame(rafId);
+      const deltaX = upEvent.clientX - startX;
+      const deltaY = upEvent.clientY - startY;
+      setWinPos({ x: initialX + deltaX, y: initialY + deltaY });
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+    };
+
+    window.addEventListener('pointermove', handlePointerMove, { passive: false });
+    window.addEventListener('pointerup', handlePointerUp);
+  };
+
+  const handlePointerDownResize = (e) => {
+    e.stopPropagation();
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    e.preventDefault();
+
+    const modal = modalBoxRef.current;
+    if (!modal) return;
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const initialWidth = winSize.width;
+    const initialHeight = winSize.height;
+    let rafId = null;
+
+    const handlePointerMove = (moveEvent) => {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        const deltaX = moveEvent.clientX - startX;
+        const deltaY = moveEvent.clientY - startY;
+        
+        const newWidth = Math.max(340, initialWidth + deltaX);
+        const newHeight = Math.max(400, initialHeight + deltaY);
+
+        modal.style.width = `${newWidth}px`;
+        modal.style.height = `${newHeight}px`;
+      });
+    };
+
+    const handlePointerUp = (upEvent) => {
+      if (rafId) cancelAnimationFrame(rafId);
+      const deltaX = upEvent.clientX - startX;
+      const deltaY = upEvent.clientY - startY;
+      
+      const newWidth = Math.max(340, initialWidth + deltaX);
+      const newHeight = Math.max(400, initialHeight + deltaY);
+
       setWinSize({ width: newWidth, height: newHeight });
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
     };
 
-    const handleMouseUp = () => {
-      isResizingRef.current = false;
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('pointermove', handlePointerMove, { passive: false });
+    window.addEventListener('pointerup', handlePointerUp);
   };
 
   const handleDoctorClickFromTree = (docItem) => {
@@ -600,7 +644,7 @@ export default function AdminDoctorsPage() {
         winPos={winPos}
         winSize={winSize}
         isDarkMode={isDarkMode}
-        handleMouseDownHeader={handleMouseDownHeader}
+        handleMouseDownHeader={handlePointerDownHeader}
         handleTransferToEditDoctor={handleTransferToEditDoctor}
         handleRequestCloseScheduleModal={handleRequestCloseScheduleModal}
         monthScheduleStats={monthScheduleStats}
@@ -616,7 +660,7 @@ export default function AdminDoctorsPage() {
         hasUnsavedChanges={hasUnsavedChanges}
         handleDiscardChanges={handleDiscardChanges}
         handleSaveChangesDirectly={handleSaveChangesDirectly}
-        handleMouseDownResize={handleMouseDownResize}
+        handleMouseDownResize={handlePointerDownResize}
       />
 
       <ConfirmModals
@@ -632,16 +676,6 @@ export default function AdminDoctorsPage() {
         handleConfirmCloseYes={handleConfirmCloseYes}
         isDarkMode={isDarkMode}
       />
-
-      {/* Global Toast Alert */}
-      {showToast && (
-        <div className="fixed bottom-5 right-5 z-[200]" dir="ltr">
-          <div className="bg-gradient-to-r from-blue-600 to-cyan-500 text-white px-4 py-2.5 rounded-xl shadow-xl border border-cyan-300 text-xs font-black flex items-center gap-2 animate-fadeIn uppercase">
-            <span>✅</span>
-            <span>{toastMessage}</span>
-          </div>
-        </div>
-      )}
 
     </div>
   );

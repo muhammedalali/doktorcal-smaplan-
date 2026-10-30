@@ -1,5 +1,6 @@
 'use client';
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter, usePathname } from 'next/navigation';
 import PageLoader from '@/components/PageLoader';
 import RealtimeNotification from '@/components/RealtimeNotification';
@@ -143,6 +144,7 @@ const defaultTableSettings = {
 
 export function ThemeProvider({ children }) {
   const [isDarkMode, setIsDarkMode] = useState(true);
+  const [hydrated, setHydrated] = useState(false);
   const [selectedPalette, setSelectedPalette] = useState('emerald');
   const [selectedFont, setSelectedFont] = useState('font-sans');
   const [zoomScale, setZoomScale] = useState(100);
@@ -156,8 +158,29 @@ export function ThemeProvider({ children }) {
   const [pageLoading, setPageLoading] = useState(false);
   const pathname = usePathname();
 
-  // 🌟 ربط وضع الألوان العام تلقائياً بعنصر الـ HTML ومزامنة المفاتيح
+  // ✅ حالة الإشعارات الجديدة
+  const [toastNotification, setToastNotification] = useState({ show: false, message: '', leaving: false });
+  const [isMounted, setIsMounted] = useState(false);
+  const toastTimeoutRef = useRef(null);
+  const toastHideTimeoutRef = useRef(null);
+
   useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // ✅ مرحلة 1: قراءة القيمة المحفوظة
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const savedTheme = localStorage.getItem('doktorsys_theme') || localStorage.getItem('theme');
+    if (savedTheme !== null) {
+      setIsDarkMode(savedTheme === 'dark');
+    }
+    setHydrated(true);
+  }, []);
+
+  // ✅ مرحلة 2: مزامنة الثيم
+  useEffect(() => {
+    if (!hydrated) return;
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
       localStorage.setItem('theme', 'dark');
@@ -167,7 +190,7 @@ export function ThemeProvider({ children }) {
       localStorage.setItem('theme', 'light');
       localStorage.setItem('doktorsys_theme', 'light');
     }
-  }, [isDarkMode]);
+  }, [isDarkMode, hydrated]);
 
   useEffect(() => {
     if (pageLoading) {
@@ -189,14 +212,21 @@ export function ThemeProvider({ children }) {
     };
   }, []);
 
-  const [toastNotification, setToastNotification] = useState('');
+  // ✅ دالة إطلاق الإشعار المحدثة
+  const triggerToast = useCallback((msg) => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    if (toastHideTimeoutRef.current) clearTimeout(toastHideTimeoutRef.current);
 
-  const triggerToast = (msg) => {
-    setToastNotification(msg);
-    setTimeout(() => {
-      setToastNotification('');
+    setToastNotification({ show: true, message: msg, leaving: false });
+
+    toastTimeoutRef.current = setTimeout(() => {
+      setToastNotification(prev => ({ ...prev, leaving: true }));
     }, 2500);
-  };
+
+    toastHideTimeoutRef.current = setTimeout(() => {
+      setToastNotification({ show: false, message: '', leaving: false });
+    }, 3000);
+  }, []);
 
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [activeProfileSubModal, setActiveProfileSubModal] = useState(null);
@@ -228,24 +258,8 @@ export function ThemeProvider({ children }) {
     setCurrentUserData(user);
     if (user?.phone) setEditPhone(user.phone);
 
-    // قراءة الإعدادات العامة والحفظ المزدوج
-    const globalTheme = localStorage.getItem('theme') || localStorage.getItem('doktorsys_theme');
     const userKey = user?.username ? `user_prefs_${user.username.toLowerCase()}` : 'global_user_prefs';
     const savedPrefs = JSON.parse(localStorage.getItem(userKey) || '{}');
-
-    let initialDark = true;
-    if (savedPrefs.isDarkMode !== undefined) {
-      initialDark = Boolean(savedPrefs.isDarkMode);
-    } else if (globalTheme) {
-      initialDark = globalTheme === 'dark';
-    }
-
-    setIsDarkMode(initialDark);
-    if (initialDark) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
 
     if (savedPrefs.selectedPalette) setSelectedPalette(savedPrefs.selectedPalette);
     if (savedPrefs.selectedFont) setSelectedFont(savedPrefs.selectedFont);
@@ -272,17 +286,6 @@ export function ThemeProvider({ children }) {
     const sessionUser = sessionStorage.getItem('user');
     const localUser = localStorage.getItem('user');
     const user = sessionUser ? JSON.parse(sessionUser) : (localUser ? JSON.parse(localUser) : {});
-    
-    if (newPrefs.isDarkMode !== undefined) {
-      const modeStr = newPrefs.isDarkMode ? 'dark' : 'light';
-      localStorage.setItem('theme', modeStr);
-      localStorage.setItem('doktorsys_theme', modeStr);
-      if (newPrefs.isDarkMode) {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
-    }
 
     const userKey = user?.username ? `user_prefs_${user.username.toLowerCase()}` : 'global_user_prefs';
     const currentSaved = JSON.parse(localStorage.getItem(userKey) || '{}');
@@ -299,11 +302,7 @@ export function ThemeProvider({ children }) {
   };
 
   const toggleTheme = () => {
-    setIsDarkMode((prev) => {
-      const next = !prev;
-      savePreferences({ isDarkMode: next });
-      return next;
-    });
+    setIsDarkMode((prev) => !prev);
   };
 
   const changePalette = (key) => {
@@ -539,7 +538,8 @@ export function ThemeProvider({ children }) {
       pageLoading,
       setPageLoading,
       tableSettings,
-      updateTableSettings
+      updateTableSettings,
+      triggerToast // ✅ تم تمرير الإشعار ليعمل في كل الصفحات
     }}>
       <div style={fontScaleStyle} className={`min-h-screen transition-colors duration-150 ${selectedFont} ${isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'}`}>
         <PageLoader show={pageLoading} />
@@ -549,23 +549,47 @@ export function ThemeProvider({ children }) {
         <RealtimeNotification isDarkMode={isDarkMode} />
 
         <style jsx global>{`
-          @keyframes slideLeftToRight {
-            0% { transform: translateX(-100%); opacity: 0; }
-            15% { transform: translateX(0); opacity: 1; }
-            85% { transform: translateX(0); opacity: 1; }
-            100% { transform: translateX(120%); opacity: 0; }
-          }
-          .animate-slide-toast {
-            animation: slideLeftToRight 2.5s ease-in-out forwards;
+          @keyframes shrink {
+            from { width: 100%; }
+            to { width: 0%; }
           }
         `}</style>
 
-        {toastNotification && (
-          <div className="fixed bottom-6 right-6 z-[300] pointer-events-none overflow-hidden">
-            <span className="text-emerald-400 font-extrabold text-sm tracking-wide block animate-slide-toast drop-shadow-[0_2px_8px_rgba(16,185,129,0.5)]">
-              {toastNotification}
-            </span>
-          </div>
+        {/* ✅ الإشعار الاحترافي الجديد (React Portal) */}
+        {isMounted && toastNotification.show && createPortal(
+          <div 
+            className={`fixed bottom-6 right-6 z-[99999] transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+              toastNotification.leaving ? 'translate-x-[150%] opacity-0' : 'translate-x-0 opacity-100'
+            }`} 
+            dir="ltr"
+          >
+            <div className={`relative overflow-hidden flex items-center gap-3.5 px-5 py-4 rounded-2xl shadow-2xl border backdrop-blur-2xl ${
+              isDarkMode 
+                ? 'bg-slate-900/95 border-emerald-500/30 text-white shadow-emerald-950/50' 
+                : 'bg-white/95 border-emerald-200 text-slate-900 shadow-emerald-100'
+            }`}>
+              
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                isDarkMode ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-600'
+              }`}>
+                <svg className="w-5 h-5 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              
+              <div>
+                <h4 className={`text-xs font-black tracking-wide uppercase ${isDarkMode ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                  Başarılı
+                </h4>
+                <p className={`text-sm font-bold mt-0.5 ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}>
+                  {toastNotification.message}
+                </p>
+              </div>
+
+              <div className="absolute bottom-0 left-0 h-1 bg-emerald-500 animate-[shrink_3s_linear_forwards]" style={{ width: '100%' }} />
+            </div>
+          </div>,
+          document.body
         )}
 
         {/* 🚀 Side Menu Drawer */}
