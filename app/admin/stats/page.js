@@ -8,7 +8,7 @@ import { useTheme } from '@/context/ThemeContext';
 
 export default function AdminStatsPage() {
   const router = useRouter();
-  const { isDarkMode } = useTheme();
+  const { isDarkMode, triggerToast } = useTheme();
 
   const [stats, setStats] = useState({
     totalDoctors: 0,
@@ -40,18 +40,22 @@ export default function AdminStatsPage() {
     const activeUser = sessionUser ? JSON.parse(sessionUser) : (localUser ? JSON.parse(localUser) : null);
 
     if (!activeUser || (activeUser.role !== 'YÖNETİCİ' && activeUser.role !== 'ADMIN' && activeUser.username?.toLowerCase() !== 'admin')) {
+      triggerToast('Bu sayfaya erişim yetkiniz bulunmamaktadır!', 'error');
       router.replace('/dashboard');
       return;
     }
 
     const unsubscribeDoctors = onSnapshot(collection(db, 'doctors'), (snapshot) => {
       const docs = snapshot.docs.map(d => d.data());
-      const departmentsSet = new Set(docs.map(d => d.department || d.bolum).filter(Boolean));
+      const departmentsSet = new Set(docs.map(d => d.department || d.bolum || d.clinic).filter(Boolean));
       setStats(prev => ({
         ...prev,
         totalDoctors: snapshot.size,
         totalDepartments: departmentsSet.size || 12
       }));
+    }, (error) => {
+      console.error('Doctors fetch error:', error);
+      triggerToast('Doktor verileri alınırken hata oluştu.', 'error');
     });
 
     const qReports = query(collection(db, 'reports'), orderBy('createdAt', 'desc'));
@@ -72,6 +76,9 @@ export default function AdminStatsPage() {
         pendingReports: pending,
         solvedReports: solved,
       }));
+    }, (error) => {
+      console.error('Reports fetch error:', error);
+      triggerToast('Rapor verileri alınırken hata oluştu.', 'error');
     });
 
     const qFailed = query(collection(db, 'failed_logins'), orderBy('timestamp', 'desc'), limit(50));
@@ -98,7 +105,7 @@ export default function AdminStatsPage() {
       unsubscribeFailed();
       unsubscribeVisits();
     };
-  }, [router]);
+  }, [router, triggerToast]);
 
   const renderDoctorInfo = (log) => {
     let docName = log.doctorName;

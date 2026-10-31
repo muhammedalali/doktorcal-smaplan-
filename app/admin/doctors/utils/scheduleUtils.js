@@ -52,36 +52,56 @@ export const parseItemDate = (item) => {
   return null;
 };
 
+// ═══════════════════════════════════════════════════════════
+// دالة الألوان (بالألوان القديمة الجميلة + التعديلات المطلوبة)
+// ═══════════════════════════════════════════════════════════
 export const getStatusBadgeStyle = (status) => {
   switch (status) {
     case 'POLİKLİNİK':
     case 'POLİK':
       return 'bg-emerald-600 text-white border-emerald-500 font-extrabold shadow-xs';
-    case 'AMELİYATTA':
+    
+    case 'AMELİYAT':       // ✅ تم التعديل من AMELİYATTA
+    case 'AMELİYATTA':     // دعم البيانات القديمة
       return 'bg-purple-600 text-white border-purple-500 font-extrabold shadow-xs';
+    
     case 'PALYATİF':
       return 'bg-pink-600 text-white border-pink-400 font-extrabold shadow-xs';
+    
     case 'İŞLEM GÜNÜ':
       return 'bg-teal-600 text-white border-teal-400 font-extrabold shadow-xs';
-    case 'YARIM GÜN':
+    
+    case '08:00 - 12:00 KADAR':  // ✅ بديل YARIM GÜN
       return 'bg-orange-500 text-slate-950 font-extrabold border-orange-400 shadow-xs';
+    
+    case '13:00 - 16:00 KADAR':  // ✅ حالة جديدة
+      return 'bg-blue-500 text-white border-blue-400 font-extrabold shadow-xs';
+    
     case 'SAATLİK İZİN':
       return 'bg-amber-600 text-white border-amber-400 font-extrabold shadow-xs';
+    
     case 'RESMİ TATİL':
       return 'bg-indigo-700 text-white border-indigo-500 font-extrabold shadow-xs';
+    
     case 'HAFTA SONU':
       return 'bg-rose-600 text-white border-rose-400 font-extrabold shadow-xs';
+    
     case 'YILLIK İZİN':
     case 'RAPORLU':
       return 'bg-amber-500 text-slate-950 font-extrabold border-amber-400 shadow-xs';
-    case 'NÖBET SONRASI İZİN':
+    
+    case 'NÖBET SONRASI':
+    case 'NÖBET SONRASI İZİN': // دعم البيانات القديمة
       return 'bg-sky-600 text-white border-sky-500 font-extrabold shadow-xs';
+    
     case 'ASKERLİK':
       return 'bg-slate-800 text-slate-100 border-slate-600 font-extrabold shadow-xs';
-    case 'ŞUA İZNİ':
-      return 'bg-cyan-600 text-white border-cyan-400 font-extrabold shadow-xs';
+    
     case 'KONGRE/SEMİNER':
       return 'bg-blue-600 text-white border-blue-400 font-extrabold shadow-xs';
+    
+    // ❌ تم حذف ŞUA İZNİ نهائياً
+    
     default:
       return 'bg-slate-700 text-white border-slate-500 font-extrabold';
   }

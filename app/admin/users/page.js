@@ -37,8 +37,8 @@ const DEFAULT_PERMISSIONS = {
 };
 
 export default function AdminUsersPage() {
-  const themeContext = useTheme();
-  const isDarkMode = themeContext?.isDarkMode ?? true;
+  // 🌟 جلب triggerToast الموحدة من Context الثيم
+  const { isDarkMode = true, triggerToast } = useTheme() || {};
 
   const { checkPermission, currentUser } = useData();
 
@@ -46,7 +46,6 @@ export default function AdminUsersPage() {
   const [users, setUsers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [toastMessage, setToastMessage] = useState('');
 
   // 🎯 حالة أبعاد الأعمدة الديناميكية (Excel Column Resizing)
   const [columnWidths, setColumnWidths] = useState({
@@ -94,6 +93,7 @@ export default function AdminUsersPage() {
     if (!mounted) return;
 
     if (!canAccessUsersPage) {
+      triggerToast('Bu sayfaya erişim yetkiniz bulunmamaktadır!', 'error');
       router.push('/dashboard');
       return;
     }
@@ -101,10 +101,13 @@ export default function AdminUsersPage() {
     const unsubscribeUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
       const usersData = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
       setUsers(usersData);
+    }, (error) => {
+      console.error('Kullanıcılar çekilirken hata:', error);
+      triggerToast('Kullanıcı listesi alınırken hata oluştu.', 'error');
     });
 
     return () => unsubscribeUsers();
-  }, [mounted, canAccessUsersPage, router]);
+  }, [mounted, canAccessUsersPage, router, triggerToast]);
 
   const filteredUsers = useMemo(() => {
     const uniqueMap = new Map();
@@ -194,12 +197,12 @@ export default function AdminUsersPage() {
   const handleAddUser = async (e) => {
     e.preventDefault();
     if (!name || !surname || !username || !password || !confirmPassword) {
-      alert('Lütfen tüm zorunlu alanları doldurun!');
+      triggerToast('Lütfen tüm zorunlu alanları doldurun!', 'error');
       return;
     }
 
     if (password !== confirmPassword) {
-      alert('Şifreler eşleşmiyor! Lütfen kontrol edin.');
+      triggerToast('Şifreler eşleşmiyor! Lütfen kontrol edin.', 'error');
       return;
     }
 
@@ -243,19 +246,16 @@ export default function AdminUsersPage() {
       setConfirmPassword('');
       setIsAddModalOpen(false);
 
-      setToastMessage('Kullanıcı başarıyla kaydedildi!');
-      setTimeout(() => {
-        setToastMessage('');
-      }, 3500);
+      triggerToast(`Kullanıcı başarıyla kaydedildi: ${cleanUsername}`, 'success');
 
     } catch (error) {
-      alert(`Hata: ${error.message}`);
+      triggerToast(`Hata: ${error.message}`, 'error');
     }
   };
 
   const handleRowClick = (userId) => {
     if (!userId) {
-      alert('Kullanıcı ID bilgisi bulunamadı!');
+      triggerToast('Kullanıcı ID bilgisi bulunamadı!', 'error');
       return;
     }
     router.push(`/admin/users/${userId}`);
@@ -315,16 +315,6 @@ export default function AdminUsersPage() {
             : 'bg-gradient-to-b from-transparent via-[#edf4ff]/50 to-[#edf4ff]'
         }`} />
       </div>
-
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 animate-bounce transition-all duration-500">
-          <div className="bg-emerald-600 text-white px-6 py-3 rounded-2xl shadow-2xl font-black text-xs uppercase flex items-center gap-3 border-2 border-emerald-400">
-            <span className="w-3 h-3 rounded-full bg-white animate-ping"></span>
-            <span>{toastMessage}</span>
-          </div>
-        </div>
-      )}
 
       {/* 🚀 Header Controls (الشريط العلوي الملتصق) */}
       <div className={`relative z-20 w-full px-4 py-2 border-b flex flex-col sm:flex-row justify-between items-center gap-2 shrink-0 transition-colors ${

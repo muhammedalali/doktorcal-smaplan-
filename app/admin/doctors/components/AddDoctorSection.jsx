@@ -13,87 +13,133 @@ export default function AddDoctorSection({
   docDahili,
   setDocDahili,
   docRoomNo,
-  setDocRoomNo
+  setDocRoomNo,
 }) {
+  const cardBg = isDarkMode
+    ? 'bg-slate-900 ring-1 ring-slate-800'
+    : 'bg-white ring-1 ring-slate-200 shadow-sm';
+
+  const labelCls = `block text-[10px] font-black uppercase tracking-wider mb-1.5 ${
+    isDarkMode ? 'text-slate-400' : 'text-slate-500'
+  }`;
+
+  const inputCls = `w-full rounded-lg px-3 py-2.5 text-sm font-bold outline-none transition-all duration-75 focus:ring-2 uppercase placeholder:normal-case ${
+    isDarkMode
+      ? 'bg-slate-950 text-white placeholder:text-slate-600 focus:ring-cyan-500/40'
+      : 'bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:ring-blue-500/30 focus:bg-white'
+  }`;
+
+  const inputMonoCls = `${inputCls} font-mono tracking-wider`;
+
   return (
-    <div className="max-w-4xl mx-auto space-y-6 animate-fadeIn">
-      <div className={`flex justify-between items-center pb-3 border-b ${
-        isDarkMode ? 'border-slate-800' : 'border-blue-200'
-      }`}>
-        <h2 className="text-sm sm:text-base font-black text-amber-500 uppercase tracking-wider">
-          ➕ YENİ BÖLÜM VE DOKTOR EKLENME PANELİ
-        </h2>
-        <button 
-          onClick={() => setOpenedFolder('LIST_FOLDER')} 
-          className={`px-3 py-1.5 rounded-xl text-xs font-black ${
-            isDarkMode ? 'bg-slate-800 hover:bg-slate-700 text-slate-200' : 'bg-white hover:bg-slate-200 text-slate-800 border border-slate-300'
+    <div className="max-w-5xl mx-auto space-y-4">
+
+      {/* ═══ Header ═══ */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-2xl shrink-0">➕</span>
+          <h2 className={`text-base sm:text-lg font-black uppercase tracking-tight truncate ${
+            isDarkMode ? 'text-amber-400' : 'text-amber-600'
+          }`}>
+            Yeni Bölüm / Doktor
+          </h2>
+        </div>
+        <button
+          type="button"
+          onClick={() => setOpenedFolder('LIST_FOLDER')}
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-black uppercase tracking-wide active:scale-[0.98] transition-all duration-75 cursor-pointer shrink-0 ${
+            isDarkMode
+              ? 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
           }`}
         >
-          ✕ Kapat
+          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
+          <span>Kapat</span>
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        
-        {/* 1. Add Department */}
-        <div className={`border rounded-2xl p-5 space-y-4 shadow-lg backdrop-blur-md ${
-          isDarkMode ? 'bg-slate-900/40 border-slate-800' : 'bg-white/80 border-blue-200'
-        }`}>
-          <div className={`flex items-center gap-2 pb-2 border-b ${
-            isDarkMode ? 'border-slate-800' : 'border-blue-100'
+      {/* ═══ Grid ═══ */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+        {/* ─── 1. إضافة قسم ─── */}
+        <div className={`rounded-2xl p-4 sm:p-5 ${cardBg}`}>
+          <div className={`flex items-center gap-2 pb-3 mb-4 border-b ${
+            isDarkMode ? 'border-slate-800' : 'border-slate-200'
           }`}>
-            <span className="text-lg">📁</span>
-            <h3 className="text-xs font-black text-amber-500 uppercase">1. YENİ BÖLÜM EKLE</h3>
+            <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-lg ${
+              isDarkMode ? 'bg-amber-500/15' : 'bg-amber-100'
+            }`}>
+              📁
+            </div>
+            <div className="min-w-0">
+              <div className={`text-[10px] font-black uppercase tracking-widest ${
+                isDarkMode ? 'text-slate-500' : 'text-slate-500'
+              }`}>
+                Adım 1
+              </div>
+              <div className={`text-sm font-black uppercase ${
+                isDarkMode ? 'text-amber-300' : 'text-amber-700'
+              }`}>
+                Yeni Bölüm Ekle
+              </div>
+            </div>
           </div>
 
-          <form onSubmit={handleAddCustomDepartment} className="space-y-3 font-black text-xs">
+          <form onSubmit={handleAddCustomDepartment} className="space-y-3">
             <div>
-              <label className="block text-slate-600 dark:text-slate-300 mb-1 uppercase">BÖLÜM ADI</label>
+              <label className={labelCls}>Bölüm Adı</label>
               <input
                 type="text"
                 required
-                placeholder="ÖRNEK: NÖROLOJİ"
+                placeholder="Örn: Nöroloji"
                 value={newCustomDept}
                 onChange={(e) => setNewCustomDept(e.target.value.toLocaleUpperCase('tr-TR'))}
-                className={`w-full border rounded-xl px-3 py-2 text-xs font-black outline-none uppercase ${
-                  isDarkMode 
-                    ? 'bg-slate-950 border-slate-800 text-white focus:border-amber-500 placeholder:text-slate-600' 
-                    : 'bg-white border-blue-200 text-slate-900 focus:border-amber-600 placeholder:text-slate-400'
-                }`}
+                className={inputCls}
               />
             </div>
 
             <button
               type="submit"
-              className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-xl text-xs transition-colors uppercase shadow-md cursor-pointer"
+              className="w-full py-2.5 rounded-lg text-xs font-black uppercase tracking-wide text-white bg-gradient-to-r from-amber-500 to-orange-500 hover:opacity-95 active:scale-[0.98] transition-all duration-75 cursor-pointer shadow-md shadow-amber-500/20"
             >
               + Bölümü Kaydet
             </button>
           </form>
         </div>
 
-        {/* 2. Add Doctor */}
-        <div className={`border rounded-2xl p-5 space-y-4 shadow-lg backdrop-blur-md ${
-          isDarkMode ? 'bg-slate-900/40 border-slate-800' : 'bg-white/80 border-blue-200'
-        }`}>
-          <div className={`flex items-center gap-2 pb-2 border-b ${
-            isDarkMode ? 'border-slate-800' : 'border-blue-100'
+        {/* ─── 2. إضافة طبيب ─── */}
+        <div className={`rounded-2xl p-4 sm:p-5 ${cardBg}`}>
+          <div className={`flex items-center gap-2 pb-3 mb-4 border-b ${
+            isDarkMode ? 'border-slate-800' : 'border-slate-200'
           }`}>
-            <span className="text-lg">🩺</span>
-            <h3 className="text-xs font-black text-cyan-500 uppercase">2. YENİ DOKTOR EKLE</h3>
+            <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-lg ${
+              isDarkMode ? 'bg-cyan-500/15' : 'bg-cyan-100'
+            }`}>
+              🩺
+            </div>
+            <div className="min-w-0">
+              <div className={`text-[10px] font-black uppercase tracking-widest ${
+                isDarkMode ? 'text-slate-500' : 'text-slate-500'
+              }`}>
+                Adım 2
+              </div>
+              <div className={`text-sm font-black uppercase ${
+                isDarkMode ? 'text-cyan-300' : 'text-cyan-700'
+              }`}>
+                Yeni Doktor Ekle
+              </div>
+            </div>
           </div>
 
-          <form onSubmit={handleSaveNewDoctor} className="space-y-3 font-black text-xs">
+          <form onSubmit={handleSaveNewDoctor} className="space-y-3">
             <div>
-              <label className="block text-slate-600 dark:text-slate-300 mb-1 uppercase">KLİNİK / BÖLÜM SEÇİN</label>
+              <label className={labelCls}>Klinik / Bölüm Seçin</label>
               <select
                 value={docClinic}
                 onChange={(e) => setDocClinic(e.target.value)}
-                className={`w-full border rounded-xl px-3 py-2 text-xs font-black outline-none ${
-                  isDarkMode 
-                    ? 'bg-slate-950 border-slate-800 text-white focus:border-cyan-500' 
-                    : 'bg-white border-blue-200 text-slate-900 focus:border-blue-600'
-                }`}
+                className={inputCls}
               >
                 {uniqueDepartments.map((dept) => (
                   <option key={dept} value={dept}>{dept}</option>
@@ -102,62 +148,65 @@ export default function AddDoctorSection({
             </div>
 
             <div>
-              <label className="block text-slate-600 dark:text-slate-300 mb-1 uppercase">DOKTOR ADI SOYADI</label>
+              <label className={labelCls}>Doktor Adı Soyadı</label>
               <input
                 type="text"
                 required
-                placeholder="ÖRNEK: DR. AHMET YILMAZ"
+                placeholder="Örn: Dr. Ahmet Yılmaz"
                 value={docName}
                 onChange={(e) => setDocName(e.target.value.toLocaleUpperCase('tr-TR'))}
-                className={`w-full border rounded-xl px-3 py-2 text-xs font-black outline-none uppercase ${
-                  isDarkMode 
-                    ? 'bg-slate-950 border-slate-800 text-white focus:border-cyan-500 placeholder:text-slate-600' 
-                    : 'bg-white border-blue-200 text-slate-900 focus:border-blue-600 placeholder:text-slate-400'
-                }`}
+                className={inputCls}
               />
             </div>
 
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-slate-600 dark:text-slate-300 mb-1 uppercase">DAHİLİ TEL</label>
+                <label className={labelCls}>Dahili Tel</label>
                 <input
                   type="text"
+                  inputMode="numeric"
                   placeholder="1012"
                   value={docDahili}
                   onChange={(e) => setDocDahili(e.target.value)}
-                  className={`w-full border rounded-xl px-3 py-2 font-mono font-black text-xs outline-none ${
-                    isDarkMode 
-                      ? 'bg-slate-950 border-slate-800 text-white focus:border-cyan-500 placeholder:text-slate-600' 
-                      : 'bg-white border-blue-200 text-slate-900 focus:border-blue-600 placeholder:text-slate-400'
-                  }`}
+                  className={inputMonoCls}
                 />
               </div>
               <div>
-                <label className="block text-slate-600 dark:text-slate-300 mb-1 uppercase">ODA NO</label>
+                <label className={labelCls}>Oda No</label>
                 <input
                   type="text"
+                  inputMode="numeric"
                   placeholder="102"
                   value={docRoomNo}
                   onChange={(e) => setDocRoomNo(e.target.value)}
-                  className={`w-full border rounded-xl px-3 py-2 font-mono font-black text-xs outline-none ${
-                    isDarkMode 
-                      ? 'bg-slate-950 border-slate-800 text-white focus:border-cyan-500 placeholder:text-slate-600' 
-                      : 'bg-white border-blue-200 text-slate-900 focus:border-blue-600 placeholder:text-slate-400'
-                  }`}
+                  className={inputMonoCls}
                 />
               </div>
             </div>
 
             <button
               type="submit"
-              className="w-full py-2.5 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-black rounded-xl text-xs transition-colors uppercase shadow-md cursor-pointer"
+              className="w-full py-2.5 rounded-lg text-xs font-black uppercase tracking-wide text-white bg-gradient-to-r from-blue-600 to-cyan-500 hover:opacity-95 active:scale-[0.98] transition-all duration-75 cursor-pointer shadow-md shadow-blue-500/20"
             >
-              + Doktoru Sisteme Kaydet
+              + Doktoru Kaydet
             </button>
           </form>
         </div>
 
       </div>
+
+      {/* ═══ ملاحظة سفلية ═══ */}
+      <div className={`rounded-xl p-3 flex items-start gap-2 text-xs font-bold ${
+        isDarkMode
+          ? 'bg-blue-500/8 text-blue-300'
+          : 'bg-blue-50 text-blue-700'
+      }`}>
+        <span className="text-base shrink-0">💡</span>
+        <span className="leading-relaxed">
+          Bölümü eklemeden doktor ekleyemezsiniz. Yeni bölümler otomatik olarak listenin sonuna eklenir.
+        </span>
+      </div>
+
     </div>
   );
 }

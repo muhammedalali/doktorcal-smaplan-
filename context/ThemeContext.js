@@ -1,12 +1,16 @@
 'use client';
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { createPortal } from 'react-dom';
 import { useRouter, usePathname } from 'next/navigation';
+import toast, { Toaster } from 'react-hot-toast';
+
 import PageLoader from '@/components/PageLoader';
-import RealtimeNotification from '@/components/RealtimeNotification';
 import SettingsModal from '@/components/modals/SettingsModal';
+import SystemToastNotification, { UltraLuxuryLogo } from '@/components/SystemToast';
 
 const ThemeContext = createContext();
+
+// 🌟 تصدير الشعار الفخم لاستخدامه المباشر في الهيدر أو القوائم عند الحاجة
+export { UltraLuxuryLogo as CustomToastLogo };
 
 export const colorPalettes = {
   // ⚪ White & Black Tones
@@ -158,17 +162,6 @@ export function ThemeProvider({ children }) {
   const [pageLoading, setPageLoading] = useState(false);
   const pathname = usePathname();
 
-  // ✅ حالة الإشعارات الجديدة
-  const [toastNotification, setToastNotification] = useState({ show: false, message: '', leaving: false });
-  const [isMounted, setIsMounted] = useState(false);
-  const toastTimeoutRef = useRef(null);
-  const toastHideTimeoutRef = useRef(null);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  // ✅ مرحلة 1: قراءة القيمة المحفوظة
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const savedTheme = localStorage.getItem('doktorsys_theme') || localStorage.getItem('theme');
@@ -178,7 +171,6 @@ export function ThemeProvider({ children }) {
     setHydrated(true);
   }, []);
 
-  // ✅ مرحلة 2: مزامنة الثيم
   useEffect(() => {
     if (!hydrated) return;
     if (isDarkMode) {
@@ -212,20 +204,14 @@ export function ThemeProvider({ children }) {
     };
   }, []);
 
-  // ✅ دالة إطلاق الإشعار المحدثة
-  const triggerToast = useCallback((msg) => {
-    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
-    if (toastHideTimeoutRef.current) clearTimeout(toastHideTimeoutRef.current);
-
-    setToastNotification({ show: true, message: msg, leaving: false });
-
-    toastTimeoutRef.current = setTimeout(() => {
-      setToastNotification(prev => ({ ...prev, leaving: true }));
-    }, 2500);
-
-    toastHideTimeoutRef.current = setTimeout(() => {
-      setToastNotification({ show: false, message: '', leaving: false });
-    }, 3000);
+  // 🔔 دالة التنبيه الموحدة والفاخرة عبر النظام كلياً
+  const triggerToast = useCallback((msg, type = 'success', title = '') => {
+    toast.custom((t) => (
+      <SystemToastNotification
+        toast={{ id: t.id, message: msg, type, title, duration: 5000 }}
+        onDismiss={(id) => toast.dismiss(id)}
+      />
+    ), { duration: 5000, id: `global-system-toast-${Date.now()}` });
   }, []);
 
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -308,13 +294,13 @@ export function ThemeProvider({ children }) {
   const changePalette = (key) => {
     setSelectedPalette(key);
     savePreferences({ selectedPalette: key });
-    triggerToast('Tema rengi başarıyla değiştirildi');
+    triggerToast('Tema rengi başarıyla değiştirildi', 'success');
   };
 
   const changeFont = (fontId) => {
     setSelectedFont(fontId);
     savePreferences({ selectedFont: fontId });
-    triggerToast('Yazı tipi değiştirildi');
+    triggerToast('Yazı tipi değiştirildi', 'success');
   };
 
   const changeZoom = (scale) => {
@@ -369,7 +355,7 @@ export function ThemeProvider({ children }) {
     setUsernameStatus('Talebiniz inceleme aşamasındadır...');
     setActiveProfileSubModal(null);
     setEditUsernameReq('');
-    triggerToast('Kullanıcı adı değiştirme talebiniz başarıyla iletildi');
+    triggerToast('Kullanıcı adı değiştirme talebiniz başarıyla iletildi', 'success');
   };
 
   const handleSavePhone = (e) => {
@@ -391,22 +377,22 @@ export function ThemeProvider({ children }) {
     setCurrentUserData(updatedUserObj);
 
     setActiveProfileSubModal(null);
-    triggerToast('Telefon numaranız başarıyla güncellendi');
+    triggerToast('Telefon numaranız başarıyla güncellendi', 'success');
   };
 
   const handleSavePassword = (e) => {
     e.preventDefault();
 
     if (currentUserData?.password && oldPassword !== currentUserData.password) {
-      alert('Eski şifrenizi hatalı girdiniz!');
+      triggerToast('Eski şifrenizi hatalı girdiniz!', 'error');
       return;
     }
     if (newPassword.length < 4) {
-      alert('Yeni şifre en az 4 karakter olmalıdır!');
+      triggerToast('Yeni şifre en az 4 karakter olmalıdır!', 'error');
       return;
     }
     if (newPassword !== confirmPassword) {
-      alert('Yeni şifreler uyuşmuyor!');
+      triggerToast('Yeni şifreler uyuşmuyor!', 'error');
       return;
     }
 
@@ -429,7 +415,7 @@ export function ThemeProvider({ children }) {
     setNewPassword('');
     setConfirmPassword('');
     setActiveProfileSubModal(null);
-    triggerToast('Şifreniz başarıyla değiştirildi');
+    triggerToast('Şifreniz başarıyla değiştirildi', 'success');
   };
 
   const handleSaveIssue = (e) => {
@@ -454,7 +440,7 @@ export function ThemeProvider({ children }) {
         return item;
       });
       localStorage.setItem('app_system_issues', JSON.stringify(updatedList));
-      triggerToast('Sorun bildiriminiz başarıyla güncellendi');
+      triggerToast('Sorun bildiriminiz başarıyla güncellendi', 'success');
     } else {
       const newIssueObj = {
         id: Date.now(),
@@ -468,7 +454,7 @@ export function ThemeProvider({ children }) {
         adminReply: ''
       };
       localStorage.setItem('app_system_issues', JSON.stringify([newIssueObj, ...allIssues]));
-      triggerToast('Bildiriminiz başarıyla gönderildi');
+      triggerToast('Bildiriminiz başarıyla gönderildi', 'success');
     }
 
     setEditingIssueId(null);
@@ -487,7 +473,7 @@ export function ThemeProvider({ children }) {
 
     const uNameClean = currentUserData?.username?.toLocaleUpperCase('tr-TR') || 'KULLANICI';
     setUserIssuesList(filtered.filter((i) => i.username?.toLocaleUpperCase('tr-TR') === uNameClean));
-    triggerToast('Bildirim başarıyla silindi');
+    triggerToast('Bildirim başarıyla silindi', 'delete');
   };
 
   const handleStartEditIssue = (item) => {
@@ -539,58 +525,15 @@ export function ThemeProvider({ children }) {
       setPageLoading,
       tableSettings,
       updateTableSettings,
-      triggerToast // ✅ تم تمرير الإشعار ليعمل في كل الصفحات
+      triggerToast
     }}>
       <div style={fontScaleStyle} className={`min-h-screen transition-colors duration-150 ${selectedFont} ${isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'}`}>
         <PageLoader show={pageLoading} />
 
         {children}
 
-        <RealtimeNotification isDarkMode={isDarkMode} />
-
-        <style jsx global>{`
-          @keyframes shrink {
-            from { width: 100%; }
-            to { width: 0%; }
-          }
-        `}</style>
-
-        {/* ✅ الإشعار الاحترافي الجديد (React Portal) */}
-        {isMounted && toastNotification.show && createPortal(
-          <div 
-            className={`fixed bottom-6 right-6 z-[99999] transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
-              toastNotification.leaving ? 'translate-x-[150%] opacity-0' : 'translate-x-0 opacity-100'
-            }`} 
-            dir="ltr"
-          >
-            <div className={`relative overflow-hidden flex items-center gap-3.5 px-5 py-4 rounded-2xl shadow-2xl border backdrop-blur-2xl ${
-              isDarkMode 
-                ? 'bg-slate-900/95 border-emerald-500/30 text-white shadow-emerald-950/50' 
-                : 'bg-white/95 border-emerald-200 text-slate-900 shadow-emerald-100'
-            }`}>
-              
-              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                isDarkMode ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-600'
-              }`}>
-                <svg className="w-5 h-5 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              
-              <div>
-                <h4 className={`text-xs font-black tracking-wide uppercase ${isDarkMode ? 'text-emerald-400' : 'text-emerald-600'}`}>
-                  Başarılı
-                </h4>
-                <p className={`text-sm font-bold mt-0.5 ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}>
-                  {toastNotification.message}
-                </p>
-              </div>
-
-              <div className="absolute bottom-0 left-0 h-1 bg-emerald-500 animate-[shrink_3s_linear_forwards]" style={{ width: '100%' }} />
-            </div>
-          </div>,
-          document.body
-        )}
+        {/* 🌟 حاوية إشعارات react-hot-toast الموحدة مع النظام المطور */}
+        <Toaster position="bottom-right" reverseOrder={false} />
 
         {/* 🚀 Side Menu Drawer */}
         <div className={`fixed inset-0 z-[100] transition-all duration-300 ${isSidebarOpen ? 'opacity-100 pointer-events-auto backdrop-blur-md' : 'opacity-0 pointer-events-none backdrop-blur-none'}`}>
@@ -607,13 +550,9 @@ export function ThemeProvider({ children }) {
             {/* Menu Header */}
             <div className={`p-5 border-b flex justify-between items-center shrink-0 ${isDarkMode ? 'border-slate-800/80' : 'border-slate-200/80'}`}>
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-slate-950 shadow-md">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.8" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                  </svg>
-                </div>
+                <UltraLuxuryLogo />
                 <div>
-                  <h3 className="text-sm font-black tracking-widest uppercase bg-gradient-to-r from-emerald-400 to-teal-500 bg-clip-text text-transparent">SİSTEM MENÜSÜ</h3>
+                  <h3 className="text-sm font-black tracking-widest uppercase bg-gradient-to-r from-cyan-400 to-teal-500 bg-clip-text text-transparent">SİSTEM MENÜSÜ</h3>
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Hızlı Kontrol Paneli</p>
                 </div>
               </div>
@@ -1031,7 +970,7 @@ export function ThemeProvider({ children }) {
 
         {/* Settings Modal Component */}
         {showSettingsModal && (
-          <SettingsModal onClose={() => { setShowSettingsModal(false); triggerToast('Ayarlar başarıyla kaydedildi'); }} />
+          <SettingsModal onClose={() => { setShowSettingsModal(false); triggerToast('Ayarlar başarıyla kaydedildi', 'success'); }} />
         )}
 
         {/* 🛠️ GELİŞMİŞ TABLO GÖRÜNÜM AYARLARI */}
@@ -1070,7 +1009,7 @@ export function ThemeProvider({ children }) {
                 <button
                   onClick={() => {
                     setShowTableSettingsModal(false);
-                    triggerToast('Tablo ayarları güncellendi');
+                    triggerToast('Tablo ayarları güncellendi', 'success');
                   }}
                   className={`w-8 h-8 rounded-xl font-black text-sm transition-all flex items-center justify-center cursor-pointer ${
                     isDarkMode ? 'bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white' : 'bg-slate-100 hover:bg-rose-600 text-slate-700 hover:text-white'
@@ -1296,7 +1235,7 @@ export function ThemeProvider({ children }) {
                   type="button"
                   onClick={() => {
                     setShowTableSettingsModal(false);
-                    triggerToast('Tablo ayarları güncellendi');
+                    triggerToast('Tablo ayarları güncellendi', 'success');
                   }}
                   className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-2xl text-xs shadow-lg transition-all cursor-pointer uppercase tracking-wider active:scale-95"
                 >

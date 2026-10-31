@@ -9,6 +9,83 @@ import TableSettingsModal from '@/components/TableSettingsModal';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 
+// ============================================================================
+// 📌 UTILS & COLOR BADGES (دوال الألوان وتحليل التواريخ الموحدة)
+// ============================================================================
+
+const getStatusBadgeStyle = (status) => {
+  switch (status) {
+    case 'POLİKLİNİK':
+    case 'POLİK':
+      return 'bg-emerald-600 text-white border-emerald-500 font-extrabold shadow-xs';
+    
+    case 'AMELİYAT':
+    case 'AMELİYATTA':
+      return 'bg-purple-600 text-white border-purple-500 font-extrabold shadow-xs';
+    
+    case 'PALYATİF':
+      return 'bg-pink-600 text-white border-pink-400 font-extrabold shadow-xs';
+    
+    case 'İŞLEM GÜNÜ':
+      return 'bg-teal-600 text-white border-teal-400 font-extrabold shadow-xs';
+    
+    case '08:00 - 12:00 KADAR':
+    case 'YARIM GÜN':
+      return 'bg-orange-500 text-slate-950 font-extrabold border-orange-400 shadow-xs';
+    
+    case '13:00 - 16:00 KADAR':
+      return 'bg-blue-500 text-white border-blue-400 font-extrabold shadow-xs';
+    
+    case 'SAATLİK İZİN':
+      return 'bg-amber-600 text-white border-amber-400 font-extrabold shadow-xs';
+    
+    case 'RESMİ TATİL':
+      return 'bg-indigo-700 text-white border-indigo-500 font-extrabold shadow-xs';
+    
+    case 'HAFTA SONU':
+      return 'bg-rose-600 text-white border-rose-400 font-extrabold shadow-xs';
+    
+    case 'YILLIK İZİN':
+    case 'RAPORLU':
+      return 'bg-amber-500 text-slate-950 font-extrabold border-amber-400 shadow-xs';
+    
+    case 'NÖBET SONRASI':
+    case 'NÖBET SONRASI İZİN':
+      return 'bg-sky-600 text-white border-sky-500 font-extrabold shadow-xs';
+    
+    case 'ASKERLİK':
+      return 'bg-slate-800 text-slate-100 border-slate-600 font-extrabold shadow-xs';
+    
+    case 'KONGRE/SEMİNER':
+      return 'bg-blue-600 text-white border-blue-400 font-extrabold shadow-xs';
+    
+    default:
+      return 'bg-slate-700 text-white border-slate-500 font-extrabold';
+  }
+};
+
+const parseItemDate = (item) => {
+  if (!item) return null;
+  if (typeof item.date === 'string' && item.date.includes('.')) {
+    const parts = item.date.split('.');
+    if (parts.length === 3) {
+      const day = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const year = parseInt(parts[2], 10);
+      return new Date(year, month, day);
+    }
+  }
+  if (item.fullDateObj) {
+    const d = new Date(item.fullDateObj);
+    if (!isNaN(d.getTime())) return d;
+  }
+  return null;
+};
+
+// ============================================================================
+// 📌 CONSTANTS & HELPERS
+// ============================================================================
+
 const TURKEY_OFFICIAL_HOLIDAYS_2026 = {   
   '2026-01-01': 'Yılbaşı',
   '2026-03-20': 'Ramazan Bayramı Arifesi',
@@ -29,6 +106,21 @@ const TURKEY_OFFICIAL_HOLIDAYS_2026 = {
 };
 
 const DAY_NAMES = ['PAZAR', 'PAZARTESİ', 'SALI', 'ÇARŞAMBA', 'PERŞEMBE', 'CUMA', 'CUMARTESİ'];
+const MONTHS_TR = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+const DAYS_TR_SHORT = ['Pt', 'Sa', 'Ça', 'Pe', 'Cu', 'Ct', 'Pz'];
+
+const getLocalISODate = (dateObj) => {
+  const y = dateObj.getFullYear();
+  const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const d = String(dateObj.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
+const parseLocalISODate = (isoStr) => {
+  if (!isoStr) return new Date();
+  const [y, m, d] = isoStr.split('-').map(Number);
+  return new Date(y, m - 1, d);
+};
 
 const generateFullMonthSchedule = (year = 2026, month = 8) => {
   const days = [];
@@ -63,104 +155,208 @@ const generateFullMonthSchedule = (year = 2026, month = 8) => {
   return days;
 };
 
-const parseItemDate = (item) => {
-  if (!item) return null;
-  if (typeof item.date === 'string' && item.date.includes('.')) {
-    const parts = item.date.split('.');
-    if (parts.length === 3) {
-      return new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
-    }
-  }
-  if (item.fullDateObj) {
-    const d = new Date(item.fullDateObj);
-    if (!isNaN(d.getTime())) return d;
-  }
-  return null;
-};
-
-const getStatusStyles = (status, isPast = false) => {
-  if (isPast) return 'bg-slate-600 text-white font-black tracking-wide';
-
-  switch (status) {
-    case 'POLİKLİNİK':
-    case 'POLİK':
-      return 'bg-emerald-600 text-white font-black tracking-wide';
-    case 'AMELİYATTA':
-      return 'bg-purple-600 text-white font-black tracking-wide';
-    case 'PALYATİF':
-      return 'bg-pink-600 text-white font-black tracking-wide';
-    case 'İŞLEM GÜNÜ':
-      return 'bg-teal-600 text-white font-black tracking-wide';
-    case 'YARIM GÜN':
-      return 'bg-orange-500 text-slate-950 font-black tracking-wide';
-    case 'SAATLİK İZİN':
-      return 'bg-amber-600 text-white font-black tracking-wide';
-    case 'RESMİ TATİL':
-      return 'bg-indigo-600 text-white font-black tracking-wide';
-    case 'HAFTA SONU':
-      return 'bg-red-600 text-white font-black tracking-wide';
-    case 'YILLIK İZİN':
-      return 'bg-sky-500 text-white font-black tracking-wide';
-    case 'RAPORLU':
-      return 'bg-amber-600 text-white font-black tracking-wide';
-    case 'NÖBET SONRASI İZİN':
-      return 'bg-teal-600 text-white font-black tracking-wide';
-    case 'ASKERLİK':
-      return 'bg-stone-700 text-white font-black tracking-wide';
-    case 'ŞUA İZNİ':
-      return 'bg-cyan-600 text-white font-black tracking-wide';
-    case 'KONGRE/SEMİNER':
-      return 'bg-blue-600 text-white font-black tracking-wide';
-    default:
-      return 'bg-slate-700 text-white font-black tracking-wide';
-  }
-};
-
 const getDateTextColor = (status, dayName, isPast, isDarkMode) => {
   if (isPast) {
     return isDarkMode ? 'text-slate-400 font-extrabold' : 'text-slate-600 font-extrabold';
   }
 
   if (dayName === 'CUMARTESİ' || dayName === 'PAZAR' || status === 'HAFTA SONU') {
-    return 'text-red-500 dark:text-red-400 font-black';
+    return 'text-rose-500 dark:text-rose-400 font-black';
   }
 
   switch (status) {
     case 'POLİKLİNİK':
     case 'POLİK':
       return 'text-emerald-500 dark:text-emerald-400 font-black';
+    case 'AMELİYAT':
     case 'AMELİYATTA':
-      return 'text-purple-500 dark:text-purple-300 font-black';
+      return 'text-purple-500 dark:text-purple-400 font-black';
     case 'PALYATİF':
       return 'text-pink-500 dark:text-pink-400 font-black';
     case 'İŞLEM GÜNÜ':
       return 'text-teal-500 dark:text-teal-400 font-black';
+    case '08:00 - 12:00 KADAR':
     case 'YARIM GÜN':
       return 'text-orange-500 dark:text-orange-400 font-black';
+    case '13:00 - 16:00 KADAR':
+      return 'text-blue-500 dark:text-blue-400 font-black';
     case 'SAATLİK İZİN':
-      return 'text-amber-500 dark:text-amber-400 font-black';
+      return 'text-amber-600 dark:text-amber-500 font-black';
+    case 'KONGRE/SEMİNER':
+      return 'text-blue-500 dark:text-blue-400 font-black';
     case 'RESMİ TATİL':
       return 'text-indigo-500 dark:text-indigo-400 font-black';
     case 'HAFTA SONU':
-      return 'text-red-500 dark:text-red-400 font-black';
+      return 'text-rose-500 dark:text-rose-400 font-black';
     case 'YILLIK İZİN':
-      return 'text-sky-500 dark:text-sky-400 font-black';
     case 'RAPORLU':
       return 'text-amber-500 dark:text-amber-400 font-black';
+    case 'NÖBET SONRASI':
     case 'NÖBET SONRASI İZİN':
-      return 'text-teal-500 dark:text-teal-400 font-black';
+      return 'text-sky-500 dark:text-sky-400 font-black';
     case 'ASKERLİK':
-      return 'text-stone-400 dark:text-stone-300 font-black';
-    case 'ŞUA İZNİ':
-      return 'text-cyan-500 dark:text-cyan-400 font-black';
-    case 'KONGRE/SEMİNER':
-      return 'text-blue-500 dark:text-blue-400 font-black';
+      return 'text-slate-500 dark:text-slate-400 font-black';
     default:
       return isDarkMode ? 'text-slate-100 font-black' : 'text-slate-950 font-black';
   }
 };
 
+// ============================================================================
+// 📅 CUSTOM DATE PICKER COMPONENT (مأخوذ بالكامل من جدول الزوار)
+// ============================================================================
+const CustomDatePicker = ({ selectedDate, onDateChange, isDarkMode }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [viewDate, setViewDate] = useState(() => parseLocalISODate(selectedDate));
+  const wrapperRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (selectedDate) setViewDate(parseLocalISODate(selectedDate));
+  }, [selectedDate]);
+
+  const handlePrevMonth = (e) => {
+    e.stopPropagation();
+    setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1));
+  };
+  
+  const handleNextMonth = (e) => {
+    e.stopPropagation();
+    setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1));
+  };
+
+  const handleDateSelect = (day) => {
+    const newDate = new Date(viewDate.getFullYear(), viewDate.getMonth(), day);
+    onDateChange(getLocalISODate(newDate));
+    setIsOpen(false);
+  };
+
+  const handleSetToday = (e) => {
+    e.stopPropagation();
+    const today = getLocalISODate(new Date());
+    onDateChange(today);
+    setIsOpen(false);
+  };
+
+  const daysInMonth = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0).getDate();
+  let firstDayIndex = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1).getDay();
+  firstDayIndex = firstDayIndex === 0 ? 6 : firstDayIndex - 1;
+
+  const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+  const blanksArray = Array.from({ length: firstDayIndex }, (_, i) => i);
+
+  const selectedDay = selectedDate ? parseLocalISODate(selectedDate).getDate() : null;
+  const selectedMonth = selectedDate ? parseLocalISODate(selectedDate).getMonth() : null;
+  const selectedYear = selectedDate ? parseLocalISODate(selectedDate).getFullYear() : null;
+
+  const isToday = (day) => {
+    const today = new Date();
+    return today.getDate() === day && today.getMonth() === viewDate.getMonth() && today.getFullYear() === viewDate.getFullYear();
+  };
+
+  const isSelected = (day) => {
+    return selectedDay === day && selectedMonth === viewDate.getMonth() && selectedYear === viewDate.getFullYear();
+  };
+
+  const formatDisplayDate = (dateStr) => {
+    if (!dateStr) return '';
+    const [y, m, d] = dateStr.split('-');
+    return `${d}.${m}.${y}`;
+  };
+
+  return (
+    <div className="relative cursor-default" ref={wrapperRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={`flex items-center gap-2 p-2 rounded-full transition-all duration-200 transform hover:scale-105 active:scale-95 cursor-default ${
+          isDarkMode 
+            ? 'text-emerald-400 hover:bg-emerald-400/10' 
+            : 'text-emerald-600 hover:bg-emerald-50'
+        }`}
+        title="Tarih Seç"
+      >
+        <svg className="w-5 h-5 stroke-[2.2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+        </svg>
+        <span className="text-xs font-black tracking-wide whitespace-nowrap">
+          {formatDisplayDate(selectedDate)}
+        </span>
+      </button>
+
+      {isOpen && (
+        <div className={`absolute top-full right-0 mt-2 w-[280px] sm:w-[320px] p-4 rounded-3xl shadow-2xl border z-[999] animate-in fade-in zoom-in-95 cursor-default ${
+          isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
+        }`}>
+          <div className="flex justify-between items-center mb-4">
+            <button onClick={handlePrevMonth} className={`p-1.5 rounded-lg cursor-default ${isDarkMode ? 'hover:bg-slate-800' : 'hover:bg-slate-100'}`}>
+              <svg className="w-5 h-5 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
+            </button>
+            <div className="text-base font-black tracking-wide">
+              {MONTHS_TR[viewDate.getMonth()]} {viewDate.getFullYear()}
+            </div>
+            <button onClick={handleNextMonth} className={`p-1.5 rounded-lg cursor-default ${isDarkMode ? 'hover:bg-slate-800' : 'hover:bg-slate-100'}`}>
+              <svg className="w-5 h-5 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-7 gap-1 mb-2">
+            {DAYS_TR_SHORT.map(day => (
+              <div key={day} className={`text-center text-[11px] font-black uppercase tracking-wider ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                {day}
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-7 gap-1">
+            {blanksArray.map(blank => <div key={`blank-${blank}`} />)}
+            {daysArray.map(day => {
+              const selected = isSelected(day);
+              const today = isToday(day);
+              return (
+                <button
+                  key={day}
+                  onClick={() => handleDateSelect(day)}
+                  className={`h-9 w-9 mx-auto rounded-xl flex items-center justify-center text-sm font-bold transition-all cursor-default ${
+                    selected 
+                      ? (isDarkMode ? 'bg-slate-700 text-white shadow-md' : 'bg-slate-200 text-slate-900 shadow-sm')
+                      : today
+                      ? (isDarkMode ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-50 text-emerald-600')
+                      : (isDarkMode ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100')
+                  }`}
+                >
+                  {day}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800">
+            <button 
+              onClick={handleSetToday}
+              className={`w-full py-2.5 rounded-xl text-xs font-black uppercase tracking-wide transition-all cursor-default ${
+                isDarkMode ? 'bg-slate-800 hover:bg-slate-700 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+              }`}
+            >
+              Bugün (Bugüne Dön)
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ============================================================================
 // ⚡ DOCTOR ROW COMPONENT (ADMIN)
+// ============================================================================
 const DoctorRow = memo(function DoctorRow({ 
   docItem, 
   index, 
@@ -216,32 +412,32 @@ const DoctorRow = memo(function DoctorRow({
 
       {tableSettings.showClinic && (
         <td className={`${rowPaddingClass} ${borderClasses.rightBorder}`}>                         
-          <span className="break-words">{docItem.clinic}</span>                       
+          <span className="break-words font-bold">{docItem.clinic}</span>                       
         </td>                       
       )}
 
       {tableSettings.showDoctorName && (
         <td className={`${rowPaddingClass} ${borderClasses.rightBorder}`}>                         
-          <span className="break-words">{docItem.name}</span>                       
+          <span className="break-words font-extrabold">{docItem.name}</span>                       
         </td>                       
       )}
 
       {tableSettings.showPhone !== false && (
         <td className={`${rowPaddingClass} ${borderClasses.rightBorder} font-mono text-center`}>
-          <span className="break-words">{docItem.phone || '-'}</span>
+          <span className="break-words font-bold">{docItem.phone || '-'}</span>
         </td>
       )}
 
       {tableSettings.showRoomNo !== false && (
         <td className={`${rowPaddingClass} ${borderClasses.rightBorder} text-center`}>
-          <span className="break-words">{docItem.roomNo || docItem.room || '-'}</span>
+          <span className="break-words font-bold">{docItem.roomNo || docItem.room || '-'}</span>
         </td>
       )}
 
       {tableSettings.showStatus && (
         <td className={`${rowPaddingClass} ${showActionsColumn ? borderClasses.rightBorder : ''} text-center`}>                         
           <div className="flex justify-center">
-            <span className={`inline-flex items-center justify-center min-w-[110px] sm:min-w-[140px] px-2.5 py-1.5 rounded-xl text-xs font-black shadow-xs ${getStatusStyles(activeStatusToday)}`}>                           
+            <span className={`inline-flex items-center justify-center min-w-[110px] sm:min-w-[140px] px-2.5 py-1.5 rounded-xl text-xs font-black shadow-xs ${getStatusBadgeStyle(activeStatusToday)}`}>                           
               <span className="w-2 h-2 rounded-full bg-white mr-1.5 animate-pulse shrink-0"></span>                           
               <span className="truncate">{activeStatusToday}</span>
             </span>                       
@@ -259,7 +455,7 @@ const DoctorRow = memo(function DoctorRow({
                   e.stopPropagation();
                   onStartEdit(docItem);
                 }}
-                className="px-2.5 sm:px-3 py-1 sm:py-1.5 text-xs font-black rounded-xl bg-amber-500 text-slate-950 hover:bg-amber-400 shadow-md transition-all cursor-pointer"
+                className="px-2.5 sm:px-3 py-1 sm:py-1.5 text-xs font-black rounded-xl bg-amber-500 text-slate-950 hover:bg-amber-400 shadow-md transition-all cursor-default"
               >
                 DÜZENLE
               </button>
@@ -272,7 +468,7 @@ const DoctorRow = memo(function DoctorRow({
                   e.stopPropagation();
                   if (onDelete) onDelete(docItem.id);
                 }}
-                className="px-2.5 sm:px-3 py-1 sm:py-1.5 text-xs font-black rounded-xl bg-rose-600 text-white hover:bg-rose-500 shadow-md transition-all cursor-pointer"
+                className="px-2.5 sm:px-3 py-1 sm:py-1.5 text-xs font-black rounded-xl bg-rose-600 text-white hover:bg-rose-500 shadow-md transition-all cursor-default"
               >
                 SİL
               </button>
@@ -284,7 +480,9 @@ const DoctorRow = memo(function DoctorRow({
   );
 });
 
+// ============================================================================
 // ⚡ MODAL DETAIL COMPONENT (ADMIN)
+// ============================================================================
 const DoctorDetailModal = memo(function DoctorDetailModal({
   selectedDoctorDetail,
   isDarkMode,
@@ -383,7 +581,7 @@ const DoctorDetailModal = memo(function DoctorDetailModal({
             {canEditDocs && (
               <button
                 onClick={() => onStartEdit(selectedDoctorDetail)}
-                className="px-3 py-1.5 rounded-xl bg-amber-500 text-slate-950 font-black text-xs hover:bg-amber-400 shadow-md transition-all cursor-pointer"
+                className="px-3 py-1.5 rounded-xl bg-amber-500 text-slate-950 font-black text-xs hover:bg-amber-400 shadow-md transition-all cursor-default"
               >
                 DÜZENLE
               </button>
@@ -396,7 +594,7 @@ const DoctorDetailModal = memo(function DoctorDetailModal({
                   setSelectedDoctorDetail(null);
                   if (onDelete) onDelete(docId);
                 }}
-                className="px-3 py-1.5 rounded-xl bg-rose-600 text-white font-black text-xs hover:bg-rose-500 shadow-md transition-all cursor-pointer"
+                className="px-3 py-1.5 rounded-xl bg-rose-600 text-white font-black text-xs hover:bg-rose-500 shadow-md transition-all cursor-default"
               >
                 SİL
               </button>
@@ -404,7 +602,7 @@ const DoctorDetailModal = memo(function DoctorDetailModal({
 
             <button 
               onClick={() => setIsMinimized(true)} 
-              className={`w-10 h-10 rounded-2xl border font-black text-lg flex items-center justify-center cursor-pointer transition-transform hover:scale-110 active:scale-95 ${
+              className={`w-10 h-10 rounded-2xl border font-black text-lg flex items-center justify-center cursor-default transition-transform hover:scale-110 active:scale-95 ${
                 isDarkMode 
                   ? 'bg-amber-500/10 border-amber-500/40 text-amber-400 hover:bg-amber-500 hover:text-slate-950' 
                   : 'bg-amber-50 border-amber-300 text-amber-600 hover:bg-amber-500 hover:text-white'
@@ -416,7 +614,7 @@ const DoctorDetailModal = memo(function DoctorDetailModal({
             
             <button 
               onClick={() => setIsMaximized(!isMaximized)} 
-              className={`w-10 h-10 rounded-2xl border font-black text-lg flex items-center justify-center cursor-pointer transition-transform hover:scale-110 active:scale-95 ${
+              className={`w-10 h-10 rounded-2xl border font-black text-lg flex items-center justify-center cursor-default transition-transform hover:scale-110 active:scale-95 ${
                 isDarkMode 
                   ? 'bg-sky-500/10 border-sky-500/40 text-sky-400 hover:bg-sky-500 hover:text-white' 
                   : 'bg-sky-50 border-sky-300 text-sky-600 hover:bg-sky-500 hover:text-white'
@@ -428,7 +626,7 @@ const DoctorDetailModal = memo(function DoctorDetailModal({
             
             <button 
               onClick={() => setSelectedDoctorDetail(null)} 
-              className={`w-10 h-10 rounded-2xl border font-black text-lg flex items-center justify-center cursor-pointer transition-transform hover:scale-110 active:scale-95 ${
+              className={`w-10 h-10 rounded-2xl border font-black text-lg flex items-center justify-center cursor-default transition-transform hover:scale-110 active:scale-95 ${
                 isDarkMode 
                   ? 'bg-rose-500/10 border-rose-500/40 text-rose-400 hover:bg-rose-600 hover:text-white' 
                   : 'bg-rose-50 border-rose-300 text-rose-600 hover:bg-rose-600 hover:text-white'
@@ -450,7 +648,7 @@ const DoctorDetailModal = memo(function DoctorDetailModal({
           {showScrollToTodayTop && (
             <button
               onClick={scrollToTodaySmooth}
-              className={`absolute top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-full font-black text-xs shadow-2xl border flex items-center gap-2.5 cursor-pointer transition-transform hover:scale-105 active:scale-95 ${
+              className={`absolute top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-full font-black text-xs shadow-2xl border flex items-center gap-2.5 cursor-default transition-transform hover:scale-105 active:scale-95 ${
                 isDarkMode
                   ? 'bg-emerald-950 border-emerald-500 text-emerald-300'
                   : 'bg-white border-emerald-600 text-emerald-900'
@@ -466,7 +664,7 @@ const DoctorDetailModal = memo(function DoctorDetailModal({
           {showScrollToTodayBottom && (
             <button
               onClick={scrollToTodaySmooth}
-              className={`absolute bottom-4 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-full font-black text-xs shadow-2xl border flex items-center gap-2.5 cursor-pointer transition-transform hover:scale-105 active:scale-95 ${
+              className={`absolute bottom-4 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-full font-black text-xs shadow-2xl border flex items-center gap-2.5 cursor-default transition-transform hover:scale-105 active:scale-95 ${
                 isDarkMode
                   ? 'bg-emerald-950 border-emerald-500 text-emerald-300'
                   : 'bg-white border-emerald-600 text-emerald-900'
@@ -551,7 +749,7 @@ const DoctorDetailModal = memo(function DoctorDetailModal({
                     </div>                           
                     
                     <div className="flex justify-center shrink-0">
-                      <span className={`w-36 sm:w-44 h-9 rounded-xl text-xs sm:text-sm font-black flex items-center justify-center text-center ${getStatusStyles(sd.status, isPast)}`}>                             
+                      <span className={`w-36 sm:w-44 h-9 rounded-xl text-xs sm:text-sm font-black flex items-center justify-center text-center ${getStatusBadgeStyle(sd.status)}`}>                             
                         <span className="truncate px-2">{holidayName ? 'RESMİ TATİL' : sd.status}</span>
                       </span>                         
                     </div>
@@ -571,15 +769,22 @@ const DoctorDetailModal = memo(function DoctorDetailModal({
   );
 });
 
+// ============================================================================
+// 🚀 MAIN COMPONENT
+// ============================================================================
 function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {   
   const { doctors: rawDoctors, checkPermission } = useData(); 
-  const { isDarkMode, toggleTheme } = useTheme(); 
+  const { isDarkMode, toggleTheme, triggerToast } = useTheme(); 
   const { tableSettings, selectedFont, activeColor, customHexColor } = useTableSettings();
 
   const [currentUser, setCurrentUser] = useState(null);
   const [filter, setFilter] = useState('HEPSİ');   
+  
+  // ⚡ DEBOUNCING SEARCH STATES
+  const [searchInputVal, setSearchInputVal] = useState('');
   const [searchTerm, setSearchTerm] = useState('');   
-  const [sortBy, setSortBy] = useState('NEWEST');   
+  
+  const [sortBy, setSortBy] = useState('CLINIC_ASC');   
   const [doctors, setDoctors] = useState([]);   
   const [selectedDoctorDetail, setSelectedDoctorDetail] = useState(null);   
   const [selectedDoctorId, setSelectedDoctorId] = useState(null);
@@ -590,6 +795,10 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const [showMenuDropdown, setShowMenuDropdown] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+
+  // 📅 DATE PICKER STATE (ربطه بالتاريخ المختار مثل جدول الزوار تماماً)
+  const [selectedDateISO, setSelectedDateISO] = useState(() => getLocalISODate(new Date()));
 
   // حالات نافذة التعديل المباشر
   const [editingDoctor, setEditingDoctor] = useState(null);
@@ -611,14 +820,22 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
   const [reportCategory, setReportCategory] = useState('SİSTEM_HATASI');
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
 
-  const [toastNotification, setToastNotification] = useState({ show: false, leaving: false });
-
   const searchInputRef = useRef(null);
   const filterDropdownRef = useRef(null);
   const sortDropdownRef = useRef(null);
   const menuDropdownRef = useRef(null);
 
   const router = useRouter();   
+
+  // ==========================================================================
+  // ⚡ DEBOUNCE EFFECT FOR SEARCH INPUT
+  // ==========================================================================
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setSearchTerm(searchInputVal);
+    }, 150);
+    return () => clearTimeout(handler);
+  }, [searchInputVal]);
 
   useEffect(() => {
     const sessionUser = sessionStorage.getItem('user');
@@ -688,6 +905,12 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
     return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
   }, [todayTimestamp]);
 
+  const selectedDateFormatted = useMemo(() => {
+    if (!selectedDateISO) return todayFormattedStr;
+    const [y, m, d] = selectedDateISO.split('-');
+    return `${d}.${m}.${y}`;
+  }, [selectedDateISO, todayFormattedStr]);
+
   useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
@@ -731,20 +954,19 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
     return () => { document.body.style.overflow = 'auto'; };   
   }, [showPrintModal, selectedDoctorDetail, isMinimized, showReportModal, showGeneralAppSettingsModal, showTableSettingsCustomModal, editingDoctor]);   
 
-  const getCurrentDayStatus = useCallback((doc) => {
+  const getStatusForDate = useCallback((doc, dateStr) => {
     if (!doc.scheduleDays || doc.scheduleDays.length === 0) return doc.status || 'POLİKLİNİK';
-    const todaySchedule = doc.scheduleDays.find(sd => sd.date === todayFormattedStr);
-    if (todaySchedule) {
-      return todaySchedule.status === 'POLİK' ? 'POLİKLİNİK' : todaySchedule.status;
+    const targetSchedule = doc.scheduleDays.find(sd => sd.date === dateStr);
+    if (targetSchedule) {
+      return targetSchedule.status === 'POLİK' ? 'POLİKLİNİK' : targetSchedule.status;
     }
-    const dayIndex = new Date(todayTimestamp).getDay();
-    if (dayIndex === 0 || dayIndex === 6) return 'HAFTA SONU';
+    const parts = dateStr.split('.');
+    if (parts.length === 3) {
+       const d = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+       const dayIndex = d.getDay();
+       if (dayIndex === 0 || dayIndex === 6) return 'HAFTA SONU';
+    }
     return doc.status === 'POLİK' ? 'POLİKLİNİK' : doc.status;
-  }, [todayFormattedStr, todayTimestamp]);
-
-  useEffect(() => {     
-    const savedSort = localStorage.getItem('app_table_sort');     
-    if (savedSort) setSortBy(savedSort);   
   }, []);
 
   useEffect(() => {
@@ -791,7 +1013,7 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
 
   const handleStartDirectEdit = useCallback((docItem) => {
     if (!canEditDocs) {
-      alert('Bölüm ve doktor düzeltme yetkiniz bulunmamaktadır!');
+      triggerToast('Bölüm ve doktor düzeltme yetkiniz bulunmamaktadır!', 'error');
       return;
     }
     setEditingDoctor(docItem);
@@ -799,13 +1021,13 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
     setEditClinic(docItem.clinic || '');
     setEditPhone(docItem.phone || '');
     setEditRoomNo(docItem.roomNo || docItem.room || '');
-    setEditStatus(getCurrentDayStatus(docItem));
-  }, [canEditDocs, getCurrentDayStatus]);
+    setEditStatus(getStatusForDate(docItem, selectedDateFormatted));
+  }, [canEditDocs, getStatusForDate, selectedDateFormatted, triggerToast]);
 
   const handleSaveDirectEdit = async (e) => {
     e.preventDefault();
     if (!canEditDocs) {
-      alert('Bölüm ve doktor düzeltme yetkiniz bulunmamaktadır!');
+      triggerToast('Bölüm ve doktor düzeltme yetkiniz bulunmamaktadır!', 'error');
       setEditingDoctor(null);
       return;
     }
@@ -816,10 +1038,10 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
     try {
       let updatedDays = editingDoctor.scheduleDays ? [...editingDoctor.scheduleDays] : [];
       
-      const todayIndex = updatedDays.findIndex(sd => sd.date === todayFormattedStr);
-      if (todayIndex !== -1) {
-        updatedDays[todayIndex] = {
-          ...updatedDays[todayIndex],
+      const targetIndex = updatedDays.findIndex(sd => sd.date === selectedDateFormatted);
+      if (targetIndex !== -1) {
+        updatedDays[targetIndex] = {
+          ...updatedDays[targetIndex],
           status: editStatus
         };
       }
@@ -857,9 +1079,10 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
       }
 
       setEditingDoctor(null);
+      triggerToast('Doktor bilgileri başarıyla güncellendi.', 'success');
     } catch (err) {
       console.error('Güncelleme sırasında hata:', err);
-      alert('Güncelleme yapılırken bir hata oluştu.');
+      triggerToast('Güncelleme yapılırken bir hata oluştu.', 'error');
     } finally {
       setIsSavingEdit(false);
     }
@@ -867,15 +1090,14 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
 
   const handleSortChange = useCallback((newSort) => {     
     setSortBy(newSort);     
-    localStorage.getItem('app_table_sort') !== newSort && localStorage.setItem('app_table_sort', newSort);   
   }, []);   
 
   const filteredAndSortedDoctors = useMemo(() => {
-    const searchLower = searchTerm.toLowerCase();
+    const searchLower = searchTerm.trim().toLowerCase();
     
     return doctors     
       .filter((doc) => {       
-        const currentStatus = getCurrentDayStatus(doc);
+        const currentStatus = getStatusForDate(doc, selectedDateFormatted);
         const matchesFilter = filter === 'HEPSİ' || currentStatus === filter || (filter === 'POLİKLİNİK' && (currentStatus === 'POLİKLİNİK' || currentStatus === 'POLİK'));       
         const matchesSearch = !searchLower || doc.name.toLowerCase().includes(searchLower) || doc.clinic.toLowerCase().includes(searchLower) || (doc.phone && doc.phone.includes(searchLower));       
         return matchesFilter && matchesSearch;     
@@ -888,14 +1110,13 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
         if (sortBy === 'OLDEST') return (a.createdAt || a.id) - (b.createdAt || b.id);       
         return 0;     
       });
-  }, [doctors, filter, searchTerm, sortBy, getCurrentDayStatus]);
+  }, [doctors, filter, searchTerm, sortBy, getStatusForDate, selectedDateFormatted]);
 
   const handleKeyDown = useCallback((e) => {
     const activeElement = document.activeElement;
     const isInputActive = activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || activeElement.tagName === 'SELECT');
     
     if (isInputActive) return;
-
     if (filteredAndSortedDoctors.length === 0) return;
 
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -941,20 +1162,11 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
 
       setShowReportModal(false);
       setReportText('');
-
-      setToastNotification({ show: true, leaving: false });
-
-      setTimeout(() => {
-        setToastNotification((prev) => ({ ...prev, leaving: true }));
-      }, 2500);
-
-      setTimeout(() => {
-        setToastNotification({ show: false, leaving: false });
-      }, 3000);
+      triggerToast('Sorun bildirimi başarıyla gönderilmiştir.', 'success');
 
     } catch (err) {
       console.error('Report submission error:', err);
-      alert('Hata oluştu. Lütfen tekrar deneyin.');
+      triggerToast('Hata oluştu. Lütfen tekrar deneyin.', 'error');
     } finally {
       setIsSubmittingReport(false);
     }
@@ -963,16 +1175,17 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
   const exportToExcel = useCallback(() => {     
     let tableCSV = 'NO;BİRİM;DOKTOR ADI SOYADI;TELEFON NO;ODA NO;DURUM\n';     
     filteredAndSortedDoctors.forEach((doc, idx) => {       
-      const currentStatus = getCurrentDayStatus(doc);
+      const currentStatus = getStatusForDate(doc, selectedDateFormatted);
       tableCSV += `"${idx + 1}";"${doc.clinic}";"${doc.name}";"${doc.phone || ''}";"${doc.roomNo || doc.room || ''}";"${currentStatus}"\n`;     
     });     
     const blob = new Blob(['\uFEFF' + tableCSV], { type: 'text/csv;charset=utf-8;' });     
     const url = URL.createObjectURL(blob);     
     const a = document.createElement('a');     
     a.href = url;     
-    a.download = `Doktor_Calisma_Listesi_${todayFormattedStr.replace(/\./g, '_')}.csv`;     
+    a.download = `Doktor_Calisma_Listesi_${selectedDateFormatted.replace(/\./g, '_')}.csv`;     
     a.click();   
-  }, [filteredAndSortedDoctors, getCurrentDayStatus, todayFormattedStr]);
+    triggerToast('Excel dosyası indirildi.', 'info');
+  }, [filteredAndSortedDoctors, getStatusForDate, selectedDateFormatted, triggerToast]);
 
   const rowPaddingClass = useMemo(() => {
     if (tableSettings.rowPadding === 'compact') return 'py-1.5 px-3 sm:px-4';
@@ -983,27 +1196,18 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
   const statusFilterList = useMemo(() => [
     { label: 'HEPSİ', key: 'HEPSİ' },
     { label: 'POLİKLİNİK', key: 'POLİKLİNİK' },
-    { label: 'AMELİYATTA', key: 'AMELİYATTA' },
-    { label: 'PALYATİF', key: 'PALYATİF' },
-    { label: 'İŞLEM GÜNÜ', key: 'İŞLEM GÜNÜ' },
-    { label: 'YARIM GÜN', key: 'YARIM GÜN' },
-    { label: 'SAATLİK İZİN', key: 'SAATLİK İZİN' },
-    { label: 'ŞUA İZNİ', key: 'ŞUA İZNİ' },
-    { label: 'KONGRE / SEMİNER', key: 'KONGRE/SEMİNER' },
-    { label: 'RESMİ TATİL', key: 'RESMİ TATİL' },
-    { label: 'HAFTA SONU', key: 'HAFTA SONU' },
+    { label: 'AMELİYAT', key: 'AMELİYAT' },
     { label: 'YILLIK İZİN', key: 'YILLIK İZİN' },
     { label: 'RAPORLU', key: 'RAPORLU' },
-    { label: 'NÖBET SONRASI İZİN', key: 'NÖBET SONRASI İZİN' },
-    { label: 'ASKERLİK', key: 'ASKERLİK' },
+    { label: 'NÖBET SONRASI', key: 'NÖBET SONRASI' },
   ], []);
 
   const sortOptionsList = useMemo(() => [
-    { label: 'En Yeni Eklenenler', key: 'NEWEST' },
-    { label: 'En Eski Eklenenler', key: 'OLDEST' },
-    { label: 'Doktor Adına Göre (A-Z)', key: 'NAME_ASC' },
-    { label: 'Doktor Adına Göre (Z-A)', key: 'NAME_DESC' },
-    { label: 'Bölüme Göre (A-Z)', key: 'CLINIC_ASC' },
+    { label: 'Bölüm', key: 'CLINIC_ASC' },
+    { label: 'En Yeni', key: 'NEWEST' },
+    { label: 'En Eski', key: 'OLDEST' },
+    { label: 'A-Z', key: 'NAME_ASC' },
+    { label: 'Z-A', key: 'NAME_DESC' },
   ], []);
 
   const getSortLabel = useCallback((key) => {
@@ -1025,62 +1229,20 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
           #printableA4Area { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; }           
         }
 
+        *, *::before, *::after, button, input, select, textarea, a, tr, td, div {
+          cursor: default !important;
+        }
+
+        input[type="text"], textarea {
+          cursor: text !important;
+        }
+
         .hardware-accelerated {
           will-change: transform, opacity;
           transform: translateZ(0);
           contain: content;
         }
-
-        @keyframes toastSlideIn {
-          0% {
-            opacity: 0;
-            transform: translate(-50%, -40px);
-          }
-          100% {
-            opacity: 1;
-            transform: translate(-50%, 0);
-          }
-        }
-
-        @keyframes toastSlideRightOut {
-          0% {
-            opacity: 1;
-            transform: translate(-50%, 0);
-          }
-          100% {
-            opacity: 0;
-            transform: translate(100vw, 0);
-          }
-        }
-
-        .animate-toast-in {
-          animation: toastSlideIn 0.25s ease-out forwards;
-        }
-
-        .animate-toast-out {
-          animation: toastSlideRightOut 0.35s ease-in forwards;
-        }
       `}</style>
-
-      {/* 🔔 Toast Notification */}
-      {toastNotification.show && (
-        <div className={`fixed top-4 left-1/2 z-[300] -translate-x-1/2 px-6 py-3.5 rounded-2xl shadow-2xl border flex items-center gap-3 hardware-accelerated ${
-          toastNotification.leaving ? 'animate-toast-out' : 'animate-toast-in'
-        } ${
-          isDarkMode 
-            ? 'bg-slate-900 border-emerald-500/50 text-emerald-400 shadow-emerald-950/50' 
-            : 'bg-white border-emerald-400 text-emerald-800 shadow-emerald-100'
-        }`}>
-          <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-500 flex items-center justify-center shrink-0">
-            <svg className="w-5 h-5 stroke-[2.8]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-            </svg>
-          </div>
-          <span className="text-xs sm:text-sm font-black tracking-wide uppercase">
-            Başarıyla gönderilmiştir!
-          </span>
-        </div>
-      )}
 
       {/* 🌟 HEADER */}
       <div className={`no-print fixed top-0 left-0 right-0 z-50 h-[52px] px-3 sm:px-6 shadow-sm cursor-default flex items-center ${
@@ -1089,12 +1251,13 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
           : 'bg-white border-b border-slate-200'
       }`}>                      
         
-        <div className="w-full flex flex-row items-center justify-between gap-2 sm:gap-4 max-w-7xl mx-auto">                          
+        <div className="w-full flex flex-row items-center justify-between gap-2 sm:gap-4 max-w-[1600px] mx-auto">                          
           
+          {/* Back Button */}
           <div className="flex items-center shrink-0">
             <button
               onClick={handleGoBack}
-              className={`p-2 rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 transform hover:scale-110 active:scale-95 ${
+              className={`p-2 rounded-full flex items-center justify-center cursor-default transition-all duration-200 transform hover:scale-110 active:scale-95 ${
                 isDarkMode 
                   ? 'text-amber-400 hover:bg-amber-400/10' 
                   : 'text-emerald-600 hover:bg-emerald-50'
@@ -1107,50 +1270,59 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
             </button>
           </div>
 
-          <div className="flex-1 flex justify-center mx-auto">               
+          {/* Right Tools */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 py-1">
+            
+            {/* 🔍 SEARCH BOX */}
             <div 
-              onClick={() => searchInputRef.current?.focus()}
-              className={`relative flex items-center w-full max-w-[170px] sm:max-w-[220px] focus-within:max-w-[280px] sm:focus-within:max-w-[360px] rounded-full py-1 px-3 shadow-xs cursor-text ${
-                isDarkMode 
-                  ? 'bg-slate-900 border border-slate-800' 
-                  : 'bg-slate-100 border border-slate-200'
+              className={`relative flex items-center h-[38px] rounded-xl transition-all duration-200 ease-out cursor-text border ${
+                isSearchFocused || searchInputVal
+                  ? isDarkMode
+                    ? 'w-[180px] sm:w-[260px] lg:w-[320px] bg-slate-900 border-emerald-500 shadow-md'
+                    : 'w-[180px] sm:w-[260px] lg:w-[320px] bg-white border-emerald-600 shadow-sm'
+                  : isDarkMode
+                    ? 'w-[110px] sm:w-[150px] lg:w-[190px] bg-slate-900/40 border-slate-700/60 hover:border-emerald-500/50'
+                    : 'w-[110px] sm:w-[150px] lg:w-[190px] bg-slate-100/60 border-slate-300/70 hover:border-emerald-500/50'
               }`}
             >
+              <div className="pl-3 pr-1.5 flex items-center justify-center shrink-0">
+                <svg className="w-4 h-4 stroke-[2.5] text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                </svg>
+              </div>
+
               <input 
                 ref={searchInputRef}                
                 type="text"                 
-                placeholder="Doktor veya Birim Ara..."                 
-                value={searchTerm}                 
-                onChange={(e) => setSearchTerm(e.target.value)}                 
-                className="w-full bg-transparent text-xs font-extrabold outline-none tracking-wide text-center focus:text-left placeholder-slate-400 cursor-text uppercase"
+                placeholder="Doktor / Birim Ara..."                 
+                value={searchInputVal}                 
+                onFocus={() => setIsSearchFocused(true)}
+                onBlur={() => setIsSearchFocused(false)}
+                onChange={(e) => setSearchInputVal(e.target.value)}                 
+                className={`w-full bg-transparent text-xs font-black outline-none tracking-wide placeholder-slate-400 cursor-text uppercase ${
+                  isDarkMode ? 'text-white' : 'text-slate-900'
+                }`}
               />             
 
-              {searchTerm && (
+              {searchInputVal && (
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSearchTerm('');
-                  }}
-                  className="p-1 text-slate-400 hover:text-rose-500 font-black text-xs shrink-0 ml-1 cursor-pointer"
+                  onClick={(e) => { e.stopPropagation(); setSearchInputVal(''); setSearchTerm(''); searchInputRef.current?.focus(); }}
+                  className="pr-2.5 pl-1 text-slate-400 hover:text-rose-500 font-black text-xs cursor-default transition-colors"
                 >
                   ✕
                 </button>
               )}
             </div>
-          </div>
 
-          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-            
+            {/* 🔍 ➕ Zoom In */}
             <button
               onMouseDown={() => startZoomHold(3)}
               onMouseUp={stopZoomHold}
               onMouseLeave={stopZoomHold}
               onTouchStart={() => startZoomHold(3)}
               onTouchEnd={stopZoomHold}
-              className={`p-2 rounded-full flex items-center justify-center outline-none cursor-pointer select-none transition-all duration-200 transform hover:scale-110 active:scale-90 ${
-                isDarkMode 
-                  ? 'text-sky-400 hover:bg-sky-400/10' 
-                  : 'text-sky-600 hover:bg-sky-50'
+              className={`p-2 rounded-full flex items-center justify-center outline-none cursor-default select-none transition-all duration-200 transform hover:scale-110 active:scale-90 shrink-0 ${
+                isDarkMode ? 'text-sky-400 hover:bg-sky-400/10' : 'text-sky-600 hover:bg-sky-50'
               }`}
               title="Görünümü Büyüt (+)"
             >
@@ -1162,16 +1334,15 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
               </svg>
             </button>
 
+            {/* 🔍 ➖ Zoom Out */}
             <button
               onMouseDown={() => startZoomHold(-3)}
               onMouseUp={stopZoomHold}
               onMouseLeave={stopZoomHold}
               onTouchStart={() => startZoomHold(-3)}
               onTouchEnd={stopZoomHold}
-              className={`p-2 rounded-full flex items-center justify-center outline-none cursor-pointer select-none transition-all duration-200 transform hover:scale-110 active:scale-90 ${
-                isDarkMode 
-                  ? 'text-sky-400 hover:bg-sky-400/10' 
-                  : 'text-sky-600 hover:bg-sky-50'
+              className={`p-2 rounded-full flex items-center justify-center outline-none cursor-default select-none transition-all duration-200 transform hover:scale-110 active:scale-90 shrink-0 ${
+                isDarkMode ? 'text-sky-400 hover:bg-sky-400/10' : 'text-sky-600 hover:bg-sky-50'
               }`}
               title="Görünümü Küçült (-)"
             >
@@ -1182,12 +1353,11 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
               </svg>
             </button>
 
+            {/* ⛶ Fullscreen */}
             <button
               onClick={toggleFullscreen}
-              className={`p-2 rounded-full flex items-center justify-center outline-none cursor-pointer transition-all duration-200 transform hover:scale-110 active:scale-90 ${
-                isDarkMode 
-                  ? 'text-sky-400 hover:bg-sky-400/10' 
-                  : 'text-sky-600 hover:bg-sky-50'
+              className={`hidden sm:flex p-2 rounded-full flex items-center justify-center outline-none cursor-default transition-all duration-200 transform hover:scale-110 active:scale-90 shrink-0 ${
+                isDarkMode ? 'text-sky-400 hover:bg-sky-400/10' : 'text-sky-600 hover:bg-sky-50'
               }`}
               title={isFullscreen ? 'Tam Ekrandan Çık' : 'Tam Ekran'}
             >
@@ -1202,15 +1372,11 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
               )}
             </button>
 
+            {/* 🌙 / ☀️ Theme Switcher */}
             <button
-              onClick={(e) => {
-                toggleTheme();
-                e.currentTarget.blur();
-              }}
-              className={`p-2 rounded-full flex items-center justify-center outline-none cursor-pointer transition-all duration-300 transform hover:scale-110 hover:translate-y-1 active:scale-90 ${
-                isDarkMode 
-                  ? 'text-amber-400 hover:bg-amber-400/10' 
-                  : 'text-indigo-600 hover:bg-indigo-50'
+              onClick={(e) => { toggleTheme(); e.currentTarget.blur(); }}
+              className={`p-2 rounded-full flex items-center justify-center outline-none cursor-default transition-all duration-300 transform hover:scale-110 hover:translate-y-1 active:scale-90 shrink-0 ${
+                isDarkMode ? 'text-amber-400 hover:bg-amber-400/10' : 'text-indigo-600 hover:bg-indigo-50'
               }`}
               title={isDarkMode ? 'Gündüz Moduna Geç' : 'Gece Moduna Geç'}
             >
@@ -1225,13 +1391,12 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
               )}
             </button>
 
-            <div className="relative" ref={filterDropdownRef}>
+            {/* 🔻 Filter Dropdown */}
+            <div className="relative shrink-0" ref={filterDropdownRef}>
               <button
                 onClick={() => { setShowFilterDropdown(!showFilterDropdown); setShowSortDropdown(false); setShowMenuDropdown(false); }}
-                className={`px-1.5 py-1 rounded-lg font-black text-[11px] flex items-center gap-1 cursor-pointer transition-colors ${
-                  isDarkMode 
-                    ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-400/10' 
-                    : 'text-slate-800 hover:text-slate-950 hover:bg-slate-200/60'
+                className={`px-2 py-1 rounded-lg font-black text-[11px] flex items-center gap-1 cursor-default transition-colors ${
+                  isDarkMode ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-400/10' : 'text-slate-800 hover:text-slate-950 hover:bg-slate-200/60'
                 }`}
                 title="Durum Filtresi"
               >
@@ -1242,27 +1407,18 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
               </button>
 
               {showFilterDropdown && (
-                <div className={`absolute right-0 mt-3 w-56 max-h-80 overflow-y-auto rounded-3xl border p-2.5 shadow-2xl z-50 ${
-                  isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
-                }`}>
+                <div className={`absolute right-0 mt-3 w-56 rounded-3xl border p-2.5 shadow-2xl z-[999] ${isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'}`}>
                   <div className="flex justify-between items-center pb-2 px-2 border-b border-slate-200 dark:border-slate-800">
                     <span className="text-[10px] font-black text-amber-500 uppercase tracking-wider">DURUM SEÇİN</span>
-                    <button onClick={() => setShowFilterDropdown(false)} className="w-5 h-5 rounded-full font-black text-[10px] flex items-center justify-center cursor-pointer">✕</button>
+                    <button onClick={() => setShowFilterDropdown(false)} className="w-5 h-5 rounded-full font-black text-[10px] flex items-center justify-center cursor-default">✕</button>
                   </div>
                   <div className="space-y-1 mt-2 font-black">
                     {statusFilterList.map((item) => (
                       <button
                         key={item.key}
-                        onClick={() => {
-                          setFilter(item.key);
-                          setShowFilterDropdown(false);
-                        }}
-                        className={`w-full p-2.5 rounded-2xl text-xs flex items-center justify-between cursor-pointer ${
-                          filter === item.key
-                            ? 'bg-emerald-600 text-white font-black shadow-md'
-                            : isDarkMode
-                            ? 'text-slate-300 hover:bg-slate-800'
-                            : 'text-slate-800 hover:bg-slate-100'
+                        onClick={() => { setFilter(item.key); setShowFilterDropdown(false); }}
+                        className={`w-full p-2.5 rounded-2xl text-xs flex items-center justify-between cursor-default ${
+                          filter === item.key ? 'bg-emerald-600 text-white font-black shadow-md' : isDarkMode ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-800 hover:bg-slate-100'
                         }`}
                       >
                         <span>{item.label}</span>
@@ -1274,13 +1430,12 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
               )}
             </div>
 
-            <div className="relative" ref={sortDropdownRef}>
+            {/* 🔻 Sort Dropdown */}
+            <div className="relative shrink-0" ref={sortDropdownRef}>
               <button
                 onClick={() => { setShowSortDropdown(!showSortDropdown); setShowFilterDropdown(false); setShowMenuDropdown(false); }}
-                className={`px-1.5 py-1 rounded-lg font-black text-[11px] flex items-center gap-1 cursor-pointer transition-colors ${
-                  isDarkMode 
-                    ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-400/10' 
-                    : 'text-slate-800 hover:text-slate-950 hover:bg-slate-200/60'
+                className={`px-2 py-1 rounded-lg font-black text-[11px] flex items-center gap-1 cursor-default transition-colors ${
+                  isDarkMode ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-400/10' : 'text-slate-800 hover:text-slate-950 hover:bg-slate-200/60'
                 }`}
                 title="Sıralama Seçenekleri"
               >
@@ -1291,27 +1446,18 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
               </button>
 
               {showSortDropdown && (
-                <div className={`absolute right-0 mt-3 w-60 rounded-3xl border p-2.5 shadow-2xl z-50 ${
-                  isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
-                }`}>
+                <div className={`absolute right-0 mt-3 w-60 rounded-3xl border p-2.5 shadow-2xl z-[999] ${isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'}`}>
                   <div className="flex justify-between items-center pb-2 px-2 border-b border-slate-200 dark:border-slate-800">
                     <span className="text-[10px] font-black text-amber-500 uppercase tracking-wider">SIRALAMA SEÇENEKLERİ</span>
-                    <button onClick={() => setShowSortDropdown(false)} className="w-5 h-5 rounded-full font-black text-[10px] flex items-center justify-center cursor-pointer">✕</button>
+                    <button onClick={() => setShowSortDropdown(false)} className="w-5 h-5 rounded-full font-black text-[10px] flex items-center justify-center cursor-default">✕</button>
                   </div>
                   <div className="space-y-1 mt-2 font-black">
                     {sortOptionsList.map((item) => (
                       <button
                         key={item.key}
-                        onClick={() => {
-                          handleSortChange(item.key);
-                          setShowSortDropdown(false);
-                        }}
-                        className={`w-full p-2.5 rounded-2xl text-xs flex items-center justify-between cursor-pointer ${
-                          sortBy === item.key
-                            ? 'bg-amber-500 text-slate-950 font-black shadow-md'
-                            : isDarkMode
-                            ? 'text-slate-300 hover:bg-slate-800'
-                            : 'text-slate-800 hover:bg-slate-100'
+                        onClick={() => { handleSortChange(item.key); setShowSortDropdown(false); }}
+                        className={`w-full p-2.5 rounded-2xl text-xs flex items-center justify-between cursor-default ${
+                          sortBy === item.key ? 'bg-amber-500 text-slate-950 font-black shadow-md' : isDarkMode ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-800 hover:bg-slate-100'
                         }`}
                       >
                         <span>{item.label}</span>
@@ -1323,13 +1469,17 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
               )}
             </div>
 
-            <div className="flex items-center">
+            {/* 📅 CUSTOM DATE PICKER (مأخوذ وبنفس الشكل والموقع من جدول الزوار) */}
+            <div className="shrink-0">
+              <CustomDatePicker selectedDate={selectedDateISO} onDateChange={setSelectedDateISO} isDarkMode={isDarkMode} />
+            </div>
+
+            {/* Print Trigger */}
+            <div className="flex items-center shrink-0">
               <button
                 onClick={() => setShowPrintModal(true)}
-                className={`p-2 rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 transform hover:scale-110 active:scale-90 ${
-                  isDarkMode 
-                    ? 'text-emerald-400 hover:bg-emerald-400/10' 
-                    : 'text-emerald-600 hover:bg-emerald-50'
+                className={`p-2 rounded-full flex items-center justify-center cursor-default transition-all duration-200 transform hover:scale-110 active:scale-90 ${
+                  isDarkMode ? 'text-emerald-400 hover:bg-emerald-400/10' : 'text-emerald-600 hover:bg-emerald-50'
                 }`}
                 title="İndir ve Yazdır"
               >
@@ -1339,62 +1489,37 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
               </button>
             </div>
 
-            <div className="relative" ref={menuDropdownRef}>
+            {/* ☰ MENU BUTTON */}
+            <div className="relative shrink-0" ref={menuDropdownRef}>
               <button
-                onClick={() => {
-                  setShowMenuDropdown(!showMenuDropdown);
-                  setShowFilterDropdown(false);
-                  setShowSortDropdown(false);
-                }}
-                className="group relative p-2 rounded-full flex items-center justify-center outline-none cursor-pointer transition-all duration-300 transform hover:scale-110 hover:translate-y-1 active:scale-90"
+                onClick={() => { setShowMenuDropdown(!showMenuDropdown); setShowFilterDropdown(false); setShowSortDropdown(false); }}
+                className="group relative p-2 rounded-full flex items-center justify-center outline-none cursor-default transition-all duration-300 transform hover:scale-110 hover:translate-y-1 active:scale-90"
                 title="Menü"
               >
                 <div className="absolute inset-0 rounded-full bg-emerald-500/20 blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-
                 <svg 
-                  className={`w-6 h-6 stroke-[2.2] transition-transform duration-300 ease-out group-hover:rotate-90 ${
-                    isDarkMode ? 'text-emerald-400' : 'text-emerald-600'
-                  }`} 
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
+                  className={`w-6 h-6 stroke-[2.2] transition-transform duration-300 ease-out group-hover:rotate-90 ${isDarkMode ? 'text-emerald-400' : 'text-emerald-600'}`} 
+                  fill="none" stroke="currentColor" viewBox="0 0 24 24"
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
                 </svg>
               </button>
 
               {showMenuDropdown && (
-                <div className={`absolute right-0 mt-3 w-56 rounded-3xl border p-2 shadow-2xl z-50 font-black text-xs ${
-                  isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
-                }`}>
+                <div className={`absolute right-0 mt-3 w-56 rounded-3xl border p-2 shadow-2xl z-[999] font-black text-xs ${isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'}`}>
                   <button
-                    onClick={() => {
-                      setShowMenuDropdown(false);
-                      setShowReportModal(true);
-                    }}
-                    className={`w-full text-left p-3 rounded-2xl flex items-center gap-3 cursor-pointer transition-colors ${
-                      isDarkMode ? 'hover:bg-slate-800 text-rose-400' : 'hover:bg-rose-50 text-rose-600'
-                    }`}
+                    onClick={() => { setShowMenuDropdown(false); setShowReportModal(true); }}
+                    className={`w-full text-left p-3 rounded-2xl flex items-center gap-3 cursor-default transition-colors ${isDarkMode ? 'hover:bg-slate-800 text-rose-400' : 'hover:bg-rose-50 text-rose-600'}`}
                   >
-                    <svg className="w-4 h-4 stroke-[2.2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-                    </svg>
+                    <svg className="w-4 h-4 stroke-[2.2]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
                     <span>Sorun Bildir</span>
                   </button>
 
                   <button
-                    onClick={() => {
-                      setShowMenuDropdown(false);
-                      setShowGeneralAppSettingsModal(true);
-                    }}
-                    className={`w-full text-left p-3 rounded-2xl flex items-center gap-3 cursor-pointer transition-colors ${
-                      isDarkMode ? 'hover:bg-slate-800 text-amber-400' : 'hover:bg-amber-50 text-amber-600'
-                    }`}
+                    onClick={() => { setShowMenuDropdown(false); setShowGeneralAppSettingsModal(true); }}
+                    className={`w-full text-left p-3 rounded-2xl flex items-center gap-3 cursor-default transition-colors ${isDarkMode ? 'hover:bg-slate-800 text-amber-400' : 'hover:bg-amber-50 text-amber-600'}`}
                   >
-                    <svg className="w-4 h-4 stroke-[2.2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 012.6-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
+                    <svg className="w-4 h-4 stroke-[2.2]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 012.6-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                     <span>Genel Ayarlar</span>
                   </button>
                 </div>
@@ -1402,80 +1527,46 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
             </div>
 
           </div>
-
         </div>         
       </div>         
 
       {/* 📊 TABLE CONTAINER */}         
-      <div className="w-full space-y-4 px-0 select-none mt-0 hardware-accelerated">
+      <div className="w-full space-y-4 px-0 select-none mt-0 hardware-accelerated cursor-default">
         <div className={`w-full rounded-none overflow-hidden shadow-2xl border-x-0 border-t-0 border-b ${           
-          isDarkMode 
-            ? 'bg-slate-900 border-slate-800' 
-            : 'bg-white border-slate-200'         
+          isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'         
         }`}>           
-          <div 
-            style={{ zoom: `${tableZoom}%` }} 
-            className="overflow-x-auto w-full relative"
-          >             
+          <div style={{ zoom: `${tableZoom}%` }} className="overflow-x-auto w-full relative">             
             <table className={`w-full text-left border-collapse ${selectedFont} ${tableSettings.fontWeight}`}>               
-              
               <thead>                 
-                <tr className={`text-xs sm:text-sm font-black uppercase select-none ${                   
-                  isDarkMode                      
-                    ? 'bg-slate-950 text-amber-400 border-b border-slate-800'                      
-                    : 'bg-slate-900 text-white border-b border-slate-800'                 
-                }`}>                   
+                <tr className={`text-xs sm:text-sm font-black uppercase select-none ${isDarkMode ? 'bg-slate-950 text-amber-400 border-b border-slate-800' : 'bg-slate-900 text-white border-b border-slate-800'}`}>                   
                   {tableSettings.showRowNumbers !== false && (
-                    <th className={`${rowPaddingClass} border-r border-slate-700/60 dark:border-slate-800/80 font-black tracking-wider text-xs sm:text-sm text-center w-12 sm:w-16 shrink-0`}>
-                      #
-                    </th>
+                    <th className={`${rowPaddingClass} border-r border-slate-700/60 dark:border-slate-800/80 font-black tracking-wider text-xs sm:text-sm text-center w-12 sm:w-16 shrink-0`}>#</th>
                   )}
-
                   {tableSettings.showClinic && (
-                    <th className={`${rowPaddingClass} border-r border-slate-700/60 dark:border-slate-800/80 font-black tracking-wider text-xs sm:text-sm`}>
-                      BİRİM
-                    </th>                   
+                    <th className={`${rowPaddingClass} border-r border-slate-700/60 dark:border-slate-800/80 font-black tracking-wider text-xs sm:text-sm`}>BİRİM</th>                   
                   )}
-
                   {tableSettings.showDoctorName && (
-                    <th className={`${rowPaddingClass} border-r border-slate-700/60 dark:border-slate-800/80 font-black tracking-wider text-xs sm:text-sm`}>
-                      DOKTOR ADI SOYADI
-                    </th>                   
+                    <th className={`${rowPaddingClass} border-r border-slate-700/60 dark:border-slate-800/80 font-black tracking-wider text-xs sm:text-sm`}>DOKTOR ADI SOYADI</th>                   
                   )}
-
                   {tableSettings.showPhone !== false && (
-                    <th className={`${rowPaddingClass} border-r border-slate-700/60 dark:border-slate-800/80 font-black tracking-wider text-xs sm:text-sm text-center`}>
-                      TELEFON NO
-                    </th>
+                    <th className={`${rowPaddingClass} border-r border-slate-700/60 dark:border-slate-800/80 font-black tracking-wider text-xs sm:text-sm text-center`}>TELEFON NO</th>
                   )}
-
                   {tableSettings.showRoomNo !== false && (
-                    <th className={`${rowPaddingClass} border-r border-slate-700/60 dark:border-slate-800/80 font-black tracking-wider text-xs sm:text-sm text-center`}>
-                      ODA NO
-                    </th>
+                    <th className={`${rowPaddingClass} border-r border-slate-700/60 dark:border-slate-800/80 font-black tracking-wider text-xs sm:text-sm text-center`}>ODA NO</th>
                   )}
-
                   {tableSettings.showStatus && (
-                    <th className={`${rowPaddingClass} ${showActionsColumn ? 'border-r border-slate-700/60 dark:border-slate-800/80' : ''} font-black text-center tracking-wider text-xs sm:text-sm`}>
-                      DURUM
-                    </th>                   
+                    <th className={`${rowPaddingClass} ${showActionsColumn ? 'border-r border-slate-700/60 dark:border-slate-800/80' : ''} font-black text-center tracking-wider text-xs sm:text-sm`}>DURUM</th>                   
                   )}
-
                   {showActionsColumn && (
-                    <th className={`${rowPaddingClass} font-black text-center tracking-wider text-xs sm:text-sm`}>
-                      İŞLEMLER
-                    </th>
+                    <th className={`${rowPaddingClass} font-black text-center tracking-wider text-xs sm:text-sm`}>İŞLEMLER</th>
                   )}
                 </tr>               
               </thead>               
-              
               <tbody 
                 style={customHexColor ? { color: customHexColor } : {}}
                 className={`text-xs sm:text-sm md:text-base ${!customHexColor ? activeColor : ''} ${
                   tableSettings.gridStyle === 'full' || tableSettings.gridStyle === 'horizontal' 
-                    ? tableSettings.borderOpacity === 'strong'
-                      ? 'divide-y-2 divide-slate-400 dark:divide-slate-600'
-                      : 'divide-y divide-slate-200 dark:divide-slate-800/80'
+                    ? tableSettings.borderOpacity === 'strong' ? 'divide-y-2 divide-slate-400 dark:divide-slate-600' : 'divide-y divide-slate-200 dark:divide-slate-800/80'
                     : 'divide-y-0'
                 }`}
               >                 
@@ -1487,7 +1578,7 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
                       index={index}
                       isSelected={selectedDoctorId === docItem.id}
                       isDarkMode={isDarkMode}
-                      activeStatusToday={getCurrentDayStatus(docItem)}
+                      activeStatusToday={getStatusForDate(docItem, selectedDateFormatted)}
                       rowPaddingClass={rowPaddingClass}
                       tableSettings={tableSettings}
                       showActionsColumn={showActionsColumn}
@@ -1524,7 +1615,6 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
               ? 'bg-slate-900 border-amber-500/40 text-slate-100 shadow-amber-500/10' 
               : 'bg-white border-emerald-500/40 text-slate-900 shadow-emerald-500/10'
           }`}>
-            
             <div className="flex justify-between items-center pb-4 mb-4 border-b border-slate-200 dark:border-slate-800">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 rounded-2xl bg-amber-500/15 text-amber-500 font-black text-xl">
@@ -1541,7 +1631,7 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
               </div>
               <button 
                 onClick={() => setEditingDoctor(null)} 
-                className="w-8 h-8 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-500 hover:text-rose-500 font-black text-sm flex items-center justify-center cursor-pointer"
+                className="w-8 h-8 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-500 hover:text-rose-500 font-black text-sm flex items-center justify-center cursor-default"
               >
                 ✕
               </button>
@@ -1558,7 +1648,7 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
                   placeholder="Örn: Dr. Ahmet Yılmaz"
-                  className={`w-full p-3 rounded-2xl border-2 text-xs sm:text-sm font-black outline-none transition-all ${
+                  className={`w-full p-3 rounded-2xl border-2 text-xs sm:text-sm font-black outline-none transition-all cursor-text ${
                     isDarkMode 
                       ? 'bg-slate-950 border-slate-800 text-white focus:border-amber-500' 
                       : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-amber-500'
@@ -1578,7 +1668,7 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
                     value={editClinic}
                     onChange={(e) => setEditClinic(e.target.value)}
                     placeholder="Birim adı yazın veya seçin..."
-                    className={`w-full p-3 rounded-2xl border-2 text-xs sm:text-sm font-black outline-none transition-all ${
+                    className={`w-full p-3 rounded-2xl border-2 text-xs sm:text-sm font-black outline-none transition-all cursor-text ${
                       isDarkMode 
                         ? 'bg-slate-950 border-slate-800 text-white focus:border-amber-500' 
                         : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-amber-500'
@@ -1602,7 +1692,7 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
                     value={editPhone}
                     onChange={(e) => setEditPhone(e.target.value)}
                     placeholder="Örn: 0555 123 4567"
-                    className={`w-full p-3 rounded-2xl border-2 text-xs sm:text-sm font-black outline-none transition-all text-center ${
+                    className={`w-full p-3 rounded-2xl border-2 text-xs sm:text-sm font-black outline-none transition-all text-center cursor-text ${
                       isDarkMode 
                         ? 'bg-slate-950 border-slate-800 text-white focus:border-amber-500' 
                         : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-amber-500'
@@ -1619,7 +1709,7 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
                     value={editRoomNo}
                     onChange={(e) => setEditRoomNo(e.target.value)}
                     placeholder="Örn: 102"
-                    className={`w-full p-3 rounded-2xl border-2 text-xs sm:text-sm font-black outline-none transition-all text-center ${
+                    className={`w-full p-3 rounded-2xl border-2 text-xs sm:text-sm font-black outline-none transition-all text-center cursor-text ${
                       isDarkMode 
                         ? 'bg-slate-950 border-slate-800 text-white focus:border-amber-500' 
                         : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-amber-500'
@@ -1630,32 +1720,32 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
 
               <div>
                 <label className="block text-xs font-extrabold text-slate-400 uppercase mb-1.5">
-                  BUGÜNKÜ ÇALIŞMA DURUMU
+                  SEÇİLİ TARİHTEKİ ÇALIŞMA DURUMU ({selectedDateFormatted})
                 </label>
                 <div className="relative">
                   <select
                     value={editStatus}
                     disabled={!canChangeStatus}
                     onChange={(e) => setEditStatus(e.target.value)}
-                    className={`w-full p-3 rounded-2xl border-2 text-xs sm:text-sm font-black outline-none transition-all appearance-none cursor-pointer ${
+                    className={`w-full p-3 rounded-2xl border-2 text-xs sm:text-sm font-black outline-none transition-all appearance-none cursor-default ${
                       isDarkMode 
                         ? 'bg-slate-950 border-slate-800 text-emerald-400 focus:border-amber-500' 
                         : 'bg-slate-50 border-slate-200 text-emerald-700 focus:border-amber-500'
-                    } ${!canChangeStatus ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    } ${!canChangeStatus ? 'opacity-50' : ''}`}
                   >
                     <option value="POLİKLİNİK">🟢 POLİKLİNİK</option>
-                    <option value="AMELİYATTA">🟣 AMELİYATTA</option>
+                    <option value="AMELİYAT">🟣 AMELİYAT</option>
                     <option value="PALYATİF">🩷 PALYATİF</option>
                     <option value="İŞLEM GÜNÜ">🩵 İŞLEM GÜNÜ</option>
-                    <option value="YARIM GÜN">🟠 YARIM GÜN</option>
+                    <option value="08:00 - 12:00 KADAR">🟠 08:00 - 12:00 KADAR</option>
+                    <option value="13:00 - 16:00 KADAR">🔵 13:00 - 16:00 KADAR</option>
                     <option value="SAATLİK İZİN">🟡 SAATLİK İZİN</option>
-                    <option value="ŞUA İZNİ">🩵 ŞUA İZNİ</option>
-                    <option value="KONGRE/SEMİNER">🔵 KONGRE/SEMİNER</option>
+                    <option value="KONGRE/SEMİNER">🔵 KONGRE / SEMİNER</option>
                     <option value="RESMİ TATİL">🟣 RESMİ TATİL</option>
                     <option value="HAFTA SONU">🔴 HAFTA SONU</option>
                     <option value="YILLIK İZİN">🟡 YILLIK İZİN</option>
                     <option value="RAPORLU">🟡 RAPORLU</option>
-                    <option value="NÖBET SONRASI İZİN">🩵 NÖBET SONRASI İZİN</option>
+                    <option value="NÖBET SONRASI">🩵 NÖBET SONRASI</option>
                     <option value="ASKERLİK">🔘 ASKERLİK</option>
                   </select>
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-xs">
@@ -1668,14 +1758,14 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
                 <button
                   type="button"
                   onClick={() => setEditingDoctor(null)}
-                  className="flex-1 py-3.5 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-2xl text-xs font-black cursor-pointer hover:bg-slate-300 transition-all"
+                  className="flex-1 py-3.5 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-2xl text-xs font-black cursor-default hover:bg-slate-300 transition-all"
                 >
                   İPTAL
                 </button>
                 <button
                   type="submit"
                   disabled={isSavingEdit}
-                  className="flex-1 py-3.5 bg-amber-500 text-slate-950 rounded-2xl text-xs font-black shadow-lg cursor-pointer hover:bg-amber-400 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+                  className="flex-1 py-3.5 bg-amber-500 text-slate-950 rounded-2xl text-xs font-black shadow-lg cursor-default hover:bg-amber-400 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
                 >
                   {isSavingEdit ? (
                     <>
@@ -1713,7 +1803,7 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
               </div>
               <button 
                 onClick={() => setShowGeneralAppSettingsModal(false)} 
-                className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-rose-500 font-black cursor-pointer"
+                className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-rose-500 font-black cursor-default"
               >
                 ✕
               </button>
@@ -1724,7 +1814,7 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
                 setShowGeneralAppSettingsModal(false);
                 setShowTableSettingsCustomModal(true);
               }}
-              className={`p-4 rounded-2xl border flex items-center justify-between cursor-pointer transition-all hover:scale-[1.01] active:scale-95 ${
+              className={`p-4 rounded-2xl border flex items-center justify-between cursor-default transition-all hover:scale-[1.01] active:scale-95 ${
                 isDarkMode 
                   ? 'bg-slate-950 border-slate-800 hover:bg-slate-800/60' 
                   : 'bg-slate-50 border-slate-200 shadow-xs hover:border-orange-300'
@@ -1774,8 +1864,7 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
                         setTableZoom(100);
                         localStorage.setItem('app_table_zoom', '100');
                       }}
-                      className="text-[10px] font-black text-slate-400 hover:text-orange-500 underline uppercase cursor-pointer"
-                      title="Varsayılan Boyuta Dön"
+                      className="text-[10px] font-black text-slate-400 hover:text-orange-500 underline uppercase cursor-default"
                     >
                       Sıfırla
                     </button>
@@ -1787,8 +1876,7 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
                 <button
                   type="button"
                   onClick={() => updateTableZoom(-5)}
-                  className="w-9 h-9 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-black flex items-center justify-center cursor-pointer transition-transform active:scale-90 select-none"
-                  title="Küçült"
+                  className="w-9 h-9 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-black flex items-center justify-center cursor-default transition-transform active:scale-90 select-none"
                 >
                   <svg className="w-4 h-4 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12h-15" />
@@ -1806,14 +1894,13 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
                     setTableZoom(val);
                     localStorage.setItem('app_table_zoom', val.toString());
                   }}
-                  className="w-full accent-orange-500 cursor-pointer h-2 rounded-lg bg-slate-200 dark:bg-slate-800"
+                  className="w-full accent-orange-500 cursor-default h-2 rounded-lg bg-slate-200 dark:bg-slate-800"
                 />
 
                 <button
                   type="button"
                   onClick={() => updateTableZoom(5)}
-                  className="w-9 h-9 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-black flex items-center justify-center cursor-pointer transition-transform active:scale-90 select-none"
-                  title="Büyüt"
+                  className="w-9 h-9 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-black flex items-center justify-center cursor-default transition-transform active:scale-90 select-none"
                 >
                   <svg className="w-4 h-4 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -1859,7 +1946,7 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
               <button
                 type="button"
                 onClick={() => setShowGeneralAppSettingsModal(false)}
-                className="w-full py-3.5 bg-teal-600 hover:bg-teal-700 active:scale-[0.98] text-white rounded-2xl text-xs font-black shadow-lg cursor-pointer uppercase tracking-wide transition-all"
+                className="w-full py-3.5 bg-teal-600 hover:bg-teal-700 active:scale-[0.98] text-white rounded-2xl text-xs font-black shadow-lg cursor-default uppercase tracking-wide transition-all"
               >
                 AYARLARI KAYDET VE KAPAT
               </button>
@@ -1893,7 +1980,7 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
                 <span className="text-xl">⚠️</span>
                 <h3 className="text-base font-black text-rose-500 uppercase">SORUN BİLDİR</h3>
               </div>
-              <button onClick={() => setShowReportModal(false)} className="text-slate-400 hover:text-white font-black text-lg cursor-pointer">✕</button>
+              <button onClick={() => setShowReportModal(false)} className="text-slate-400 hover:text-white font-black text-lg cursor-default">✕</button>
             </div>
 
             <form onSubmit={handleSendReport} className="space-y-4 font-black">
@@ -1902,7 +1989,7 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
                 <select
                   value={reportCategory}
                   onChange={(e) => setReportCategory(e.target.value)}
-                  className={`w-full p-3 rounded-xl border text-xs font-black outline-none cursor-pointer ${
+                  className={`w-full p-3 rounded-xl border text-xs font-black outline-none cursor-default ${
                     isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-300'
                   }`}
                 >
@@ -1931,14 +2018,14 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
                 <button
                   type="button"
                   onClick={() => setShowReportModal(false)}
-                  className="flex-1 py-3 bg-slate-800 text-slate-300 rounded-xl text-xs font-black hover:bg-slate-700 cursor-pointer"
+                  className="flex-1 py-3 bg-slate-800 text-slate-300 rounded-xl text-xs font-black hover:bg-slate-700 cursor-default"
                 >
                   İPTAL
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmittingReport}
-                  className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black shadow-lg cursor-pointer disabled:opacity-50"
+                  className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black shadow-lg cursor-default disabled:opacity-50"
                 >
                   {isSubmittingReport ? 'GÖNDERİLİYOR...' : 'BİLDİRİMİ GÖNDER 🚀'}
                 </button>
@@ -1960,13 +2047,13 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
                 </h2>               
               </div>               
               <div className="flex items-center gap-2">                 
-                <button onClick={exportToExcel} className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-black rounded-xl text-xs flex items-center gap-1.5 cursor-pointer">                   
+                <button onClick={exportToExcel} className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-black rounded-xl text-xs flex items-center gap-1.5 cursor-default">                   
                   <span>📊</span> EXCEL İNDİR                 
                 </button>                 
-                <button onClick={() => window.print()} className="px-4 py-2 bg-blue-900 hover:bg-blue-950 text-white font-black rounded-xl text-xs flex items-center gap-1.5 cursor-pointer">                   
+                <button onClick={() => window.print()} className="px-4 py-2 bg-blue-900 hover:bg-blue-950 text-white font-black rounded-xl text-xs flex items-center gap-1.5 cursor-default">                   
                   <span>🖨</span> YAZDIR / PDF               
                 </button>                 
-                <button onClick={() => setShowPrintModal(false)} className="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-black rounded-xl text-xs cursor-pointer">                   
+                <button onClick={() => setShowPrintModal(false)} className="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-black rounded-xl text-xs cursor-default">                   
                   ✕                
                 </button>               
               </div>             
@@ -1980,7 +2067,7 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
                   </h1>                 
                 </div>                 
                 <div className="text-right font-black font-mono text-xs text-slate-800">                   
-                  <span>Tarih: {todayFormattedStr}</span>                 
+                  <span>Tarih: {selectedDateFormatted}</span>                 
                 </div>               
               </div>               
 
@@ -1998,7 +2085,7 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
                   </thead>                   
                   <tbody className="divide-y divide-slate-200 font-bold">                     
                     {filteredAndSortedDoctors.map((docItem, i) => {                       
-                      const activeStatusToday = getCurrentDayStatus(docItem);
+                      const activeStatusToday = getStatusForDate(docItem, selectedDateFormatted);
                       return (
                         <tr key={docItem.id} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>                         
                           <td className="py-2 px-2.5 border-r border-slate-300 font-black text-center text-slate-950">{i + 1}</td>
@@ -2025,7 +2112,7 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
             <div className="fixed bottom-4 right-4 sm:right-6 z-[170]">
               <div 
                 onClick={() => setIsMinimized(false)}
-                className={`p-3.5 px-5 rounded-2xl shadow-2xl border-2 flex items-center gap-4 cursor-pointer transition-transform hover:scale-105 ${
+                className={`p-3.5 px-5 rounded-2xl shadow-2xl border-2 flex items-center gap-4 cursor-default transition-transform hover:scale-105 ${
                   isDarkMode 
                     ? 'bg-slate-900 border-amber-500/50 text-slate-100' 
                     : 'bg-white border-emerald-500/50 text-slate-900'
@@ -2035,21 +2122,21 @@ function AdminScheduleTableContent({ onEditDoctor, onDeleteDoctor }) {
                   <span className="w-3 h-3 rounded-full bg-emerald-500 animate-ping"></span>
                   <div>
                     <h4 className="text-xs sm:text-sm font-black uppercase tracking-tight">{selectedDoctorDetail.name}</h4>
-                    <p className="text-[10px] font-extrabold text-amber-500 uppercase">{getCurrentDayStatus(selectedDoctorDetail)}</p>
+                    <p className="text-[10px] font-extrabold text-amber-500 uppercase">{getStatusForDate(selectedDoctorDetail, todayFormattedStr)}</p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-1.5 ml-2 border-l border-slate-300 dark:border-slate-800 pl-3">
                   <button 
                     onClick={(e) => { e.stopPropagation(); setIsMinimized(false); }} 
-                    className="p-1.5 hover:bg-amber-500/20 rounded-lg text-amber-500 font-black text-sm cursor-pointer"
+                    className="p-1.5 hover:bg-amber-500/20 rounded-lg text-amber-500 font-black text-sm cursor-default"
                     title="Aç"
                   >
                     🗖
                   </button>
                   <button 
                     onClick={(e) => { e.stopPropagation(); setSelectedDoctorDetail(null); }} 
-                    className="p-1.5 hover:bg-rose-500/20 rounded-lg text-rose-500 font-black text-sm cursor-pointer"
+                    className="p-1.5 hover:bg-rose-500/20 rounded-lg text-rose-500 font-black text-sm cursor-default"
                     title="Kapat"
                   >
                     ✕

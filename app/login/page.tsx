@@ -58,7 +58,8 @@ export default function LoginPage() {
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
 
-  const { isDarkMode } = useTheme();
+  // 🌟 جلب triggerToast من context الثيم الموحد
+  const { isDarkMode, triggerToast } = useTheme();
   const router = useRouter();
   const dropdownRef = useRef<HTMLDivElement>(null);
   const gridCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -302,7 +303,9 @@ export default function LoginPage() {
         ? `${Math.floor(remaining / 3600)} saat`
         : `${Math.ceil(remaining / 60)} dakika`;
 
-      setError(`3 hatalı deneme! '${cleanUName}' hesabı ${timeText} süreyle kilitlenmiştir.`);
+      const errText = `3 hatalı deneme! '${cleanUName}' hesabı ${timeText} süreyle kilitlenmiştir.`;
+      setError(errText);
+      triggerToast(errText, 'error');
       startLockCountdown(cleanUName, remaining);
     } else {
       setIsLocked(false);
@@ -349,6 +352,7 @@ export default function LoginPage() {
         setLoginStatus('IDLE');
         setError('');
         clearUserLockInfo(cleanUName);
+        triggerToast('Hesap kilidi açıldı. Tekrar deneyebilirsiniz.', 'info');
       }
     }, 1000);
   };
@@ -368,7 +372,9 @@ export default function LoginPage() {
 
     if (typeof window !== 'undefined' && !navigator.onLine) {
       setLoginStatus('ERROR');
-      setError('İnternet bağlantısı yok! Lütfen bağlantınızı kontrol ediniz.');
+      const connErr = 'İnternet bağlantısı yok! Lütfen bağlantınızı kontrol ediniz.';
+      setError(connErr);
+      triggerToast(connErr, 'error');
       return;
     }
 
@@ -439,6 +445,7 @@ export default function LoginPage() {
         document.cookie = `user_role=${isUserAdmin ? 'ADMIN' : 'USER'}; path=/; max-age=604800; SameSite=Lax`;
 
         window.dispatchEvent(new Event('userSessionUpdated'));
+        triggerToast(`Giriş başarılı! Hoş geldiniz, ${loggedName.toUpperCase()}`, 'success');
 
         setTimeout(() => {
           window.location.replace('/dashboard');
@@ -481,23 +488,30 @@ export default function LoginPage() {
             ? `${Math.floor(lockDurationSeconds / 3600)} saat`
             : `${Math.floor(lockDurationSeconds / 60)} dakika`;
 
-          setError(`3 hatalı deneme! '${cleanInputUsername}' hesabı ${timeText} süreyle kilitlenmiştir.`);
+          const lockMsg = `3 hatalı deneme! '${cleanInputUsername}' hesabı ${timeText} süreyle kilitlenmiştir.`;
+          setError(lockMsg);
+          triggerToast(lockMsg, 'error');
         } else {
           setUserLockInfo(cleanInputUsername, {
             ...currentLockInfo,
             failedAttempts: newFailedAttempts
           });
 
+          let failMsg = '';
           if (!userExists && cleanInputUsername !== 'ADMIN') {
-            setError(`'${rawInputUsername}' adında kullanıcı bulunamadı!`);
+            failMsg = `'${rawInputUsername}' adında kullanıcı bulunamadı!`;
           } else {
-            setError(`Şifre hatalı! (Kalan Hak: ${3 - newFailedAttempts})`);
+            failMsg = `Şifre hatalı! (Kalan Hak: ${3 - newFailedAttempts})`;
           }
+          setError(failMsg);
+          triggerToast(failMsg, 'error');
         }
       }
     } catch (err) {
       setLoginStatus('ERROR');
-      setError('Sunucu hatası oluştu! Lütfen tekrar deneyiniz.');
+      const sysErr = 'Sunucu hatası oluştu! Lütfen tekrar deneyiniz.';
+      setError(sysErr);
+      triggerToast(sysErr, 'error');
     }
   };
 
@@ -753,7 +767,7 @@ export default function LoginPage() {
         </form>
       </div>
 
-      {/* 💎 النص والرمز الجميل في أقصى اليمين بالأسفل (بدون أي مربع أو إطار) */}
+      {/* 💎 النص والرمز الجميل في أقصى اليمين بالأسفل */}
       {loginStatus === 'SUCCESS' && (
         <div className="fixed bottom-8 right-8 z-[9999] flex items-center gap-3 animate-slideInRight select-none">
           <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-500 dark:text-emerald-400 flex items-center justify-center shrink-0 shadow-[0_0_20px_rgba(16,185,129,0.3)]">

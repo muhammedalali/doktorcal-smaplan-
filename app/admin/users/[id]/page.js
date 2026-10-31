@@ -89,7 +89,8 @@ export default function EditUserPage({ params }) {
   const unwrappedParams = use(params);
   const userId = unwrappedParams?.id;
 
-  const { isDarkMode } = useTheme();
+  // 🌟 جلب triggerToast الموحدة من context الثيم العام
+  const { isDarkMode, triggerToast } = useTheme();
   const { checkPermission, users: contextUsers = [], setUsers: setContextUsers } = useData();
   const router = useRouter();
 
@@ -98,8 +99,6 @@ export default function EditUserPage({ params }) {
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [toastMessage, setToastMessage] = useState('');
-  const [showToast, setShowToast] = useState(false);
 
   // 🌲 حالة الشجرة الهرمية
   const [allUsersList, setAllUsersList] = useState([]);
@@ -133,12 +132,6 @@ export default function EditUserPage({ params }) {
   const canEditUser = checkPermission ? checkPermission('kullanıcı düzenleme yetkisi') : true;
   const canAccessPage = canManageUsers || canEditUser;
 
-  const triggerToast = (msg) => {
-    setToastMessage(msg);
-    setShowToast(true);
-    setTimeout(() => setShowToast(false), 3000);
-  };
-
   // 📡 جلب قائمة كل المستخدمين لبناء الشجرة
   useEffect(() => {
     if (!mounted) return;
@@ -154,12 +147,13 @@ export default function EditUserPage({ params }) {
     if (!mounted) return;
 
     if (!canAccessPage) {
+      triggerToast('Bu sayfaya erişim yetkiniz bulunmamaktadır!', 'error');
       router.push('/dashboard');
       return;
     }
 
     if (!userId) {
-      alert('Kullanıcı ID tanımlı değil!');
+      triggerToast('Kullanıcı ID tanımlı değil!', 'error');
       router.push('/admin/users');
       return;
     }
@@ -212,19 +206,20 @@ export default function EditUserPage({ params }) {
               [groupKey]: true
             }));
           } else {
-            alert('Kullanıcı bulunamadı!');
+            triggerToast('Kullanıcı bulunamadı!', 'error');
             router.push('/admin/users');
           }
         }
       } catch (e) {
         console.error('Kullanıcı verisi çekme hatası:', e);
+        triggerToast('Kullanıcı verileri çekilirken hata oluştu.', 'error');
       } finally {
         setLoading(false);
       }
     };
 
     fetchUserData();
-  }, [userId, canAccessPage, router, mounted, contextUsers]);
+  }, [userId, canAccessPage, router, mounted, contextUsers, triggerToast]);
 
   // 🌲 تقسيم المستخدمين في الشجرة حسب الأدوار
   const treeGroups = useMemo(() => {
@@ -284,7 +279,7 @@ export default function EditUserPage({ params }) {
 
   const handlePermissionChange = (key, value) => {
     if (!canEditUser) {
-      alert('Kullanıcı düzenleme yetkiniz bulunmamaktadır!');
+      triggerToast('Kullanıcı düzenleme yetkiniz bulunmamaktadır!', 'error');
       return;
     }
     setPermissions(prev => ({
@@ -310,12 +305,12 @@ export default function EditUserPage({ params }) {
   const handleSaveUser = async (e) => {
     e.preventDefault();
     if (!canEditUser) {
-      alert('Kullanıcı düzenleme yetkiniz bulunmamaktadır!');
+      triggerToast('Kullanıcı düzenleme yetkiniz bulunmamaktadır!', 'error');
       return;
     }
 
     if (!username.trim()) {
-      alert('Lütfen kullanıcı adını giriniz.');
+      triggerToast('Lütfen kullanıcı adını giriniz.', 'error');
       return;
     }
 
@@ -345,10 +340,10 @@ export default function EditUserPage({ params }) {
         setContextUsers(prev => prev.map(u => u.id === userId ? { ...u, ...updatedData, id: userId } : u));
       }
 
-      triggerToast('Kullanıcı başarıyla güncellendi!');
+      triggerToast('Kullanıcı başarıyla güncellendi!', 'success');
     } catch (e) {
       console.error('Kullanıcı güncelleme hatası:', e);
-      alert('Güncelleme yapılırken bir hata oluştu.');
+      triggerToast('Güncelleme yapılırken bir hata oluştu.', 'error');
     } finally {
       setIsSaving(false);
     }
@@ -357,7 +352,7 @@ export default function EditUserPage({ params }) {
   const handleDeleteUser = async () => {
     const canDelete = checkPermission ? checkPermission('kullanıcı silme yetkisi') : true;
     if (!canDelete) {
-      alert('Kullanıcı silme yetkiniz bulunmamaktadır!');
+      triggerToast('Kullanıcı silme yetkiniz bulunmamaktadır!', 'error');
       setShowDeleteModal(false);
       return;
     }
@@ -368,13 +363,13 @@ export default function EditUserPage({ params }) {
       if (setContextUsers) {
         setContextUsers(prev => prev.filter(u => u.id !== userId));
       }
-      triggerToast('Kullanıcı silindi.');
+      triggerToast('Kullanıcı başarıyla silindi.', 'delete');
       setTimeout(() => {
         router.push('/admin/users');
       }, 500);
     } catch (e) {
       console.error('Kullanıcı silme hatası:', e);
-      alert('Kullanıcı silinirken bir hata oluştu.');
+      triggerToast('Kullanıcı silinirken bir hata oluştu.', 'error');
     } finally {
       setIsDeleting(false);
       setShowDeleteModal(false);
@@ -789,16 +784,6 @@ export default function EditUserPage({ params }) {
                 {isDeleting ? 'Siliniyor...' : 'Evet, Sil'}
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Toast Notification */}
-      {showToast && (
-        <div className="fixed bottom-5 right-5 z-50 animate-bounce">
-          <div className="bg-emerald-600 text-white px-4 py-2 rounded-xl shadow-2xl border border-emerald-400 text-xs font-black flex items-center gap-2">
-            <ModernIcons.Check />
-            <span>{toastMessage}</span>
           </div>
         </div>
       )}

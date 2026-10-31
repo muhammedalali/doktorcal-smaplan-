@@ -20,7 +20,8 @@ export default function AdminReportsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   
-  const { isDarkMode } = useTheme();
+  // 🌟 استدعاء triggerToast الموحدة من context/ThemeContext
+  const { isDarkMode, triggerToast } = useTheme();
   const router = useRouter();
 
   // 🔄 جلب البيانات وتحديثها فورياً من Firestore
@@ -48,10 +49,11 @@ export default function AdminReportsPage() {
       console.error("Firestore error:", error);
       setLoading(false);
       setRefreshing(false);
+      triggerToast('Veriler çekilirken bir hata oluştu!', 'error');
     });
 
     return unsubscribe;
-  }, []);
+  }, [triggerToast]);
 
   useEffect(() => {
     const unsub = fetchReports();
@@ -75,9 +77,10 @@ export default function AdminReportsPage() {
       if (selectedReport && selectedReport.id === reportId) {
         setSelectedReport(prev => ({ ...prev, ...updatePayload }));
       }
+      triggerToast('Bildirim durumu başarıyla güncellendi.', 'success');
     } catch (error) {
       console.error('Durum güncellenirken hata oluştu:', error);
-      alert('Durum güncellenirken bir hata oluştu!');
+      triggerToast('Durum güncellenirken bir hata oluştu!', 'error');
     }
   };
 
@@ -90,9 +93,10 @@ export default function AdminReportsPage() {
       if (selectedReport && selectedReport.id === reportId) {
         setSelectedReport(null);
       }
+      triggerToast('Bildirim başarıyla silindi.', 'delete');
     } catch (error) {
       console.error('Silme hatası:', error);
-      alert('Bildirim silinirken bir hata oluştu.');
+      triggerToast('Bildirim silinirken bir hata oluştu.', 'error');
     }
   };
 

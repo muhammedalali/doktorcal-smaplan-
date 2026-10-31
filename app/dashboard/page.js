@@ -248,7 +248,8 @@ export default function DashboardPage() {
   const [currentUser, setCurrentUser] = useState(null);   
   const [showExitModal, setShowExitModal] = useState(false);
 
-  const { isDarkMode, toggleTheme } = useTheme();
+  // 🌟 جلب triggerToast الموحدة من الثيم العام
+  const { isDarkMode, toggleTheme, triggerToast } = useTheme();
 
   const [isOtherOperationsOpen, setIsOtherOperationsOpen] = useState(false);
   const [isModulesOpen, setIsModulesOpen] = useState(false);
@@ -468,8 +469,10 @@ export default function DashboardPage() {
       await setDoc(doc(db, 'settings', 'logo_config'), logoConfig, { merge: true });
       localStorage.setItem('doktorsys_logo_config', JSON.stringify(logoConfig));
       setShowLogoConfigModal(false);
+      triggerToast('Logo ve renk ayarları başarıyla kaydedildi.', 'success');
     } catch (err) {
       console.error("Logo config save error:", err);
+      triggerToast('Logo ayarları kaydedilirken hata oluştu!', 'error');
     }
   };
 
@@ -477,6 +480,7 @@ export default function DashboardPage() {
     setShowExitModal(false);
     setLoadingTitle('YÜKLENİYOR');
     setIsEcgLoading(true);
+    triggerToast('Oturum sonlandırılıyor...', 'info');
     setTimeout(() => clearSessionAndLogout(), 400);
   };
 

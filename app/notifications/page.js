@@ -8,7 +8,8 @@ import { useTheme } from '@/context/ThemeContext';
 
 export default function NotificationsPage() {
   const router = useRouter();
-  const { isDarkMode } = useTheme();
+  // 🌟 جلب triggerToast الموحدة من context الثيم العام
+  const { isDarkMode, triggerToast } = useTheme();
 
   const [notificationsList, setNotificationsList] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -56,11 +57,12 @@ export default function NotificationsPage() {
       setLoading(false);
     }, (err) => {
       console.error("Firestore Notifications Fetch Error:", err);
+      triggerToast('Bildirimler alınırken bir hata oluştu.', 'error');
       setLoading(false);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [triggerToast]);
 
   // 🖱️ عند النقر على إشعار محدد: تمكينه كـ مقروء والتوجيه لصفحة البلاغ
   const handleNotificationClick = async (item) => {
@@ -75,17 +77,50 @@ export default function NotificationsPage() {
 
     const uName = currentUser?.username ? currentUser.username.toLocaleUpperCase('tr-TR') : '';
     const isGlobalAdmin = uName === 'ADMIN' || currentUser?.role === 'YÖNETİCİ' || currentUser?.role === 'ADMIN';
-    const canManageReports = isGlobalAdmin || (currentUser?.permissions && currentUser.permissions.includes('sorun bildirme yönetimi'));
+    const canManageReports = isGlobalAdmin || (currentUser?.permissions && (
+      Array.isArray(currentUser.permissions) 
+        ? currentUser.permissions.includes('sorun bildirme yönetimi')
+        : currentUser.permissions['sorun bildirme yönetimi']
+    ));
 
     const targetPath = canManageReports ? `/admin/reports?id=${item.id}` : `/report?id=${item.id}`;
+    triggerToast('Bildirim detayına yönlendiriliyorsunuz...', 'info');
     router.push(targetPath);
   };
 
   return (
-    <div className={`min-h-screen font-sans p-4 sm:p-6 transition-colors duration-200 select-none ${
+    <div className={`min-h-screen font-sans p-4 sm:p-6 transition-colors duration-200 select-none relative overflow-hidden ${
       isDarkMode ? 'bg-[#030712] text-white' : 'bg-slate-100 text-slate-800'
     }`}>
-      <div className="max-w-3xl mx-auto space-y-5">
+
+      {/* 🏙️ خلفية هندسية ثلاثية الأبعاد */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+        <div className={`absolute -top-40 left-1/2 -translate-x-1/2 w-[120vw] h-[60vh] rounded-full blur-[140px] pointer-events-none transition-all duration-700 ${
+          isDarkMode 
+            ? 'bg-gradient-to-b from-slate-800/20 via-slate-900/10 to-transparent' 
+            : 'bg-gradient-to-b from-blue-200/20 via-slate-200/10 to-transparent'
+        }`} />
+
+        <div 
+          className={`absolute inset-0 transition-all duration-300 ${isDarkMode ? 'opacity-25' : 'opacity-35'}`}
+          style={{
+            backgroundImage: isDarkMode
+              ? `linear-gradient(to right, rgba(148, 163, 184, 0.2) 1px, transparent 1px), linear-gradient(to bottom, rgba(148, 163, 184, 0.2) 1px, transparent 1px)`
+              : `linear-gradient(to right, rgba(71, 85, 105, 0.25) 1px, transparent 1px), linear-gradient(to bottom, rgba(71, 85, 105, 0.25) 1px, transparent 1px)`,
+            backgroundSize: '20px 20px',
+            transform: 'perspective(500px) rotateX(20deg) scale(1.2)',
+            transformOrigin: 'top center'
+          }}
+        />
+        
+        <div className={`absolute inset-0 ${
+          isDarkMode 
+            ? 'bg-gradient-to-b from-transparent via-[#030712]/50 to-[#030712]' 
+            : 'bg-gradient-to-b from-transparent via-slate-100/50 to-slate-100'
+        }`} />
+      </div>
+
+      <div className="max-w-3xl mx-auto space-y-5 relative z-10">
         
         {/* زر العودة للوحة التحكم */}
         <div className="flex items-center justify-between">
@@ -107,8 +142,8 @@ export default function NotificationsPage() {
         </div>
 
         {/* بطاقة الإشعارات الرئيسية */}
-        <div className={`p-5 sm:p-6 rounded-3xl border shadow-xl ${
-          isDarkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
+        <div className={`p-5 sm:p-6 rounded-3xl border shadow-xl backdrop-blur-md ${
+          isDarkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-slate-200'
         }`}>
           <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-800/40">
             <h1 className="text-base sm:text-lg font-black text-emerald-500 uppercase tracking-wider flex items-center gap-2">
